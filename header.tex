@@ -1,0 +1,10 @@
+\usepackage{needspace}
+\let\oldverbatim\verbatim
+\let\endoldverbatim\endverbatim
+\renewenvironment{verbatim}
+  {\needspace{3\baselineskip}\oldverbatim}
+  {\endoldverbatim}
+
+% For fancyvrb code blocks (if using highlighting)
+\usepackage{fancyvrb}
+\fvset{samepage=true}
