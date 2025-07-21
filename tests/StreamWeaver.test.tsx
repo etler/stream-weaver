@@ -11,4 +11,16 @@ describe("StreamWeaver", () => {
     const result = (await Array.fromAsync(weaver.readable)).join("")
     expect(result).toEqual("<div>Hello World!</div>")
   });
+  it("should nest components", async () => {
+
+  });
+  it("should run async components", async () => {
+
+  });
+  it("should run async components in parallel", async () => {
+
+  });
+  it("should run nested async components in parallel", async () => {
+
+  });
 });
