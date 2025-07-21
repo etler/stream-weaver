@@ -1,9 +1,9 @@
 import { ComponentConductor } from "@/ComponentConductor/ComponentConductor";
 import { ComponentSerializer } from "@/ComponentHtmlSerializer/ComponentSerializer";
-import { Node } from "@/jsx/types/Node";
+import { Element } from "@/jsx/types/Element";
 
 export interface StreamWeaverOptions {
-  rootNode: Node;
+  root: Element | Promise<Element>;
 }
 
 /**
@@ -30,12 +30,12 @@ export interface StreamWeaverOptions {
  */
 export class StreamWeaver {
   public readable: ReadableStream;
-  constructor({ rootNode }: StreamWeaverOptions) {
+  constructor({ root }: StreamWeaverOptions) {
     const conductor = new ComponentConductor();
     const writer = conductor.writable.getWriter();
     this.readable = conductor.readable.pipeThrough(new ComponentSerializer());
     (async () => {
-      await writer.write(rootNode);
+      await writer.write(await root);
       await writer.close();
     })().catch((error: unknown) => {
       console.error(new Error("Error Writing `rootNode` to output stream", { cause: error }));

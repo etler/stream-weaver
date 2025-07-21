@@ -1,3 +1,3 @@
 import { Node } from "./Node";
 
-export type Component = (props: Record<string, unknown>) => Node | Promise<Node>;
+export type Component<Props = unknown> = (props: Props) => Node | Promise<Node>;

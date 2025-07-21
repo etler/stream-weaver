@@ -30,6 +30,9 @@ export function tokenize(node: Node): (Token | ComponentElement)[] {
 }
 
 function propsToAttributes(props: Element["props"]): OpenTagToken["attributes"] {
+  if (typeof props !== "object" || props === null) {
+    return {};
+  }
   return Object.fromEntries(
     Object.entries(props).flatMap<[string, string | null]>(([key, prop]) => {
       try {

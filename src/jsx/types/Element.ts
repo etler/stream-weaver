@@ -2,19 +2,16 @@ import { Node } from "./Node";
 import type { Component } from "./Component";
 import { Fragment } from "../Fragment";
 
-interface BaseElement<Type> {
+interface BaseElement<Type, Props, Children extends Node[]> {
   type: Type;
-  props: Record<string, unknown>;
+  props: Props;
+  children: Children;
 }
 
-interface StaticElement<Type> extends BaseElement<Type> {
-  children: Node[];
-}
+export type IntrinsicElement<Props = unknown> = BaseElement<string, Props, Node[]>;
 
-export type ComponentElement = BaseElement<Component>;
+export type FragmentElement = BaseElement<typeof Fragment, void, Node[]>;
 
-export type IntrinsicElement = StaticElement<string>;
+export type ComponentElement<Props = unknown> = BaseElement<Component<Props>, Props, []>;
 
-export type FragmentElement = StaticElement<typeof Fragment>;
-
-export type Element = ComponentElement | IntrinsicElement | FragmentElement;
+export type Element<Props = unknown> = ComponentElement<Props> | IntrinsicElement<Props> | FragmentElement;

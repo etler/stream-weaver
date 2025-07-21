@@ -7,7 +7,7 @@ export default tseslint.config(
     ignores: ["dist/**", "types/**", "node_modules/**"],
   },
   {
-    files: ["**/*.ts"],
+    files: ["**/*.{ts,tsx}"],
     extends: [
       eslint.configs.recommended,
       tseslint.configs.strictTypeChecked,
@@ -74,6 +74,7 @@ export default tseslint.config(
       "@typescript-eslint/prefer-promise-reject-errors": "error",
       "@typescript-eslint/promise-function-async": "error",
       "@typescript-eslint/require-array-sort-compare": "error",
+      "@typescript-eslint/require-await": "off",
       "@typescript-eslint/strict-boolean-expressions": "error",
       "@typescript-eslint/switch-exhaustiveness-check": ["error", { considerDefaultExhaustiveForUnions: true }],
       "@typescript-eslint/restrict-template-expressions": [

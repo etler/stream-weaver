@@ -9,11 +9,15 @@ describe("TSX Test Setup", () => {
   });
 
   it("should handle JSX with props", () => {
-    const element = <div className="test-class" id="test-id">Content</div>;
+    const element = (
+      <div className="test-class" id="test-id">
+        Content
+      </div>
+    );
 
     expect(element.type).toBe("div");
-    expect(element.props["className"]).toBe("test-class");
-    expect(element.props["id"]).toBe("test-id");
+    expect(element.props).toHaveProperty("className", "test-class");
+    expect(element.props).toHaveProperty("id", "test-id");
     expect(element.children).toEqual(["Content"]);
   });
 
@@ -29,7 +33,7 @@ describe("TSX Test Setup", () => {
     expect(element.children[0]).toEqual({
       type: "span",
       props: {},
-      children: ["Nested"]
+      children: ["Nested"],
     });
   });
 });

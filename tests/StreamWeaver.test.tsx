@@ -1,26 +1,33 @@
 import { StreamWeaver } from "@/index";
-import { Node } from "@/jsx/types/Node";
+import { Component } from "@/jsx/types/Component";
 
 describe("StreamWeaver", () => {
-  it("should return html", async () => {
-    const TestComponent = () => {
-      return <div>Hello World!</div>
-    }
-    const rootNode: Node = <TestComponent></TestComponent>;
-    const weaver = new StreamWeaver({ rootNode });
-    const result = (await Array.fromAsync(weaver.readable)).join("")
-    expect(result).toEqual("<div>Hello World!</div>")
+  it("should render a component", async () => {
+    const TestComponent: Component = () => {
+      return <div>Hello World!</div>;
+    };
+    const root = <TestComponent></TestComponent>;
+    const weaver = new StreamWeaver({ root });
+    const result = (await Array.fromAsync(weaver.readable)).join("");
+    expect(result).toEqual("<div>Hello World!</div>");
   });
-  it("should nest components", async () => {
-
+  it("should render nested components", async () => {
+    await wait(0);
   });
-  it("should run async components", async () => {
-
+  it("should render an async component", async () => {
+    await wait(0);
   });
-  it("should run async components in parallel", async () => {
-
+  it("should render async components in sequence and in parallel", async () => {
+    await wait(0);
   });
-  it("should run nested async components in parallel", async () => {
-
+  it("should render nested async components in sequence and in parallel", async () => {
+    await wait(0);
   });
 });
+
+const wait = async (timeout: number) =>
+  new Promise((resolve) =>
+    setTimeout(() => {
+      resolve(undefined);
+    }, timeout),
+  );
