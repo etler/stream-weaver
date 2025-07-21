@@ -310,24 +310,3 @@ The chain can simply focus on conducting the plan and the plan can be developed 
 * Sam Thorogood, ["Async Generators for User Input"](https://samthor.au/2020/async-generators-input/), April 2020 Blog.<br/>
   Retrieved July 18, 2025 from https://samthor.au/2020/async-generators-input/
   * An implementation of an async event generator with an unresolved tail promise and an internal queue while researching prior art to check if the pattern had been implemented prior. While this pattern uses unresolved tail promises generated after enqueuing, it does not implement an iterator chain of iterators.
-
-### Progression of realizations
-* This enables parallel AI streaming
-* When is AI streaming strictly necessary?
-* In real time UIs
-* AIs can build UIs reliably with granular prompts
-* This enables reliable AI generated UI
-* You can mix in traditional UI with AI UI
-* What does this enable if we use it for all UI?
-* This basically solves the streaming server component problem
-* This basically enables an entire streaming rending framework
-* This removes the separation between client and servers
-* This also potentially enables streaming sequential commands for any data type needed by the framework
-* This enables streaming sequential commands for anything, solving parallel coordination complexity
-
-### Memory Note: Personal Context
-For posterity I am storing this note of my personal experience writing this paper to be preserved in the git history
-
-* I created AsyncIterableSequencer in an afternoon on July 13th, 2025
-* I came up with this full outline in the following week from start to end realization
-* I had to deal with DD on top of this
