@@ -1,8 +1,8 @@
 import { chunkify } from "@/ComponentConductor/chunkify";
 import { tokenize } from "@/ComponentConductor/tokenize";
-import { Node } from "@/ComponentConductor/types/Node";
 import { Token } from "@/ComponentConductor/types/Token";
 import { ConductorStream } from "@/lib/ConductorStream";
+import { Node } from "@/jsx/types/Node";
 
 export class ComponentConductor extends ConductorStream<Node, Token> {
   constructor() {
@@ -17,8 +17,8 @@ export class ComponentConductor extends ConductorStream<Node, Token> {
             const writer = conductor.writable.getWriter();
             chain(conductor.readable);
             (async () => {
-              const { type, props, children } = chunk;
-              const node = await type({ ...props, children });
+              const { type, props } = chunk;
+              const node = await type(props);
               await writer.write(node);
               await writer.close();
             })().catch((error: unknown) => {

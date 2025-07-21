@@ -1,6 +1,6 @@
 import { ComponentConductor } from "@/ComponentConductor/ComponentConductor";
-import { Node } from "@/ComponentConductor/types/Node";
 import { ComponentSerializer } from "@/ComponentHtmlSerializer/ComponentSerializer";
+import { Node } from "@/jsx/types/Node";
 
 export interface StreamWeaverOptions {
   rootNode: Node;

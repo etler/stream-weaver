@@ -1,6 +1,6 @@
-import { Chunk } from "@/ComponentConductor/types/Chunk";
-import { ComponentElement } from "@/ComponentConductor/types/Element";
-import { Token } from "@/ComponentConductor/types/Token";
+import { ComponentElement } from "@/jsx/types/Element";
+import { Chunk } from "./types/Chunk";
+import { Token } from "./types/Token";
 
 type ChunkItem = Chunk | ComponentElement;
 

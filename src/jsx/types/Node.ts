@@ -1,4 +1,4 @@
-import type { Element } from "@/ComponentConductor/types/Element";
+import type { Element } from "./Element";
 
 export type Node =
   | Node[]

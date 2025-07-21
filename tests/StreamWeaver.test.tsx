@@ -1,10 +1,14 @@
 import { StreamWeaver } from "@/index";
-import { Node } from "@/ComponentConductor/types/Node";
+import { Node } from "@/jsx/types/Node";
 
 describe("StreamWeaver", () => {
-  it("should instantiate a StreamWeaver", () => {
-    const rootNode: Node = { type: 'div', props: {}, children: [] };
+  it("should return html", async () => {
+    const TestComponent = () => {
+      return <div>Hello World!</div>
+    }
+    const rootNode: Node = <TestComponent></TestComponent>;
     const weaver = new StreamWeaver({ rootNode });
-    expect(weaver).toBeDefined();
+    const result = (await Array.fromAsync(weaver.readable)).join("")
+    expect(result).toEqual("<div>Hello World!</div>")
   });
 });

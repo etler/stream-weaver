@@ -1,22 +1,22 @@
-import { Fragment } from "@/ComponentConductor/Fragment";
-import { ComponentElement, Element } from "@/ComponentConductor/types/Element";
-import { Node } from "@/ComponentConductor/types/Node";
-import { OpenTagToken, Token } from "@/ComponentConductor/types/Token";
+import { Fragment } from "@/jsx/Fragment";
+import { ComponentElement, Element } from "@/jsx/types/Element";
+import { Node } from "@/jsx/types/Node";
+import { OpenTagToken, Token } from "./types/Token";
 
 export function tokenize(node: Node): (Token | ComponentElement)[] {
   if (node !== null && typeof node === "object" && "type" in node) {
-    const { type, props, children } = node;
-    if (typeof type === "string") {
+    if (typeof node.type === "string") {
+      const { type, props, children } = node;
       return [
         { kind: "open", tag: type, attributes: propsToAttributes(props) },
         ...children.flatMap(tokenize),
         { kind: "close", tag: type },
       ];
-    } else if (type === Fragment) {
+    } else if (node.type === Fragment) {
+      const { children } = node;
       return [...children.flatMap(tokenize)];
-    }
-    {
-      return [{ type, props, children }];
+    } else {
+      return [node];
     }
   }
   switch (typeof node) {

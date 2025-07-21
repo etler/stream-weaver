@@ -8,6 +8,7 @@
     "esModuleInterop": true,
     "isolatedModules": true,
     "jsx": "react-jsx",
+    "jsxImportSource": "@/jsx",
     "lib": ["ESNext", "DOM.AsyncIterable"],
     "module": "preserve",
     "moduleResolution": "bundler",

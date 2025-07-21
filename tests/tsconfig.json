@@ -5,7 +5,6 @@
     "types": ["vitest/globals"],
     "noEmit": true,
     "jsx": "react-jsx",
-    "jsxImportSource": "react",
     "paths": {
       "@/*": ["../src/*"]
     }
