@@ -4,10 +4,12 @@
     "baseUrl": "./",
     "types": ["vitest/globals"],
     "noEmit": true,
+    "jsx": "react-jsx",
+    "jsxImportSource": "react",
     "paths": {
       "@/*": ["../src/*"]
     }
   },
-  "include": ["**/*.ts"],
+  "include": ["**/*.ts", "**/*.tsx"],
   "exclude": []
 }

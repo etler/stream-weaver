@@ -26,10 +26,11 @@
     "fix": "npx eslint --fix",
     "paper": "mkdir -p dist && pandoc -s -r markdown-auto_identifiers --include-in-header=header.tex -o dist/main.tex ./TECHNICAL.md"
   },
-  "dependencies": {},
   "devDependencies": {
-    "@types/node": "^24.0.6",
     "@eslint/js": "^9.21.0",
+    "@types/node": "^24.0.6",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
     "eslint": "~9.21.0",
     "eslint-config-prettier": "^10.1.5",
     "eslint-plugin-prettier": "~5.2.3",
@@ -38,6 +39,7 @@
     "husky": "~9.1.7",
     "lint-staged": "~15.4.3",
     "prettier": "~3.5.2",
+    "react": "^19.1.0",
     "ts-patch": "~3.3.0",
     "typescript": "~5.7.3",
     "typescript-eslint": "^8.25.0",
