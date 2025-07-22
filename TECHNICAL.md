@@ -273,6 +273,14 @@ AI Models may be tailored to the task that best suit their performance character
 
 A Weaver framework does not have to choose between employing components, or AI, or any other kind of content. AI and traditional rendering can be combined to enable a best of both words solution and providing powerful deep integration of AI generated content and AI orchestrated content rendering by swapping between having agents choose what directives to produce and mixing the recursive composition with both AI and traditional rendering, removing any boundaries between AI generated content and traditionally rendered content and client managed AI streams and framework rendered components and server rendered content.
 
+#### Meta Prompting
+
+By being able to compose stream responses, you could use a top level prompt template to employ sub agents to perform subtasks within a prompt to provide meta data to the master prompt. You could employ focused and targeted sub prompts to generate compliance data to inform the master prompt. For example, you could have sub agents generate template information to inform the master agent whether or not a user query is asking for information about a prohibited subject for legal compliance adherence.
+
+This could be done with standard pre-compute parallel calls, before the master prompt is sent to the LLM for completion, however, by constructing the prompt in a streaming method, the streamed generated content could begin streaming to the LLM provider server before it is finished, cutting back on server interchange time as the initial request to the subsequent LLM call will already be partially streamed.
+
+This added efficiency would allow seamlessly chaining meta prompt generation for LLM content that requires blocking content to be added to the context window, reducing the overhead time of multiple round trips.
+
 ## Further Considerations
 
 ### Stack Trace Conductors
