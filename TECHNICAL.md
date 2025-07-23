@@ -1,6 +1,6 @@
 # Stream Weaver: Technical Specification
 
-## A Unified Isomorphic Natively Streaming UI Framework
+## A Recursive Parallel Streaming Framework
 
 ## Executive Summary
 
@@ -137,7 +137,11 @@ export class ConductorStream<I, O> {
 
 <small>[Implementation with tests: https://github.com/etler/conductor-stream](https://github.com/etler/conductor-stream)</small>
 
-Using a conductor stream we can produce a framework which we will define as a **Stream Weaver**. A weaver can expose a simplified abstraction framework around conductor streams to enable easier to implement design patterns for business logic. One such framework could be a component based framework that implements a custom `jsx` factory function that outputs element tags onto an underlying component scoped conductor stream as well as Child Components. Child component `jsx` calls can return an additional conductor stream to enable recursively chaining conductor streams to an arbitrary depth with the low level sequencer ensuring flattened and sequential output.
+Using a conductor stream we can produce a framework which we will define as a **Stream Weaver**. A weaver can expose a simplified abstraction framework around conductor streams to enable easier to implement design patterns for business logic.
+
+## A Unified Isomorphic Natively Streaming UI Framework
+
+One such framework could be a component based framework that implements a custom `jsx` factory function that outputs element tags onto an underlying component scoped conductor stream as well as Child Components. Child component `jsx` calls can return an additional conductor stream to enable recursively chaining conductor streams to an arbitrary depth with the low level sequencer ensuring flattened and sequential output.
 
 As the child component chains are also streams, this enables the parent component to continue to process the subsequent element tags and also enqueue them onto the iterator chain. Furthermore the parent component is unblocked to continue processing additional Child Component it encounters and chain those conductor streams as well. As the child components are returning streams, this allows the parent process to complete its execution without blocking while also allowing the child component streams to process in parallel allowing fully parallelized asyncronous processing of all components at any level of arbitrary depth.
 
