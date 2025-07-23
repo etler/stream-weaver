@@ -4,7 +4,7 @@
 
 ## Executive Summary
 
-Weaver is a novel streaming architecture that enables sequence order-preserving parallel streaming component rendering with minimal performance overhead allowing frameworks to capitalize on the latent efficiency provided by asynchronous parallel streams. It solves low level problems in current streaming frameworks by flattening async generators with an unresolved tail promise enabling unbounded async iterator chains that can be attached in real time, eliminating the need for complex stream and component orchestration while maintaining full parallelism.
+Weaver is a novel streaming architecture that enables sequence order-preserving parallel streaming component rendering with minimal performance overhead allowing frameworks to capitalize on the latent efficiency provided by asynchronous parallel streams. It solves low level problems in current streaming frameworks by flattening async generators with an unresolved tail promise enabling unbounded async iterator chains that can be attached in real time, eliminating the need for complex stream and component orchestration while maintaining full parallelism. This approach provides primitives for solving complexity and coordination to allow for better utilization of the latent efficiency of underlying streams.
 
 ## Problem Statement
 
