@@ -139,121 +139,31 @@ export class ConductorStream<I, O> {
 
 Using a conductor stream we can produce a framework which we will define as a **Stream Weaver**. A weaver can expose a simplified abstraction framework around conductor streams to enable easier to implement design patterns for business logic.
 
-## A Unified Isomorphic Natively Streaming UI Framework
+## Ordered Consumption of Parallel Production
 
-One such framework could be a component based framework that implements a custom `jsx` factory function that outputs element tags onto an underlying component scoped conductor stream as well as Child Components. Child component `jsx` calls can return an additional conductor stream to enable recursively chaining conductor streams to an arbitrary depth with the low level sequencer ensuring flattened and sequential output.
+The core problem the Stream Weaver Framework solves is allowing for ordered consumption of parallel production. In many pipeline problems it is necessary to consume data sequentially when the sequence of the data is required for the usage of the data, while the production of the data still has the potential to be generated in parallel.
 
-As the child component chains are also streams, this enables the parent component to continue to process the subsequent element tags and also enqueue them onto the iterator chain. Furthermore the parent component is unblocked to continue processing additional Child Component it encounters and chain those conductor streams as well. As the child components are returning streams, this allows the parent process to complete its execution without blocking while also allowing the child component streams to process in parallel allowing fully parallelized asyncronous processing of all components at any level of arbitrary depth.
+All computer media requires some level of data ordering to give meaning to the content they provide. Here we define **Media** in the broad sense of a MIME media type to include any container that gives semantic meaning to the content they contain and describe. This would include binary executables and scripts as well as consume only media.
 
-### Patterns
+Computer media is composed of semantic units of data that can be parsed and processed as individual chunks without requiring the full context of the full media container. These semantic units provide the opportunity to be produced in parallel, however their consumption must still happen in order for the containing media to retain its full semantic meaning. In most cases, the full media context is not required to produce a semantic data chunk and a subset of the greater context can be used to successfully produce a particular part of the greater media.
 
-#### Asyncronous Data Lookups
-
-As the streams are asyncronous, they can await on external data sources they can use to populate rendered output. This has the caveat that any non streaming asyncronous requests would block the sequential output stream if the output stream has caught up with its output. In the case of local in cluster data lookups, this blocking time would be minimal in practice, only adding milliseconds of latency in most practical cases. However this blocking time could be significant if it is blocking on an out of cluster network request and incur external network latency. These cases could be mitigated however by skipping over those components and resolving them through another method.
-
-#### Fallback Component Conductors
-
-As the underlying async iterator chain returns promises on the iterator output, this allows us to use promise patterns to orchestrate the stream. In order to prevent unecessarily long blocking of the sequential chain output during non streaming pre-processing steps such as a database call, a race promise can be used to prevent any component from taking an overly long time even if it blocks on a lengthy external subroutine. The fallback promise winning the race could then produce unblocking fallback component content that can be used to resolve the fallback component back to the completed output at a later point.
-
-When a child component loses the race it could then be enqueued onto a top level sequencer that is wraps the main content chain as tail content allowing the losing component stream to be resolved at the end of the stream after all other components have finished. Once the client receives the losing streams, they can be resolved in place of the fallback components.
-
-#### Error Components
-
-When a component encounters an error, instead of terminating the full stream, the component stream could be wrapped with a promise with a catch handler that returns an error fallback component. This would cause those components to be blocked until they are completed, however, it would not be possible to remove any partial content that was already streamed from a component that errors afterwards. With proper granularity the unblocked recursive component parallism would still produce efficiency gains.
-
-It would be possible to apply component boundary markers around component streams to denote error boundaries that would to allow a client to recover in the event that the component stream content produces an error by rolling back the streamed changes to the previously encountered error boundary.
-
-#### Seamless Client and Server Integration
-
-As this all works over streams, there is no longer a barrier between client and serverside rendering. This approach enables all component interchange to work in an identical fashion, as a network call is simply a high latency stream. Streams can work identally whether run within a single execution context or done across any higher level interface providing a fully isomorphic architecture.
-
-## Cross Execution Context Conductor Orchestration
-
-Complex applications require coordination across multiple execution contexts such as server to client communication as well as other execution context barriers. Conductor output can be serialized at stream boundaries to bridge cross context gaps, and deserialized in the target execution context to extend the pattern to multi system contexts. As these cross context transports are also streams, they can also be consumed and chained onto Conductors managed by Weavers.
-
-### Hydration
-
-In the context of server to client communication, Server Weavers generate a virtual representation that can be transformed into serialized representations based on their content container format. On clients, pre-established deserialization routines can use these serialized streams to establish a Client Weaver context. Specifically for browsers, the browser already natively implements a deserialization routine for HTML and as script tags allow for arbitrary code execution, they can be used to establish Client Weaver contexts. Alternative deserialization methods may be used to enable hydration in any execution context enabling any system to act as a client including other servers.
-
-On a browser, the initial raw HTML render stream is consumed by the browser to enable immediate rendering of server rendered components. The HTML render stream can also stream in `<script>` tags to allow browser clients to establish the client side execution context to initialize hydration, bundle resolution and fallback component reconciliation.
-
-#### Server Weaver Execution Context
-The Server Renderer Stream Weaver is responsible for rendering Virtual Component representations and establishing Client Weaver execution context initialization and any other execution context routines that may be desired. It should be noted that while a Client Weaver in most cases will be a Browser, this is not strictly the case and virtual representations of the various conductor outputs may be made generic enough so it could be serialized to establish context in any form of Client including other Servers.
-
-* Hydration Conductor (Chains Hydration Representation)
-* Component Conductor (Isomorphic Virtual Component Representation)
-* Fallback Component Conductor (Chains Fallback Components)
-* Bundle Conductor (Establishes Bundle Resolution for Code Module and Asset Bundles)
-
-#### Server Output Stream Browser Serializer
-In the case of a Brower Client, Browser specific serializers can be used to transform the virtual stream representations into serialized HTML that can be natively deserialized by a Browser. To establish the site wrapper and execution context, Hydration representations can be serialized into `<html>`, `<head>`, `<body>`, and `<script>` tags with the script tags used to initialize the execution context of a Client Weaver. Virtual Components can be serialized into standard HTML and streamed in natively and rendered immediately. At the end of the HTML component content, subsequent script tags can be serialized to perform additional specific tasks such as fallback reconciliation and asset bundle resolution.
-
-* Hydration Stream HTML Serializer (Conversion to HTML Wrapper Context and Script and Metadata Tag Management)
-* Component Stream HTML Serializer (Conversion to HTML)
-* Fallback Component Stream HTML Serializer (Conversion to HTML)
-* Bundle Representation HTML Serializer (Converts to HTML Script Tags and Loading Strategies)
-
-#### Browser Stream Deserializer
-Browser Stream Deserialization is actually simply standard browser HTML stream parsing and rendering and no special implementation is needed (or possible). The serialized content from the Server Weaver Serialization comes in the form of HTML tags, and hydration, reconciliation, and bundling is performed via the execution of serialized script tags from the Server serialization stream.
-
-* Browser HTML Deserialization (Natively parsed by the Browser and Displayed Immediately)
-* Hydration Stream Content Script Deserialization (Establishes Weaver Script Execution Context and Primary Conductor)
-* Fallback Component Script Deserialization (Chains Reconciliation Conductors onto the Weaver Conductor)
-* Bundle Script Deserialization (Chains Bundle Representations onto the Weaver Conductor to Ensure Dependency Execution Context Availability)
-
-#### Browser Client Weaver Execution Context
-After the Browser Client Weaver is initialized and has established the primary Conductor and processed the Hydration Conduction setup, it can stablize into an event loop, leaving an Interaction Conductor permanently unclosed at the end of the conductor chain to accept and evaluate DOM interaction events. These events can be transformed to trigger additional conductors to perform State, Component, and Lifecycle stream  to update the application state and DOM state, and trigger any component lifecycle events needed. As the Interaction Conductor is conducting conductors onto the consumptions side of iteration, it can leave itself unclosed to continue to chain user events for evaluation as soon as the chained conductors have finished evaluation.
-
-* Interaction Conductor (Unresolved Tail Conductor That Evaluates Chained Interation Events to Conducts State Conductors Onto the Consumption Stream while remaining unclosed at the end of the chain)
-* State Conductor (State Action Reducer That Updates Application State and Chains Subscribed Component Conductors)
-* Component Conductors (Isomorphic Virtual Component Representation that Renders a Component and triggers a Lifecycle Conductor)
-* Component Stream DOM Serializer (Conversion to DOM instance)
-* Bundle Conductor (Realtime Bundle Resolution when needed)
-* Lifecycle Conductor (Triggers component hydration, mounting, painting, and other lifecycle events)
-* Reconciliation Conductor (Reconciles Fallback Components with rendered delayed components)
-
-#### Client Output Stream Serializer
-As the client weaver also produces a consumption stream, that consumption stream can also be consumed elsewhere. The stream could be written back to a server for seamless state syncronization and server database update pipelines with another serialization stream to be consumed by ther server.
-
-* Event Stream Serializer (Conversion of Events to JSON or other Message Format for Consumption by a Remote Consumer)
-
-#### Server Input Stream Deserializer
-* Event Stream Deserializer (Conversion of Event JSON to Events)
-* Event Conductor (Conducts Actions Based on Events)
-* Event Transaction Serializer (Execution of Events into Transactions such as Persistent Storage)
-
-### Session Weaver Execution Context
-An ongoing session weaver can be recieve serialized server stream updates with a Message Conductor to push serverside messaging events to established client weaver Message Conductor Stream connections to provide real time updates.
-
-* Messaging Conductor (Conducts Messages based on actions triggered from an external source)
-* Messaging Serializer (Converts Messages to JSON or other Message Format for Consumption by a Remote Client Consumer)
-* Messaging Deserializer (Recieves Messages on the Client from the Session Weaver and Conducts them as Events on the Event Tail Chain)
-
-### Merging Parallel Conductor Chains
-
-Parallel Conductor Chains could be consumed using a Merge Stream to enable specialized conductors with independent concerns to open multiple open chains to process different kinds of data at the same time. This enables fore-planning for different kinds of decoupled operations that can be combined at the merge point. This could be used to enable multiple modes of input, for example you can maintain an open Interaction Conductor for UI Events while also maintaining a Fallback Conductor to pull slow component renders out of the main stream, as well as a Message Conductor to communicate with a remote Server Session Weaver to receive asyncronous server side push messages.
-
-## Syncronous Consumption of Parallel Streams
-
-Streamed Components are still components they essentially fallback to being a standard asyncronous component allowing existing patterns to still work, however, maybe we can do better?
-
-With a natively streaming first framework architecture, it potentially opens up the opportunity to also apply additional streaming patterns to other areas as well, as guaranteed sequential stream order allows the necessary stream dependencies to be resolved in the proper order.
-
-### Guaranteed Consumption Order
-
-You can essentialy treat the iterator chain as an execution queue, ensuring execution order of blocking commands. The render conductor can chain to a component lifecycle conductor which chains to a an UI event stream interaction conductor which chains to a state conductor which chains back to a lifecycle conductor which can chain additional render streams and so forth. Placeholder conductors can be chained for execution even if they don't get used, allowing you to chain any amount of interaction conductors at points in the plan where they are valid for consumption, and new UI events can be chained onto the last interaction conductor on the stream.
-
-You are basically writing out a plan in real time and letting execution order happen at consumption time letting you write out the plan in parallel and at multiple depth levels.
+Weaver frameworks enable decentralized orchestration of parallel media production while allowing sequence dependent semantic units to be consumed in their required order. As each conductor in the chain does not require knowledge of its position in the chain to discover and allocate new work in the chain, no central orchestration of each producer in the chain is necessarily needed to process a data stream while allowing the processing to occur in parallel. No active central orchestration is needed for consumption of the stream as each chain in the stream maintains its own order and no external mechanism is required to maintain the ordering of the chain.
 
 ### Enabling Asyncronous Stream Planning in Syncronous Patterns
 
-Since streams can be chained to the sequencer in any execution context at any time, weavers can implement synchronous handlers that allow business logic to be written using familiar procedural code. This is actually preferable as it produces more predictable plan construction when chaining additional streams. Business logic developers implementing code in synchronous handlers need not be exposed to the underlying streaming implementation details and can be given wrapper objects that encapsulate the business logic domain from the orchestration tier.
+As streams can be chained to the sequencer in any execution context at any time, Weavers can implement synchronous handlers that allow business logic to be written using familiar procedural code. This is actually preferable as it produces more predictable plan construction when chaining additional streams. Business logic developers implementing code in synchronous handlers do not need to be exposed to the underlying streaming implementation details and can be given wrapper objects that encapsulate the business logic domain from the orchestration tier.
 
 This approach inverts the typical streaming framework pattern where developers must learn complex async coordination patterns. Instead, advanced streaming capabilities are provided transparently while developers work with predictable, synchronous interfaces.
 
-## Parallel Recursive Agent Swarms
+### Parallel Recursive Work Planning
 
-The same patterns can be used to enable parallel and recursive execution of non context generating streaming sub agents. The common current approach to enable streaming agents to spawn sub agents to perform a more specific task is to use a blocking tool call to introduce new content into the output stream. While the tool call can still be streamed in, it would still block the main agent from generating additional content. In the case that the generated sub agent content is needed in the parent agent context window, this is a necessity. However, there are many instances where the parent agent does not need the context from a sub agent's execution.
+As Conductors are streams themselves, Conductors within a Weaver Framework can chain other conductors allowing for recursive injection of newly discovered work from the input stream onto the consumption chain by chaining other conductors. It should be noted that recursion is referring to the self referential nature of the code structure, and the iterator delegation of the Async Iterator Sequencers produce a flattened call stack. As these streams are all ultimately flattened, any discovered work is still able to execute in parallel even within a recursive code context.
+
+This behavior allows you to essentialy treat the iterator chain as an injectable execution queue, ensuring blocking execution order when consumed while allowing unblocked execution order during production. Simply, you are writing out a distributed plan in real time and consuming the output of the plan in order, waiting for results any time you reach a step that has not yet been completed by its worker. This allows you to write out the plan that can get executed in parallel at multiple depth levels of injection.
+
+## Example: Parallel Recursive Agent Swarms
+
+When applied to AI Agents, this pattern can be used to enable parallel and recursive execution of non context generating streaming sub agents. The common current approach to enable streaming agents to spawn sub agents to perform a more specific task is to use a blocking tool call to introduce new content into the output stream. While the tool call can still be streamed in, it would still block the main agent from generating additional content. In the case that the generated sub agent content is needed in the parent agent context window, this is a necessity. However, there are many instances where the parent agent does not need the context from a sub agent's execution.
 
 In those cases the sequential parallel streams enabled by the relay pattern can allow a main agent to spawn a child section sub agent to generate new content while the parent agent continues to generate additional content and spawn additional child agents. As this can be done recursively, this allows for massively parallelized agent swarms to simultaneously generate content at multiple levels of context and specificity at the same time.
 
@@ -285,6 +195,102 @@ This could be done with standard pre-compute parallel calls, before the master p
 
 This added efficiency would allow seamlessly chaining meta prompt generation for LLM content that requires blocking content to be added to the context window, reducing the overhead time of multiple round trips.
 
+## Example: A Unified Isomorphic Natively Streaming UI Framework
+
+Complex applications require coordination across multiple execution contexts such as server to client communication as well as other execution context barriers. Conductor output can be serialized at stream boundaries to bridge cross context gaps, and deserialized in the target execution context to extend the pattern to multi system contexts. As these cross context transports are also streams, they can also be consumed and chained onto Conductors managed by Weavers.
+
+One such framework could be a component based server/client framework that implements a custom `jsx` factory function that outputs element tags onto an underlying component scoped conductor stream as well as Child Components. Child component `jsx` calls can return an additional conductor stream to enable recursively chaining conductor streams to an arbitrary depth with the low level sequencer ensuring flattened and sequential output.
+
+As the child component chains are also streams, this enables the parent component to continue to process the subsequent element tags and also enqueue them onto the iterator chain. Furthermore the parent component is unblocked to continue processing additional Child Component it encounters and chain those conductor streams as well. As the child components are returning streams, this allows the parent process to complete its execution without blocking while also allowing the child component streams to process in parallel allowing fully parallelized asyncronous processing of all components at any level of arbitrary depth.
+
+### Seamless Client and Server Integration
+
+As this all works over streams, there is no longer a barrier between client and serverside rendering. This approach enables all component interchange to work in an identical fashion, as a network call is simply a high latency stream. Streams can work identally whether run within a single execution context or done across any higher level interface providing a fully isomorphic architecture.
+
+### Hydration
+
+In the context of server to client communication, Server Weavers generate a virtual representation that can be transformed into serialized representations based on their content container format. On clients, pre-established deserialization routines can use these serialized streams to establish a Client Weaver context. Specifically for browsers, the browser already natively implements a deserialization routine for HTML and as script tags allow for arbitrary code execution, they can be used to establish Client Weaver contexts. Alternative deserialization methods may be used to enable hydration in any execution context enabling any system to act as a client including other servers.
+
+On a browser, the initial raw HTML render stream is consumed by the browser to enable immediate rendering of server rendered components. The HTML render stream can also stream in `<script>` tags to allow browser clients to establish the client side execution context to initialize hydration, bundle resolution and fallback component reconciliation.
+
+### Server Weaver Execution Context
+The Server Renderer Stream Weaver is responsible for rendering Virtual Component representations and establishing Client Weaver execution context initialization and any other execution context routines that may be desired. It should be noted that while a Client Weaver in most cases will be a Browser, this is not strictly the case and virtual representations of the various conductor outputs may be made generic enough so it could be serialized to establish context in any form of Client including other Servers.
+
+* Hydration Conductor (Chains Hydration Representation)
+* Component Conductor (Isomorphic Virtual Component Representation)
+* Fallback Component Conductor (Chains Fallback Components)
+* Bundle Conductor (Establishes Bundle Resolution for Code Module and Asset Bundles)
+
+### Server Output Stream Browser Serializer
+In the case of a Brower Client, Browser specific serializers can be used to transform the virtual stream representations into serialized HTML that can be natively deserialized by a Browser. To establish the site wrapper and execution context, Hydration representations can be serialized into `<html>`, `<head>`, `<body>`, and `<script>` tags with the script tags used to initialize the execution context of a Client Weaver. Virtual Components can be serialized into standard HTML and streamed in natively and rendered immediately. At the end of the HTML component content, subsequent script tags can be serialized to perform additional specific tasks such as fallback reconciliation and asset bundle resolution.
+
+* Hydration Stream HTML Serializer (Conversion to HTML Wrapper Context and Script and Metadata Tag Management)
+* Component Stream HTML Serializer (Conversion to HTML)
+* Fallback Component Stream HTML Serializer (Conversion to HTML)
+* Bundle Representation HTML Serializer (Converts to HTML Script Tags and Loading Strategies)
+
+### Browser Stream Deserializer
+Browser Stream Deserialization is actually simply standard browser HTML stream parsing and rendering and no special implementation is needed (or possible). The serialized content from the Server Weaver Serialization comes in the form of HTML tags, and hydration, reconciliation, and bundling is performed via the execution of serialized script tags from the Server serialization stream.
+
+* Browser HTML Deserialization (Natively parsed by the Browser and Displayed Immediately)
+* Hydration Stream Content Script Deserialization (Establishes Weaver Script Execution Context and Primary Conductor)
+* Fallback Component Script Deserialization (Chains Reconciliation Conductors onto the Weaver Conductor)
+* Bundle Script Deserialization (Chains Bundle Representations onto the Weaver Conductor to Ensure Dependency Execution Context Availability)
+
+### Client Weaver Execution Context
+After the Browser Client Weaver is initialized and has established the primary Conductor and processed the Hydration Conduction setup, it can stablize into an event loop, leaving an Interaction Conductor permanently unclosed at the end of the conductor chain to accept and evaluate DOM interaction events. These events can be transformed to trigger additional conductors to perform State, Component, and Lifecycle stream  to update the application state and DOM state, and trigger any component lifecycle events needed. As the Interaction Conductor is conducting conductors onto the consumptions side of iteration, it can leave itself unclosed to continue to chain user events for evaluation as soon as the chained conductors have finished evaluation.
+
+* Interaction Conductor (Unresolved Tail Conductor That Evaluates Chained Interation Events to Conducts State Conductors Onto the Consumption Stream while remaining unclosed at the end of the chain)
+* State Conductor (State Action Reducer That Updates Application State and Chains Subscribed Component Conductors)
+* Component Conductors (Isomorphic Virtual Component Representation that Renders a Component and triggers a Lifecycle Conductor)
+* Component Stream DOM Serializer (Conversion to DOM instance)
+* Bundle Conductor (Realtime Bundle Resolution when needed)
+* Lifecycle Conductor (Triggers component hydration, mounting, painting, and other lifecycle events)
+* Reconciliation Conductor (Reconciles Fallback Components with rendered delayed components)
+
+### Client Output Stream Serializer
+As the client weaver also produces a consumption stream, that consumption stream can also be consumed elsewhere. The stream could be written back to a server for seamless state syncronization and server database update pipelines with another serialization stream to be consumed by ther server.
+
+* Event Stream Serializer (Conversion of Events to JSON or other Message Format for Consumption by a Remote Consumer)
+
+### Server Input Stream Deserializer
+* Event Stream Deserializer (Conversion of Event JSON to Events)
+* Event Conductor (Conducts Actions Based on Events)
+* Event Transaction Serializer (Execution of Events into Transactions such as Persistent Storage)
+
+### Session Weaver Execution Context
+An ongoing session weaver can be recieve serialized server stream updates with a Message Conductor to push serverside messaging events to established client weaver Message Conductor Stream connections to provide real time updates.
+
+* Messaging Conductor (Conducts Messages based on actions triggered from an external source)
+* Messaging Serializer (Converts Messages to JSON or other Message Format for Consumption by a Remote Client Consumer)
+* Messaging Deserializer (Recieves Messages on the Client from the Session Weaver and Conducts them as Events on the Event Tail Chain)
+
+### Patterns
+
+#### Asyncronous Data Lookups
+
+As the streams are asyncronous, they can await on external data sources they can use to populate rendered output. This has the caveat that any non streaming asyncronous requests would block the sequential output stream if the output stream has caught up with its output. In the case of local in cluster data lookups, this blocking time would be minimal in practice, only adding milliseconds of latency in most practical cases. However this blocking time could be significant if it is blocking on an out of cluster network request and incur external network latency. These cases could be mitigated however by skipping over those components and resolving them through another method.
+
+#### Fallback Component Conductors
+
+As the underlying async iterator chain returns promises on the iterator output, this allows us to use promise patterns to orchestrate the stream. In order to prevent unecessarily long blocking of the sequential chain output during non streaming pre-processing steps such as a database call, a race promise can be used to prevent any component from taking an overly long time even if it blocks on a lengthy external subroutine. The fallback promise winning the race could then produce unblocking fallback component content that can be used to resolve the fallback component back to the completed output at a later point.
+
+When a child component loses the race it could then be enqueued onto a top level sequencer that is wraps the main content chain as tail content allowing the losing component stream to be resolved at the end of the stream after all other components have finished. Once the client receives the losing streams, they can be resolved in place of the fallback components.
+
+#### Error Components
+
+When a component encounters an error, instead of terminating the full stream, the component stream could be wrapped with a promise with a catch handler that returns an error fallback component. This would cause those components to be blocked until they are completed, however, it would not be possible to remove any partial content that was already streamed from a component that errors afterwards. With proper granularity the unblocked recursive component parallism would still produce efficiency gains.
+
+It would be possible to apply component boundary markers around component streams to denote error boundaries that would to allow a client to recover in the event that the component stream content produces an error by rolling back the streamed changes to the previously encountered error boundary.
+
+### Merging Parallel Conductor Chains
+
+Parallel Conductor Chains could be consumed using a Merge Stream to enable specialized conductors with independent concerns to open multiple open chains to process different kinds of data at the same time. This enables fore-planning for different kinds of decoupled operations that can be combined at the merge point. This could be used to enable multiple modes of input, for example you can maintain an open Interaction Conductor for UI Events while also maintaining a Fallback Conductor to pull slow component renders out of the main stream, as well as a Message Conductor to communicate with a remote Server Session Weaver to receive asyncronous server side push messages.
+
+#### Placeholder Conductors
+
+The render conductor can chain to a component lifecycle conductor which chains to a an UI event stream interaction conductor which chains to a state conductor which chains back to a lifecycle conductor which can chain additional render streams and so forth. Placeholder conductors can be chained for execution even if they don't get used, allowing you to chain any amount of interaction conductors at points in the plan where they are valid for consumption, and new UI events can be chained onto the last interaction conductor on the stream.
+
 ## Further Considerations
 
 ### Stack Trace Conductors
@@ -308,6 +314,18 @@ It should be re-iterated, that any consumption side blocking would not prevent p
 This could be achieved by distinguishing between components that should first paint block and components that should always produce a suspense. This could simply be denoted by having async components default to being paint blocking while suspense components always get enqueued after the HTML paint stream in a deterministic order. Fast components such as in cluster db data dependent components could be treated as paint blocking as they are fast, while any network blocking components could be denoted as non blocking.
 
 To balance determinism with performance flexibility, it would be possible to split the suspense component stream into a second stream that is established after client Weaver initialization to be processed in parallel, allowing that secondary stream to provide non-deterministic ordering for added performance while the html paint stream maintains deterministic order for caching.
+
+### In Place Data Processing
+
+{{{Imagine a PDF. It is being processed. Get text text text etc, then gets an image. Conductors can process that image in place while rest of stream continues getting processed.}}}
+
+### Cross-Conductor Communication
+
+{{{It's also possible for conductors to communicate with each other through global scope references...}}}
+
+### Weaving Weavers
+
+Weaver frameworks ultimately output a stream, and as Async Iterable Sequencers can chain any stream, that means you can chain in an entire weaver framework, allowing you to have specialized Weaver frameworks for different classes of problems, and you can compose them into other Weaver frameworks allowing you to weave weavers into your weaver.
 
 ## Conclusion: Orchestrating Applied Stream Sequencing
 
