@@ -1,6 +1,6 @@
-import { AsyncIterableSequencer } from "@/lib/AsyncIterableSequencer";
+import { asyncIterableSequencer } from "@/lib/asyncIterableSequencer";
 
-type Chain<O> = AsyncIterableSequencer<O>["push"];
+type Chain<O> = ReturnType<typeof asyncIterableSequencer<O>>["push"];
 
 export interface ConductorStreamOptions<I, O> {
   start?: (chain: Chain<O>) => void;
@@ -13,8 +13,7 @@ export class ConductorStream<I, O> {
   public writable: WritableStream<I>;
 
   constructor({ start, transform, finish }: ConductorStreamOptions<I, O>) {
-    const sequencer = new AsyncIterableSequencer<O>();
-    const chain = sequencer.push.bind(sequencer);
+    const { sequence, push: chain } = asyncIterableSequencer<O>();
     let maybeController: ReadableStreamDefaultController<O> | undefined;
     this.readable = new ReadableStream<O>({
       start: (controller) => {
@@ -35,7 +34,7 @@ export class ConductorStream<I, O> {
     }
     const controller = maybeController;
     (async () => {
-      for await (const item of sequencer) {
+      for await (const item of sequence) {
         controller.enqueue(item);
       }
       controller.close();
