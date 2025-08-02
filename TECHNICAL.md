@@ -35,47 +35,41 @@ The object also exposes an async iterable interface allowing it to be consumed t
 For Garbage Collection, the underlying iterable merging is performed via a standard `flatten` call which executes `yield*` and delegates the iteration to another iterator. After delegation, the `for await` generator loop ends and returns from the generator function to allow it and iterator references within `flatten` to be garbage collected.
 
 ```javascript
-type AnyIterable<T> = AsyncIterable<T> | Iterable<T>;
-type Generator<T> = AsyncGenerator<T, void, unknown>;
-
-class AsyncIterableSequencer<T> implements AsyncIterable<T> {
-  private resolve: (iterator: AnyIterable<T> | null) => void;
-  private iterator: AsyncGenerator<T, void, unknown>;
-  constructor() {
-    const nextIterablePromiseGenerator = (): Generator<T> => {
-      const promise = new Promise<AnyIterable<T> | null>((resolve) => {
-        this.resolve = (nextIterator) => {
-          if (nextIterator !== null) {
-            resolve(flatten(nextIterator, nextIterablePromiseGenerator()));
-          } else {
-            resolve(null);
-          }
-        };
-      });
-      return (async function* () {
-        const result = await promise;
-        if (result !== null) {
-          yield* result;
-        }
-      })();
-    };
-    this.iterator = nextIterablePromiseGenerator();
-  }
-
-  push(iterator: AnyIterable<T> | null): void {
-    this.resolve(iterator);
-  }
-
-  [Symbol.asyncIterator](): Generator<T> {
-    return this.iterator;
-  }
+export type AnyIterable<T> = AsyncIterable<T> | Iterable<T>;
+export type Chainable<T> = AnyIterable<T> | null;
+export type Chain<T> = (iterator: Chainable<T>) => void;
+export interface AsyncIterableSequencerReturn<T> {
+  sequence: AsyncGenerator<T>;
+  chain: Chain<T>;
 }
 
-async function* flatten<T>(...iterators: AnyIterable<T>[]): Generator<T> {
+export function asyncIterableSequencer<T>(): AsyncIterableSequencerReturn<T> {
+  let resolver: Chain<T>;
+  const next = (): AsyncGenerator<T> => {
+    const { promise, resolve } = Promise.withResolvers<AnyIterable<T>>();
+    resolver = (nextIterator) => {
+      resolve(nextIterator ? flatten(nextIterator, next()) : empty());
+    };
+    const generator = async function* () {
+      yield* await promise;
+    };
+    return generator();
+  };
+  return {
+    sequence: next(),
+    chain: (iterator) => {
+      resolver(iterator);
+    },
+  };
+}
+
+async function* flatten<T>(...iterators: AnyIterable<T>[]): AsyncGenerator<T> {
   for (const iterator of iterators) {
     yield* iterator;
   }
 }
+
+function* empty() {}
 ```
 
 <small>[Implementation with tests: https://github.com/etler/async-iterable-sequencer](https://github.com/etler/async-iterable-sequencer)</small>
@@ -89,12 +83,12 @@ This can be employed in a module that implements a transform stream interface th
 The sequencer iterable can then be consumed in a detached asyncronous execution context and process the iterable chain to enqueue the output onto the outbound readable stream controller until it receives a terminate signal and completes at which point it can close the stream controller.
 
 ```typescript
-type Chain<O> = AsyncIterableSequencer<O>["push"];
+import { asyncIterableSequencer, Chain } from "asyncIterableSequencer";
 
 export interface ConductorStreamOptions<I, O> {
-  start: (chain: Chain<O>) => void;
+  start?: (chain: Chain<O>) => void;
   transform: (chunk: I, chain: Chain<O>) => void;
-  finish: (chain: Chain<O>) => void;
+  finish?: (chain: Chain<O>) => void;
 }
 
 export class ConductorStream<I, O> {
@@ -102,35 +96,17 @@ export class ConductorStream<I, O> {
   public writable: WritableStream<I>;
 
   constructor({ start, transform, finish }: ConductorStreamOptions<I, O>) {
-    const sequencer = new AsyncIterableSequencer<O>();
-    const chain = sequencer.push.bind(sequencer);
-    let maybeController: ReadableStreamDefaultController<O> | undefined;
-    this.readable = new ReadableStream<O>({
-      start: (controller) => {
-        maybeController = controller;
-        start(chain);
-      },
-    });
+    const { sequence, chain } = asyncIterableSequencer<O>();
+    this.readable = ReadableStream.from<O>(sequence);
     this.writable = new WritableStream<I>({
       write: (chunk) => {
         transform(chunk, chain);
       },
       close: () => {
-        finish(chain);
+        finish?.(chain);
       },
     });
-    if (maybeController === undefined) {
-      throw new Error("Stream controller could not be resolved");
-    }
-    const controller = maybeController;
-    (async () => {
-      for await (const item of sequencer) {
-        controller.enqueue(item);
-      }
-      controller.close();
-    })().catch((error: unknown) => {
-      controller.error(error);
-    });
+    start?.(chain);
   }
 }
 ```

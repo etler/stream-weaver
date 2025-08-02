@@ -1,32 +1,29 @@
-type AnyIterable<T> = AsyncIterable<T> | Iterable<T>;
-
-export function asyncIterableSequencer<T>(): {
+export type AnyIterable<T> = AsyncIterable<T> | Iterable<T>;
+export type Chainable<T> = AnyIterable<T> | null;
+export type Chain<T> = (iterator: Chainable<T>) => void;
+export interface AsyncIterableSequencerReturn<T> {
   sequence: AsyncGenerator<T>;
-  push: (iterator: AnyIterable<T> | null) => void;
-} {
-  let resolver: (iterator: AnyIterable<T> | null) => void;
+  chain: Chain<T>;
+}
+
+export function asyncIterableSequencer<T>(): AsyncIterableSequencerReturn<T> {
+  let resolver: Chain<T>;
   const next = (): AsyncGenerator<T> => {
-    const { promise, resolve } = Promise.withResolvers<AnyIterable<T> | null>();
+    const { promise, resolve } = Promise.withResolvers<AnyIterable<T>>();
     resolver = (nextIterator) => {
-      if (nextIterator !== null) {
-        resolve(flatten(nextIterator, next()));
-      } else {
-        resolve(null);
-      }
+      resolve(nextIterator ? flatten(nextIterator, next()) : empty());
     };
     const generator = async function* () {
-      const result = await promise;
-      if (result !== null) {
-        yield* result;
-      }
+      yield* await promise;
     };
     return generator();
   };
-  const push = (iterator: AnyIterable<T> | null): void => {
-    resolver(iterator);
+  return {
+    sequence: next(),
+    chain: (iterator) => {
+      resolver(iterator);
+    },
   };
-  const sequence = next();
-  return { sequence, push };
 }
 
 async function* flatten<T>(...iterators: AnyIterable<T>[]): AsyncGenerator<T> {
@@ -34,3 +31,5 @@ async function* flatten<T>(...iterators: AnyIterable<T>[]): AsyncGenerator<T> {
     yield* iterator;
   }
 }
+
+function* empty() {}

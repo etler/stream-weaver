@@ -66,6 +66,7 @@ export default tseslint.config(
       "radix": "error",
       "symbol-description": "error",
       "yoda": "error",
+      "@typescript-eslint/no-empty-function": "off",
       "@typescript-eslint/explicit-module-boundary-types": "error",
       "@typescript-eslint/no-invalid-this": "error",
       "@typescript-eslint/no-unsafe-type-assertion": "error",
