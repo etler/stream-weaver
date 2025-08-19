@@ -7,3 +7,7 @@ The idea is explored in [TECHNICAL.md](/TECHNICAL.md). It can be converted into 
 A proof of concept implementation of the streaming agent swarms outlined in the paper has been implemented in a separate repo: [/etler/swarm-weaver](https://github.com/etler/swarm-weaver).
 
 This project also provides a proof of concept implementation of some of the streaming web rendering ideas outlined in the paper. It includes source code and tests for demonstrating how components can be represented as streams and composed an a parallel asyncronous fashion. It can be tried out by installing the dependencies with `npm install` and running tests with `npm test`. It can be imported locally for experimentation.
+
+© [Tim Etler][author]
+
+[author]: https://github.com/etler
