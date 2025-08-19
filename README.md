@@ -2,7 +2,7 @@
 
 This project showcases a new approach to creating streaming frameworks by utilizing a technique that enables entire streams to be enqueued onto other streams with minimal orchestration or memory overhead.
 
-The idea is explored in [TECHNICAL.md](/TECHNICAL.md). It can be converted into a LaTeX paper by running `npm install` and `npm run paper`.
+The idea is explored in [TECHNICAL.md](/TECHNICAL.md). It can be converted into a LaTeX paper if you have [pandoc](https://pandoc.org/) installed by running `npm install` and `npm run paper`. If you also have pdflatex installed, a PDF version can be generated with `npm run pdf`.
 
 A proof of concept implementation of the streaming agent swarms outlined in the paper has been implemented in a separate repo: [/etler/swarm-weaver](https://github.com/etler/swarm-weaver).
 

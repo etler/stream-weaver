@@ -24,7 +24,8 @@
     "lint": "npx eslint",
     "test": "tsc -p tests && vitest run --config tests/vitest.config.mts",
     "fix": "npx eslint --fix",
-    "paper": "mkdir -p dist && pandoc -s -r markdown-auto_identifiers --include-in-header=header.tex -o dist/main.tex ./TECHNICAL.md"
+    "paper": "mkdir -p dist && pandoc -s -r markdown-auto_identifiers --include-in-header=header.tex -o dist/main.tex ./TECHNICAL.md",
+    "pdf": "npm run paper && cd dist && pdflatex main.tex"
   },
   "devDependencies": {
     "@eslint/js": "^9.21.0",
