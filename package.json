@@ -46,5 +46,9 @@
     "typescript-eslint": "^8.25.0",
     "typescript-transform-paths": "~3.5.3",
     "vitest": "^3.0.7"
+  },
+  "dependencies": {
+    "async-iterable-sequencer": "^0.0.0",
+    "conductor-stream": "^0.0.0"
   }
 }

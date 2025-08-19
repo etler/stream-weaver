@@ -1,7 +1,7 @@
 import { chunkify } from "@/ComponentConductor/chunkify";
 import { tokenize } from "@/ComponentConductor/tokenize";
 import { Token } from "@/ComponentConductor/types/Token";
-import { ConductorStream } from "@/lib/ConductorStream";
+import { ConductorStream } from "conductor-stream";
 import { Node } from "@/jsx/types/Node";
 
 export class ComponentConductor extends ConductorStream<Node, Token> {
