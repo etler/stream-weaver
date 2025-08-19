@@ -4,28 +4,31 @@
   "repository": "github:etler/stream-weaver",
   "type": "module",
   "module": "dist/index.js",
-  "types": "types/index.d.ts",
+  "types": "dist/index.d.ts",
   "exports": {
-    ".": {
-      "types": "./types/index.d.ts",
+    "import": {
+      "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     }
   },
   "files": [
-    "dist",
-    "types"
+    "dist"
   ],
   "scripts": {
     "prepublishOnly": "npm run clean && npm run build && npm run lint && npm run test",
-    "prepare": "husky && ts-patch install -s",
-    "clean": "rm -rf dist/ types/",
-    "build": "tsc",
-    "dev": "tsc -w",
+    "prepare": "husky",
+    "clean": "rm -rf dist/",
+    "build": "pkgroll",
+    "dev": "pkgroll -w",
     "lint": "npx eslint",
     "test": "tsc -p tests && vitest run --config tests/vitest.config.mts",
     "fix": "npx eslint --fix",
     "paper": "mkdir -p dist && pandoc -s -r markdown-auto_identifiers --include-in-header=header.tex -o dist/main.tex ./TECHNICAL.md",
     "pdf": "npm run paper && cd dist && pdflatex main.tex"
+  },
+  "dependencies": {
+    "async-iterable-sequencer": "^0.0.0",
+    "conductor-stream": "^0.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.21.0",
@@ -39,16 +42,11 @@
     "globals": "^16.0.0",
     "husky": "~9.1.7",
     "lint-staged": "~15.4.3",
+    "pkgroll": "^2.15.3",
     "prettier": "~3.5.2",
     "react": "^19.1.0",
-    "ts-patch": "~3.3.0",
     "typescript": "~5.7.3",
     "typescript-eslint": "^8.25.0",
-    "typescript-transform-paths": "~3.5.3",
     "vitest": "^3.0.7"
-  },
-  "dependencies": {
-    "async-iterable-sequencer": "^0.0.0",
-    "conductor-stream": "^0.0.0"
   }
 }
