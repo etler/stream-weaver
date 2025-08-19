@@ -291,14 +291,6 @@ This could be achieved by distinguishing between components that should first pa
 
 To balance determinism with performance flexibility, it would be possible to split the suspense component stream into a second stream that is established after client Weaver initialization to be processed in parallel, allowing that secondary stream to provide non-deterministic ordering for added performance while the html paint stream maintains deterministic order for caching.
 
-### In Place Data Processing
-
-{{{Imagine a PDF. It is being processed. Get text text text etc, then gets an image. Conductors can process that image in place while rest of stream continues getting processed.}}}
-
-### Cross-Conductor Communication
-
-{{{It's also possible for conductors to communicate with each other through global scope references...}}}
-
 ### Weaving Weavers
 
 Weaver frameworks ultimately output a stream, and as Async Iterable Sequencers can chain any stream, that means you can chain in an entire weaver framework, allowing you to have specialized Weaver frameworks for different classes of problems, and you can compose them into other Weaver frameworks allowing you to weave weavers into your weaver.
