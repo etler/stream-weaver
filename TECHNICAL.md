@@ -1,10 +1,12 @@
-# Stream Weaver: Technical Specification
+# Stream Weaver: A Recursive Parallel Streaming Framework
 
-## A Recursive Parallel Streaming Framework
+## Abstract
 
-## Executive Summary
+Modern streaming architectures face a coordination challenge when processing dynamically expanding work while maintaining sequential output order. Existing approaches typically require either pre-computing all work or implementing complex runtime coordination mechanisms. We present Stream Weaver, a streaming framework that uses async generators with unresolved tail promises to create unbounded async iterator chains. This approach enables chains that can be dynamically extended at runtime, allowing coordination of parallel work that discovers additional work during execution while preserving output sequence order. We describe the framework's core primitives and demonstrate their application in two domains: AI agent orchestration for parallel recursive content generation, and isomorphic UI rendering with server-client coordination. The framework provides an alternative approach to stream coordination that decouples parallel production from sequential consumption with reduced orchestration requirements.
 
-Weaver is a novel streaming architecture that enables sequence order-preserving parallel streaming component rendering with minimal performance overhead allowing frameworks to capitalize on the latent efficiency provided by asynchronous parallel streams. It solves low level problems in current streaming frameworks by flattening async generators with an unresolved tail promise enabling unbounded async iterator chains that can be attached in real time, eliminating the need for complex stream and component orchestration while maintaining full parallelism. This approach provides primitives for solving complexity and coordination to allow for better utilization of the latent efficiency of underlying streams.
+## Introduction
+
+This paper presents Weaver, a novel streaming architecture that enables sequence order-preserving parallel streaming without the buffering overhead and coordination complexity that traditional approaches require, allowing frameworks to leverage the native efficiency of underlying streams. It solves low level problems in current streaming frameworks by flattening async generators with an unresolved tail promise enabling unbounded async iterator chains that can be attached in real time, simplifying complex stream and component orchestration while preserving parallelism. This approach provides primitives that integrate directly with underlying stream mechanisms rather than requiring additional coordination layers.
 
 ## Problem Statement
 
