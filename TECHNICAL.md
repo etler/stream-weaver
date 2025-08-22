@@ -127,7 +127,7 @@ export class ConductorStream<I, O> {
 
 <small>[Implementation with tests: https://github.com/etler/conductor-stream](https://github.com/etler/conductor-stream)</small>
 
-Using a conductor stream we can produce a framework which we will define as a **Stream Weaver**. A weaver can expose a simplified abstraction framework around conductor streams to enable easier to implement design patterns for business logic.
+Using a conductor stream we can produce a framework which we will define as a **Stream Weaver**. A weaver enables coordinating streaming pipelines while maintaining stream-level encapsulation, where entire streams can be treated as composable units regardless of their internal complexity, and chained conductor streams can be used to inject additional work within existing streams.
 
 ## Ordered Consumption of Parallel Production
 
@@ -144,6 +144,8 @@ Weaver frameworks enable decentralized orchestration of parallel media productio
 As streams can be chained to the sequencer in any execution context at any time, Weavers can implement synchronous handlers that allow business logic to be written using familiar procedural code. This is actually preferable as it produces more predictable plan construction when chaining additional streams. Business logic developers implementing code in synchronous handlers do not need to be exposed to the underlying streaming implementation details and can be given wrapper objects that encapsulate the business logic domain from the orchestration tier.
 
 This approach inverts the typical streaming framework pattern where developers must learn complex async coordination patterns. Instead, advanced streaming capabilities are provided transparently while developers work with predictable, synchronous interfaces.
+
+This approach inverts typical streaming orchestration patterns by enabling synchronous programming interfaces to coordinate asynchronous stream sequences. This allows application code to focus on encapsulated task specific logic while the framework abstracts stream coordination mechanics.
 
 ### Parallel Recursive Work Planning
 
