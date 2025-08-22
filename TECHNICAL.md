@@ -16,7 +16,19 @@ Streaming framework approaches in existing projects demonstrate these limitation
 
 The fundamental question becomes: How do you coordinate parallel work that discovers and spawns additional work during execution, while maintaining sequential output order for real-time consumption, without complex orchestration overhead?
 
-## Solution Architecture
+## Contributions
+
+This work makes the following contributions:
+
+* **Relay Pattern**: A novel approach using async generators with unresolved tail promises that enables unbounded async iterator chains to be dynamically extended at runtime.
+* **Async Iterable Sequencer**: A primitive that provides a queue-like interface for chaining async iterators in guaranteed sequence order with minimal memory overhead, enabling the chaining of entire streams through their async iterator implementation.
+* **Conductor Stream**: A transform stream interface implementation that utilizes an Async Iterable Sequencer to enable decentralized coordination of parallel work by allowing entire streams to be injected.
+* **Stream Weaver Framework**: An orchestration framework that coordinates multiple Conductor Streams and Async Iterable Sequencers to enable streaming pipelines that execute unblocked parallel work.
+* **Parallel Recursive AI Agents**: Demonstration of massively parallelized AI agent swarms that can spawn sub-agents while maintaining streaming output order.
+* **Concurrent Isomorphic UI Framework**: Exploration of a Stream Weaver implementation for unified server-client component rendering with isomorphic asynchronous component generation.
+* **Cross-Context Stream Chaining**: An application of a Stream Weaver Framework to maintain serial behavior across execution boundaries while allowing concurrent work to be chained without blocking execution.
+
+## Approach
 
 To explore that solution we require a low level queueing primitive that can enqueue entire streams as opposed to granular data points. This enables us to create stream encapsulations that can self coordinate through transform operations that can then self queue additional streams in the position it holds in the stream queue. With the ability to enqueue new asynchronous streaming work in the middle of a stream, we can create a higher level framework that orchestrates work planning strategies at the level of entire work streams as opposed to granular operations.
 
