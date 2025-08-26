@@ -65,13 +65,17 @@ describe("StreamWeaver", () => {
       return <div>Component 3</div>;
     };
 
-    const root = (
-      <div>
-        <AsyncComponent1 />
-        <AsyncComponent2 />
-        <AsyncComponent3 />
-      </div>
-    );
+    const Main: Component = () => {
+      return (
+        <div>
+          <AsyncComponent1 />
+          <AsyncComponent2 />
+          <AsyncComponent3 />
+        </div>
+      );
+    };
+
+    const root = <Main />;
 
     const startTime = Date.now();
     const weaver = new StreamWeaver({ root });
@@ -126,12 +130,16 @@ describe("StreamWeaver", () => {
       );
     };
 
-    const root = (
-      <main>
-        <AsyncParent1 />
-        <AsyncParent2 />
-      </main>
-    );
+    const Main: Component = () => {
+      return (
+        <main>
+          <AsyncParent1 />
+          <AsyncParent2 />
+        </main>
+      );
+    };
+
+    const root = <Main />;
 
     const startTime = Date.now();
     const weaver = new StreamWeaver({ root });
