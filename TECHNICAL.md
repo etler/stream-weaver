@@ -6,7 +6,15 @@ Modern streaming architectures face a coordination challenge when processing dyn
 
 ## Introduction
 
-This paper presents Weaver, a novel streaming architecture that enables sequence order-preserving parallel streaming without the buffering overhead and coordination complexity that traditional approaches require, allowing frameworks to leverage the native efficiency of underlying streams. It solves low level problems in current streaming frameworks by flattening async generators with an unresolved tail promise enabling unbounded async iterator chains that can be attached in real time, simplifying complex stream and component orchestration while preserving parallelism. This approach provides primitives that integrate directly with underlying stream mechanisms rather than requiring additional coordination layers.
+This paper presents **Stream Weaver**, a framework that enables what we term **ChainExplode** operations, an inverse dataflow geometry to MapReduce. Where MapReduce implements scatter-gather coordination (distributing work then collecting results), ChainExplode implements "sequence-spread" coordination (arranging work while enabling parallel expansion).
+
+ChainExplode generates new work through divergent parallelism: allocated work is chained for ordered consumption, while recursive injection points explode work. These operations address complementary coordination challenges: MapReduce coordinates the reduction of bounded data, while ChainExplode coordinates the expansion of discovered work.
+
+The operations are enabled through two core primitives:
+* **Async Iterable Sequencers** provide the chaining mechanism, maintaining sequential ordering guarantees through the **relay pattern**
+* **Conductor Streams** provide the exploding mechanism, orchestrating parallel work injection at multiple points
+
+Together, these primitives enable the ChainExplode operation: chaining work in sequence while exploding parallel work. This allows data production frameworks to maintain stream efficiency while coordinating arbitrarily complex generative work patterns.
 
 ## Problem Statement
 
