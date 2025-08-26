@@ -8,9 +8,9 @@ Stream Weaver implements ChainExplode through two primitives: Async Iterable Seq
 
 ## Introduction
 
-This paper presents **Stream Weaver**, a framework that enables what we term **ChainExplode** operations: providing missing complements to MapReduce's established patterns. While MapReduce has transformed how we process bounded data through parallel decomposition, we lack equivalent primitives for streaming systems where work expands during execution. Where MapReduce distributes work then collects the results, ChainExplode arranges work while expanding it in parallel.
+This paper presents **Stream Weaver**, a framework that enables what we term **ChainExplode** operations: providing missing complements to MapReduce's established patterns. While MapReduce has transformed how we process bounded data through parallel decomposition, we lack equivalent primitives for streaming systems where discovered work is expanded during execution.
 
-ChainExplode generates new work through divergent parallelism: allocated work is chained for ordered consumption, while recursive injection points explode work. These operations address complementary coordination challenges: MapReduce coordinates the reduction of bounded data, while ChainExplode coordinates the expansion of discovered work.
+ChainExplode inverts MapReduce's operational pattern. Where MapReduce distributes work then collects results, ChainExplode chains work for ordered consumption then expodes it by recursively injecting it. This enables a new pattern of pipeline where work discovers more work while maintaining the sequential consumption guarantees necessary for semantic correctness of generated data.
 
 The operations are enabled through two core primitives:
 * **Async Iterable Sequencers** provide the chaining mechanism, maintaining sequential ordering guarantees through the **relay pattern**
