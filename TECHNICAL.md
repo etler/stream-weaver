@@ -34,19 +34,19 @@ To explore that solution we require a low level queueing primitive that can enqu
 
 ### Core Approach: Relay Pattern & Async Iterable Sequencers
 
-To enable sequential processing of parallel streams, we need a method to enqueue entire streams as opposed to individual chunks of results. As streams can also implement the interface of an async iterable, this is possible by chaining together async iterables with async generators, ending with an unfulfilled async iterable promise that allows the existing generator to delegate to another async iterable.
+To enable sequential processing of parallel streams, we need a method to enqueue entire streams as opposed to individual chunks of results. As streams implement the async iterable interface, this is possible by chaining together async iterables through async generators, ending with an unfulfilled async iterable promise that allows the existing generator to delegate to a resolved async iterable.
 
-In order to chain async iterables together, we define a **Relay Pattern** for leaving an unfulfilled promise at the end of an async iterable by using a flatten generator to flatten it with an unresolved promise as a tail entry. The unresolved promise allows the async generator to await on a promise for a new async iterable. The flatten generator ensures that a fulfilled async iterable promise will be yielded and delegated to, allowing it to take over as the next async iterable yielding new results when the chain has reached its reference.
+To chain async iterables together, we define a **Relay Pattern** that maintains a sequence of async iterable promises ending with an unfulfilled tail promise. An async generator iterates over the sequence, awaits each promise, and suspends when it encounters an unfulfilled tail promise. The unresolved promise ensures the async generator will continue processing new iterators until it receives a termination signal. When each promise resolves, the generator delegates to the resolved async iterable, allowing it to yield its values before moving to the next iterable in the sequence.
 
-The Relay Pattern is analogous to a relay race, where a racer represents an async iterable that is completed when the racer reaches the end of their stint. At this point they can pass along the baton to the next racer, who continues the chain. If there is no racer ready to take on the baton, the racer will await until a new racer is ready. The whole chain only ends when the final racer reaches the finish line.
+The Relay Pattern is analogous to a relay race, where a racer represents an async iterable that is completed when the racer reaches the end of their stint. At this point they pass along the baton to the next racer, who continues the chain. If there is no racer ready to take on the baton, the racer will await until a new racer is ready. The whole chain only ends when the final racer reaches the finish line.
 
-We define the interface for this pattern as an **Async Iterable Sequencer** which provides a queue-like interface for adding new async iterables to the async iterable chain in a guaranteed sequence. The interface exposes a method for chaining additional async iterables to the chain or providing a termination signal to indicate no additional pending async iterators will be added.
+We define the interface for this pattern as an **Async Iterable Sequencer** which provides a queue-like interface for adding new async iterables to the sequence in a guaranteed order. The interface exposes a method for chaining additional async iterables or providing a termination signal to indicate no additional iterators will be added.
 
-The chain is managed by a stateful object, which keeps track of the chained unfulfilled async iterable tail promise resolver reference. The object is also responsible for ensuring a new tail promise will be flattened onto the chain and the resolver reference is updated with the new resolver to keep the generator open with an unfulfilled promise. When the promise is fulfilled the generator yields to delegate to the chained async iterable.
+The sequence chain is managed by a stateful context, which maintains the unfulfilled tail promise resolver reference. It is also responsible for ensuring a new unfulfilled tail promise will be chained and the resolver reference is updated with a new resolver to keep the generator awaiting on a tail promise. When a tail promise is fulfilled the generator delegates to the resolved async iterable.
 
-The object also exposes an async iterable interface allowing it to be consumed transparently and used in any context an async iterable is accepted. Because this approach does not require any underlying buffers, there is no additional memory overhead for managing iterable output, and minimal memory overhead for managing the async iterable chain, giving it minimal memory overhead characteristics, only requiring it to retain references to iterables.
+The sequencer exposes the generator's async iterable and a bound chain method for attaching additional async iterables. Because this approach does not require any underlying data buffers, there is no additional memory overhead for managing iterable output, and only minimal memory overhead for managing the async iterable sequence, requiring references to the active and pending iterables.
 
-For Garbage Collection, the underlying iterable merging is performed via a standard `flatten` call which executes `yield*` and delegates the iteration to another iterator. After delegation, the `for await` generator loop ends and returns from the generator function to allow it and iterator references within `flatten` to be garbage collected.
+For garbage collection, the iterables are dereferenced after they are removed from the sequence and delegation completes, freeing them for collection.
 
 ```javascript
 export type AnyIterable<T> = AsyncIterable<T> | Iterable<T>;
@@ -58,32 +58,30 @@ export interface AsyncIterableSequencerReturn<T> {
 }
 
 export function asyncIterableSequencer<T>(): AsyncIterableSequencerReturn<T> {
+  const queue: Promise<Chainable<T>>[] = [];
   let resolver: Chain<T>;
-  const next = (): AsyncGenerator<T> => {
-    const { promise, resolve } = Promise.withResolvers<AnyIterable<T>>();
+  const next = () => {
+    const { promise, resolve } = Promise.withResolvers<Chainable<T>>();
+    queue.push(promise);
     resolver = (nextIterator) => {
-      resolve(nextIterator ? flatten(nextIterator, next()) : empty());
+      next();
+      resolve(nextIterator);
     };
-    const generator = async function* () {
-      yield* await promise;
-    };
-    return generator();
   };
+  next();
+  const sequence = (async function* () {
+    let iterator: Chainable<T> | undefined;
+    while ((iterator = await queue.shift())) {
+      yield* iterator;
+    }
+  })();
   return {
-    sequence: next(),
+    sequence,
     chain: (iterator) => {
       resolver(iterator);
     },
   };
 }
-
-async function* flatten<T>(...iterators: AnyIterable<T>[]): AsyncGenerator<T> {
-  for (const iterator of iterators) {
-    yield* iterator;
-  }
-}
-
-function* empty() {}
 ```
 
 <small>[Implementation with tests: https://github.com/etler/async-iterable-sequencer](https://github.com/etler/async-iterable-sequencer)</small>
