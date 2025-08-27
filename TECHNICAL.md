@@ -1,16 +1,16 @@
-# ChainExplode: Simplified Work Generation in Streaming Pipelines
+# ChainExplode: Simplified Work Generation in Streaming Pipelines (DRAFT)
 
 ## Abstract
 
-Modern distributed systems have well-established patterns for processing bounded data through MapReduce's parallel decomposition, but lack complementary patterns for unbounded work that expands during execution. This paper introduces ChainExplode, an operation that serves as a complement to MapReduce. Where MapReduce distributes work then collects results, ChainExplode arranges work while expanding it in parallel. These operations chain work for sequential consumption and explode it with recursive injection, maintaining ordering guarantees as work grows through parallel discovery.
+Modern distributed systems have well-established patterns for processing bounded data through MapReduce's parallel decomposition, but there are lacking complementary patterns for unbounded work that expands during execution over a stream. This paper defines the term ChainExplode, an operation that serves as a complement to MapReduce. Where MapReduce distributes work from datasets then collects results, ChainExplode discovers work from seeds then expands it in parallel. These operations chain work for sequential consumption and explode it with recursive injection, maintaining ordering guarantees as work grows through parallel discovery.
 
-To employ the ChainExplode operation, this paper presents Stream Weaver, a framework that orchestrates streams using two core primitives: Async Iterable Sequencers that maintain chained ordering via relay patterns, and Conductor Streams that enable recursive work injection. These primitives preserve stream efficiency while enabling arbitrary work expansion patterns. We demonstrate ChainExplode's applicability through implementations of parallel recursive AI agent swarms and isomorphic UI rendering of streaming async functional components. By providing the operational complement to MapReduce for streaming systems, ChainExplode rounds out the fundamental patterns for coordinating both convergent and divergent parallel computation.
+To employ the ChainExplode operation, this paper presents Stream Weaver, a framework that orchestrates streams using two core primitives: Async Iterable Sequencers that maintain chained ordering via relay patterns, and Conductor Streams that enable recursive work injection. These primitives preserve stream efficiency while enabling arbitrary work expansion patterns. We demonstrate ChainExplode's ability to explode streaming data through implementations of parallel recursive AI agent swarms and isomorphic UI rendering of async functional components. By providing the operational complement to MapReduce for streaming systems, ChainExplode rounds out the fundamental patterns for coordinating both convergent and divergent parallel computation.
 
 ## Introduction
 
-The shift from the analytics era to the generative era inverts computational needs: from reducing vast data into insights, to exploding insights into structured generated content. While MapReduce solved parallel reduction for bounded data, we lack equivalent primitives for unbounded generation with ordering guarantees.
+The shift from the analytics era to the generative era inverts computational needs: from reducing vast data into insights, to exploding seeds into structured generated content. While MapReduce provided a solution for parallel reduction of bounded data, we lack complementary primitives for unbounded generation with ordering guarantees that can work over a stream.
 
-This paper presents **Stream Weaver**, a framework that enables what we term **ChainExplode**, operations which provide missing complements to MapReduce's established patterns. While MapReduce has transformed how we process bounded data through parallel decomposition, we lack equivalent primitives for streaming systems where discovered work is expanded during execution.
+This paper presents **Stream Weaver**, a streaming framework that enables what we term **ChainExplode**, a pair of operations that provide a missing complement to MapReduce's established patterns. While MapReduce was built for analytical data pipelines, ChainExplode is meant for generative data pipelines. There are many distributed patterns for aggregating insights from collected data but we lack equivalent primitives for streaming systems where discovered work is expanded from seeds during execution.
 
 ChainExplode inverts MapReduce's operational pattern. Where MapReduce distributes work then collects results, ChainExplode chains work for ordered consumption while exploding it by recursively injecting it. This enables a new pattern of pipeline where work discovers more work while maintaining the sequential consumption guarantees necessary for semantic correctness of generated data.
 
@@ -18,7 +18,7 @@ The operations are enabled through two core primitives:
 * **Async Iterable Sequencers** provide the chaining mechanism, maintaining sequential ordering guarantees through the **relay pattern**
 * **Conductor Streams** provide the exploding mechanism, orchestrating parallel work injection at multiple points
 
-Together, these primitives enable the ChainExplode operation: chaining work in sequence while exploding parallel work. This allows data production frameworks to maintain stream efficiency while coordinating arbitrarily complex generative work patterns.
+Together, these primitives enable streaming ChainExplode operations: chaining work in sequence while exploding parallel work by chaining and recursively injecting streams. This framework allows data production to maintain optimal streaming efficiency while coordinating arbitrarily complex generative work patterns.
 
 ## Problem Statement
 
@@ -316,6 +316,14 @@ It should be re-iterated, that any consumption side blocking would not prevent p
 This could be achieved by distinguishing between components that should first paint block and components that should always produce a suspense. This could simply be denoted by having async components default to being paint blocking while suspense components always get enqueued after the HTML paint stream in a deterministic order. Fast components such as in cluster db data dependent components could be treated as paint blocking as they are fast, while any network blocking components could be denoted as non blocking.
 
 To balance determinism with performance flexibility, it would be possible to split the suspense component stream into a second stream that is established after client Weaver initialization to be processed in parallel, allowing that secondary stream to provide non-deterministic ordering for added performance while the html paint stream maintains deterministic order for caching.
+
+### In Place Data Processing
+
+{{{Imagine a PDF. It is being processed. Get text text text etc, then gets an image. Conductors can process that image in place while rest of stream continues getting processed.}}}
+
+### Cross-Conductor Communication
+
+{{{It's also possible for conductors to communicate with each other through global scope references...}}}
 
 ### Weaving Weavers
 
