@@ -1,10 +1,10 @@
 import { chunkify } from "@/ComponentConductor/chunkify";
 import { tokenize } from "@/ComponentConductor/tokenize";
 import { Token } from "@/ComponentConductor/types/Token";
-import { ConductorStream } from "conductor-stream";
+import { DelegateStream } from "delegate-stream";
 import { Node } from "@/jsx/types/Node";
 
-export class ComponentConductor extends ConductorStream<Node, Token> {
+export class ComponentConductor extends DelegateStream<Node, Token> {
   constructor() {
     super({
       transform: (node, chain) => {

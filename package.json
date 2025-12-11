@@ -28,7 +28,7 @@
   },
   "dependencies": {
     "async-iterable-sequencer": "^0.0.1",
-    "conductor-stream": "^0.0.1"
+    "delegate-stream": "^0.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.21.0",
@@ -37,16 +37,16 @@
     "@types/react-dom": "^19.1.6",
     "eslint": "~9.21.0",
     "eslint-config-prettier": "^10.1.5",
-    "eslint-plugin-prettier": "~5.2.3",
+    "eslint-plugin-prettier": "~5.5.4",
     "eslint-plugin-tsdoc": "~0.4.0",
     "globals": "^16.0.0",
     "husky": "~9.1.7",
     "lint-staged": "~15.4.3",
-    "pkgroll": "^2.15.3",
+    "pkgroll": "^2.21.4",
     "prettier": "~3.5.2",
     "react": "^19.1.0",
     "typescript": "~5.7.3",
-    "typescript-eslint": "^8.25.0",
-    "vitest": "^3.0.7"
+    "typescript-eslint": "^8.49.0",
+    "vitest": "^3.2.4"
   }
 }

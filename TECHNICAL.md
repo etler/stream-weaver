@@ -135,7 +135,7 @@ export class ConductorStream<I, O> {
 }
 ```
 
-<small>[Implementation with tests: https://github.com/etler/conductor-stream](https://github.com/etler/conductor-stream)</small>
+<small>[Implementation with tests: https://github.com/etler/delegate-stream](https://github.com/etler/delegate-stream)</small>
 
 Using a conductor stream we can produce a framework which we will define as a **Stream Weaver**. A weaver enables coordinating streaming pipelines while maintaining stream-level encapsulation, where entire streams can be treated as composable units regardless of their internal complexity, and chained conductor streams can be used to inject additional work within existing streams.
 
