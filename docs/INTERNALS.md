@@ -1,7 +1,3 @@
-Acknowledged. I have restored the full technical depth of the original document and integrated the **Components-as-Actions** and **Spread Argument** patterns as additive layers. This ensures the architecture remains "Honest" about how it handles both raw logic and UI fragments.
-
----
-
 # ⚙️ INTERNALS.md: The Mechanics of Stream Weaver
 
 > **Warning:** This document describes the internal plumbing of the framework. Application developers do not need to know this to use Stream Weaver.
@@ -23,7 +19,7 @@ import source UserProfile from './components/UserProfile';
 
 // 2. Pass handles to factories (Implicit or Explicit)
 const incAction = createAction(incrementLogic, [count]);
-const uiSlot = <UserProfile user={userSignal} />; // Implicit createComponent
+const uiSlot = <UserProfile user={userSignal} />; // Implicit createComponent call
 
 ```
 
@@ -41,7 +37,7 @@ Stream Weaver enforces type safety across the network boundary. Because actions 
 
 ### 2.1 The "Spread" Signature Inference
 
-The `createAction` and `addressable` factories infer their identities from the module's default export. We use **Positional Argument Mapping** (Spread) to keep signatures framework-ignorant.
+The `createAction` and `createComponent` factories infer their identities from the module's default export. We use **Positional Argument Mapping** (Spread) to keep signatures framework-ignorant.
 
 ```typescript
 // Definition (logic/math.ts)
@@ -62,7 +58,7 @@ const result = createAction(mathSrc, [countSignal, factorSignal]);
 
 ---
 
-## 3. The Runtime Factories (`createSignal`, `createAction`, `addressable`)
+## 3. The Runtime Factories (`createSignal`, `createAction`, `createComponent`)
 
 These are **Deterministic Address Generators**. They ignore the "Rules of Hooks" because they rely on explicit ID addressing rather than positional memory.
 
@@ -72,10 +68,25 @@ These factories can be called **anywhere**: Global constants, dynamic loops, or 
 
 ### 3.2 The Serializer (The "Loom")
 
-When the server encounters these primitives:
+When the server encounters these primitives, it serializes them differently based on their role in the DOM:
 
-1. **Signals:** Generates an ID (e.g., `s1`) and flushes a `<script>` registration.
-2. **Actions/Components:** Generates an ID (e.g., `a1` or `c1`) and serializes the code URL and dependency list into the **Wire Protocol**.
+1. **Signals (`createSignal`):**
+* Generates an ID (e.g., `s1`).
+* Flushes a `<script>` tag to register the initial value.
+
+
+2. **Logic (`createAction`):**
+* Generates an ID (e.g., `a1`).
+* Serializes the binding (URL + Deps) into the Sink's registry.
+* **Side Effect:** None (Virtual).
+
+
+3. **UI (`createComponent`):**
+* Generates an ID (e.g., `c1`).
+* Serializes the binding (URL + Deps) into the Sink's registry.
+* **Side Effect:** Flushes a **DOM Portal** (`<div data-w-id="c1">`) to reserve the physical screen real estate for the component's output.
+
+
 
 ---
 
@@ -83,13 +94,27 @@ When the server encounters these primitives:
 
 ### 4.1 The `Binding` Address
 
-Metadata is woven directly into the DOM or sent as a minimal JSON frame.
+Metadata is woven directly into the DOM (for components) or sent as a minimal JSON frame (for actions).
+
+**The Component Portal (Physical):**
+
+```html
+<div
+  data-w-id="c1"
+  data-w-src="/assets/UserProfile.js"
+  data-w-deps="s1, s2"
+>
+  </div>
+
+```
+
+**The Action Binding (Virtual):**
 
 ```json
 {
-  "id": "a1",                 // The Address (and resulting Signal ID)
-  "module": "/assets/inc.js", // Stable URL
-  "signals": ["s1", "a2"],       // Positional Dependency IDs
+  "id": "a1",                 // The Address
+  "module": "/assets/math.js", // Stable URL
+  "signals": ["s1", "a2"]      // Positional Dependency IDs
 }
 
 ```
@@ -100,6 +125,7 @@ Pushed to the stream to populate the global Sink.
 
 ```html
 <script>weaver.set("s1", 10)</script>
+
 ```
 
 ---
@@ -117,8 +143,9 @@ The Sink is a <1kb singleton agent acting as a **Distributed Execution Bus**.
 
 
 4. **Execution (The Spread):** The Sink unwraps the dependency values and calls `module.default(...values)`.
-5. **Update:** * **Data Action:** Stores the result in the Map under the action's ID.
-* **Component:** Surgically swaps the DOM at the element matching `data-w-id`.
+5. **Update Strategy:**
+* **Data Action (`createAction`):** Stores the result in the Map under the ID `a1`.
+* **UI Component (`createComponent`):** Takes the resulting HTML/DOM and **surgically swaps** the content of the element matching `[data-w-id="c1"]`.
 
 
 
@@ -126,10 +153,7 @@ The Sink is a <1kb singleton agent acting as a **Distributed Execution Bus**.
 
 To enable `signal.value++`, the Sink wraps all resolved dependencies in a Proxy.
 
-* **Set Trap:** 1. Updates the Sink's Map.
+* **Set Trap:**
+1. Updates the Sink's Map.
 2. Synchronously updates all DOM elements with surgical bindings (`data-w-bind`).
-3. Marks all dependent Actions/Components as "Dirty" for the next resolution cycle.
-
----
-
-**Would you like me to create the `TRANSFORM_SPEC.md` to define exactly how the JSX compiler handles the conversion of custom tags into these addressable internal calls?**
+3. Marks all dependent Actions (`aX`) and Components (`cX`) as "Dirty" for the next resolution cycle.

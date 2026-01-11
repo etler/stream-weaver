@@ -54,27 +54,36 @@ export interface Binding<T = any> extends Signal<T> {
 * **Action:** Define the serialized representation for the `html` loom.
 * **Logic:** Use the DOM as the registry to save bytes.
 * **Surgical Binding:** For raw values: `<span data-w-bind="s1"></span>`.
-* **Addressable Portal:** For components:
+* **Addressable Portal:** For components (the "anchor"):
 
 ```html
 <div data-w-id="c1" data-w-src="/Profile.js" data-w-deps="s1,s2"></div>
 
 ```
 
-#### **Step 2.3: Implement `createAction` & `addressable**`
+#### **Step 2.3: Implement `createAction` & `createComponent**`
 
 * **Action:** Create `src/factories.ts`.
-* **Logic:** * Accept a `ModuleSource` and a dependency array.
+* **Logic:**
+* Accept a `ModuleSource` and a dependency array.
 * **Spread Inference:** Use TypeScript to ensure the dependency array matches the positional arguments of the source function.
-* Return a `Binding` object.
+* **Differentiation:**
+* `createAction` returns a Binding with `type: 'action'` (Virtual).
+* `createComponent` returns a Binding with `type: 'component'` (Physical).
 
 
-* **JSX Integration:** The compiler wraps capitalized tags in `weaver.addressable()`.
+
+
+* **JSX Integration:** The compiler wraps capitalized tags in `weaver.createComponent()`.
 
 #### **Step 2.4: Upgrade `ComponentSerializer**`
 
 * **Action:** Modify `src/ComponentHtmlSerializer/ComponentSerializer.ts`.
-* **Logic:** Detect `Binding` objects. If `type: 'component'`, render the wrapper `div` with `data-w-src` and `data-w-deps`. Execute the component once on the server to fill the initial innerHTML.
+* **Logic:** Detect `Binding` objects.
+* If `type: 'component'`: Render the wrapper `div` (The Portal) with `data-w-src`, `data-w-deps`, and `data-w-id`. Execute the component once on the server to fill the initial innerHTML.
+* If `type: 'action'`: No HTML output; serialize into the Sink registry if needed by client-side logic.
+
+
 
 ---
 
@@ -107,14 +116,13 @@ export interface Binding<T = any> extends Signal<T> {
 #### **Step 4.2: Resolution & The Spread Invoke**
 
 * **Action:** Implement the resolver.
-
 1. Parse the wire format from `data-w-src` and `data-w-deps`.
 2. `await import(moduleURL)`.
 3. **The Spread:** Map dependency IDs to current values: `const args = deps.map(id => weaver.get(id))`.
 4. **Execution:** `const result = module.default(...args)`.
-5. **Update:** * If Action: Update Sink Map.
-* If Component: Surgically swap innerHTML of the `data-w-id` container.
-
+5. **Update Strategy:**
+* **If Action:** Update Sink Map (Virtual Update).
+* **If Component:** Locate the Portal `[data-w-id="..."]` and surgically swap `innerHTML` (Physical Update).
 
 
 #### **Step 4.3: State Proxy (Optimistic UI & Surgicality)**

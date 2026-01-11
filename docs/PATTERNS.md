@@ -18,25 +18,52 @@ This document outlines how to solve common web development challenges using the 
 
 ## 2. The "Recursive Resolver" Pattern (Solving Dynamic Components)
 
-**The Problem:** Swapping a "Login" view for a "Profile" view usually requires re-rendering a parent component and re-executing branching logic on every state change.
+**The Problem:** Swapping a "Login" view for a "Profile" view usually requires re-rendering a parent component (and its entire subtree) to execute the branching logic.
 
-**The Weaver Solution:** Treat the "Switch" logic as a pure **Resolver Action** that returns a Component Binding.
+**The Weaver Solution:** Use a **Higher-Order Component** as a "Reactive Valve." This component's only job is to receive signals and return a **Binding** to another component.
 
-* **The Pattern:** Create an action that takes a state (e.g., `isLoggedIn`) and returns a JSX tag (e.g., `<Profile />`).
-* **The Result:** The parent component remains a static shell. The Sink observes the "View Slot" address. When the state changes, the Sink runs the resolver, fetches the new component's code, and surgically swaps the DOM portal.
+* **The Concept:** A component is just an action that returns UI. Therefore, a component can return *another* component.
+* **The Benefit:** The Parent (App Shell) is static. It never re-renders. The Resolver is a "Portal" that swaps its internal content surgically when the input signals change.
+* **Lazy Loading:** Because we use `import source`, the browser *only* downloads the code for the component that is currently active.
+
+**The Implementation:**
 
 ```tsx
-// logic/view-resolver.ts
-import source Profile from '../components/Profile';
-import source Login from '../components/Login';
+// src/components/ViewResolver.tsx
+import source UserDashboard from './UserDashboard';
+import source GuestLogin from './GuestLogin';
 
+// 1. The Resolver receives RAW values via the Spread Contract.
+//    (It doesn't know about Signals, just boolean/object).
 export default (isLoggedIn, user) => {
-  return isLoggedIn ? <Profile user={user} /> : <Login />;
+
+  // 2. Logic Branching:
+  //    Returns a "Component Binding" (ID + Source URL).
+  return isLoggedIn
+    ? <UserDashboard user={user} />
+    : <GuestLogin />;
 };
 
-// App.tsx
-const currentView = createAction(viewResolver, [isLoggedIn, userSignal]);
-export const App = () => <main>{currentView}</main>;
+```
+
+```tsx
+// src/App.tsx
+import source ViewResolver from './components/ViewResolver';
+import { authSignal, userSignal } from './state';
+
+export const App = () => (
+  <main>
+    <h1>Application Shell</h1>
+
+    {/* 3. The Portal Anchor:
+       The compiler wraps this in `weaver.createComponent`.
+       The Sink creates a <div data-w-id="c1"> here.
+       It watches 'authSignal'. When it flips, it runs ViewResolver,
+       gets the new Component Binding, and swaps the innerHTML of c1.
+    */}
+    <ViewResolver isLoggedIn={authSignal} user={userSignal} />
+  </main>
+);
 
 ```
 
@@ -70,7 +97,7 @@ export const App = () => <main>{currentView}</main>;
 
 **The Weaver Solution:** Since `createX` can be called in loops, you can generate unique addresses for every item on the fly.
 
-* **The Pattern:** Call `createAction` inside a `.map()` during the server-side stream.
+* **The Pattern:** Call `createAction` (or use a component) inside a `.map()` during the server-side stream.
 * **The Result:** Each item arrives with its own pre-wired, surgical interactivity. The browser doesn't "loop" to attach listeners; it just populates the Sink as the HTML arrives.
 
 ---
@@ -93,5 +120,5 @@ export const App = () => <main>{currentView}</main>;
 | **Global State** | Context Provider (Tree-bound) | **Global Signal (Address-bound)** |
 | **Computeds** | `useMemo` (Component-bound) | **Derived Actions (ID-bound)** |
 | **Prop Drilling** | Manual passing of functions | **Direct Address Import/Composition** |
-| **Dynamic UI** | Conditional Rendering (Parent-bound) | **Recursive Resolver (Portal-bound)** |
+| **Dynamic UI** | Conditional Rendering (Parent-bound) | **Higher-Order Resolver (Portal-bound)** |
 | **Interactivity** | Hydration / Re-rendering | **Address Resolution / Surgical Update** |

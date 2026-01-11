@@ -1,3 +1,7 @@
+Here is the updated `REQUIREMENTS.md` with the formal adoption of `createComponent` and the Portal/Anchor specification.
+
+---
+
 # 📝 Product Requirements Document (PRD): Stream Weaver
 
 ## 1. Executive Summary
@@ -27,13 +31,13 @@ The framework must expose an API that treats state, logic, and UI as first-class
 * **Input:** A `ModuleSource` handle and an array of `Address` IDs.
 * **Behavior:** Binds a code URL to a unique ID (e.g., `a1`).
 * **Spread Pattern:** Logic functions receive dependencies as individual positional arguments.
-* **Return:** A `Binding` (Signal) representing the **result** of the logic.
+* **Return:** A `Binding` (Signal) representing the **virtual result** of the logic (Data).
 
 
-* **`addressable(componentHandle, props)`**:
+* **`createComponent(componentHandle, dependencies)`**:
 * **Implicit Usage:** Triggered by Capitalized JSX tags (`<UserCard />`).
-* **Behavior:** Identical to `createAction` but identifies the result as a **UI Fragment**.
-* **Return:** A `ComponentBinding` (Signal) representing the **UI Slot**.
+* **Behavior:** Identical to `createAction` but identifies the result as a **DOM Portal**.
+* **Return:** A `ComponentBinding` (Signal) representing the **Physical UI Slot**.
 
 
 
@@ -44,7 +48,7 @@ The framework must expose an API that treats state, logic, and UI as first-class
 * **Requirement 3.2.1:** Support **Source Phase Imports** (Stage 3).
 * **Requirement 3.2.2:** Enforce **Per-Interaction Code Splitting**.
 * **Requirement 3.2.3:** **JSX Transformer.**
-* Convert `<Component />` into `weaver.addressable(ComponentSource, [props])`.
+* Convert `<Component />` into `weaver.createComponent(ComponentSource, [props])`.
 * Ensure native tags (`div`, `span`) remain static Loom instructions.
 
 
@@ -59,7 +63,7 @@ The framework must expose an API that treats state, logic, and UI as first-class
 
 
 * **Requirement 3.3.3:** **Universal Slot Swapping.**
-* If a `ComponentBinding` changes its value (e.g., returns a different JSX structure), the Sink must surgically swap the DOM at that ID's location.
+* If a `ComponentBinding` changes its value (e.g., returns a different JSX structure), the Sink must find the corresponding **Portal (`data-w-id`)** and surgically swap the DOM.
 
 
 * **Requirement 3.3.4:** **Surgical DOM Updates.**
@@ -87,7 +91,7 @@ The framework must expose an API that treats state, logic, and UI as first-class
 
 ### Step 2: Universal Allocation
 
-* Implement `createSignal`, `createAction`, and `addressable` as ID generators.
+* Implement `createSignal`, `createAction`, and `createComponent` as ID generators.
 
 ### Step 3: The Sink (The Bus)
 
