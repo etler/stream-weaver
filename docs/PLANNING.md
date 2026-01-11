@@ -1,6 +1,6 @@
-# Development Planning: Stream Weaver MVP POC**
+# Development Planning: Stream Weaver MVP POC
 
-This document outlines the step-by-step execution plan to build the **Stream Weaver MVP** using the **Source Phase Import** architecture.
+This document outlines the execution plan to build the **Stream Weaver MVP** using the **Source Phase Import** architecture.
 
 ---
 
@@ -10,149 +10,127 @@ This document outlines the step-by-step execution plan to build the **Stream Wea
 
 #### **Step 1.1: Vite Configuration**
 
-* **Action:** Update `vite.config.ts` (or create a lightweight plugin).
-* **Requirement:** Ensure that importing a file with `?url` (the MVP proxy for `import source`) returns the public URL of the emitted chunk, not the executed code.
-* **Verification:** Create a test file `src/test-action.ts`. Import it in `index.ts` using the configured syntax. Log the result. It must be a string (URL), and the browser network tab should *not* load the file automatically.
+* **Action:** Update `vite.config.ts`.
+* **Requirement:** Ensure that `import source` (or the `?url` proxy) returns the public URL of the emitted chunk.
+* **Verification:** Log an imported source in `index.ts`. It must be a string (URL).
 
 #### **Step 1.2: Project Structure**
 
-* **Action:** Create standard directories.
-* `src/actions/` (Logic files)
-* `src/components/` (UI Components)
-* `src/runtime/` (Client Sink & Signals)
-
-
+* `src/actions/`: Stateless logic files.
+* `src/components/`: Stream-generating functions.
+* `src/runtime/`: The Signal Sink and ID management logic.
 
 ---
 
-### **Phase 2: The Core Protocol**
+### **Phase 2: The Core Protocol (The Addressable Factory)**
 
-**Goal:** Enable the server to serialize "Code Handles" and "Signals" into HTML attributes.
+**Goal:** Enable the server to serialize "Code Handles" and "Signals" into a unified format while maintaining full Type Safety.
 
-#### **Step 2.1: Define the `Binding` Type**
+#### **Step 2.1: The Type System (The Developer Contract)**
 
-* **Action:** Create `src/types/Binding.ts`.
-* **Content:** Define the interface for the wire protocol.
+* **Action:** Create `src/types/Addressable.ts`.
+* **Requirement:** Define how Signals and Actions are represented in the codebase.
+
 ```typescript
-export interface Binding {
-  module: string;         // Module URL
-  export?: string;        // Export name (default: "default")
-  signals: string[];      // Dependency Signal IDs
+export type Address = string; // e.g., "s1", "a1"
+
+export interface Signal<T> {
+  id: Address;
+  value: T;
 }
+
+export interface Binding<T = any> extends Signal<T> {
+  module: string;    // URL to the code chunk
+  signals: Address[]; // Array of dependency IDs
+  export: string;    // Named export (default: "default")
+}
+
+```
+
+#### **Step 2.2: The Wire Format (The Network Contract)**
+
+* **Action:** Define the serialized representation for the `html` loom.
+* **Logic:** To save bytes, the stream uses minimal representations.
+* **Dependency Reference:** Just the ID string: `"s1"` or `"a1"`.
+* **Action Registration:** A condensed JSON object in the `data-action` attribute:
+```json
+{ "id": "a1", "m": "/inc.js", "s": ["s1"] }
+
 ```
 
 
 
-#### **Step 2.2: Implement `createAction**`
+
+
+#### **Step 2.3: Implement `createAction**`
 
 * **Action:** Create `src/createAction.ts`.
 * **Logic:**
-* Accept a `ModuleSource` (URL string for MVP) and dependency array.
-* Return a opaque `Binding` object (or a special string marker) that the serializer can recognize.
+* Accept a `ModuleSource` and a dependency array.
+* **Inference:** Use `ReturnType<typeof source>` to determine the Signal type `T` for the `Binding<T>`.
+* Return a `Binding` object that contains its own unique `id`.
 
 
 
-#### **Step 2.3: Upgrade `ComponentSerializer**`
+#### **Step 2.4: Upgrade `ComponentSerializer**`
 
 * **Action:** Modify `src/ComponentHtmlSerializer/ComponentSerializer.ts`.
-* **Logic:**
-* In `serializeAttributes`, check if a prop value is a `Binding` object.
-* If yes, serialize it as `data-action='{"module":"...","signals":[...]}'`.
-* *Constraint:* Ensure proper JSON escaping within the HTML attribute.
-
-
+* **Logic:** Detect `Binding` objects in attributes. Serialize them using the **Wire Format** defined in Step 2.2.
 
 ---
 
-### **Phase 3: The Signal System**
+### **Phase 3: The Universal Signal System**
 
-**Goal:** Create the reactive primitives that live on both server and client.
+**Goal:** Create reactive primitives that ignore the "Rules of Hooks" and work anywhere.
 
 #### **Step 3.1: Implement `createSignal**`
 
 * **Action:** Create `src/runtime/Signal.ts`.
-* **Logic:**
-* `createSignal<T>(initial: T)` returns `{ id: string, value: T }`.
-* **Server-Side:** Generates a unique ID (incrementing counter).
-* **Client-Side:** Registers itself in a global registry (`window.weaver.signals`).
+* **Logic:** `createSignal<T>(initial)` returns the `Signal<T>` interface.
+* **Allocation:** Can be defined as a global constant or within a dynamic loop.
 
+#### **Step 3.2: Implement `StreamWeaver.context` (The Value Weave)**
 
-
-#### **Step 3.2: Implement `StreamWeaver.context**`
-
-* **Action:** Update `StreamWeaver.ts` to expose the signal registry.
-* **Logic:** Allow the Weaver to flush `<script>` tags that initialize signals on the client (`window.weaver.set("s1", 0)`).
+* **Action:** Update `StreamWeaver.ts`.
+* **Logic:** Emit `<script>weaver.set("s1", 10)</script>` for every signal created to populate the client Sink before logic executes.
 
 ---
 
 ### **Phase 4: The Client Runtime (The Sink)**
 
-**Goal:** Build the <1kb script that brings the HTML to life.
+**Goal:** Build the <1kb script that acts as the distributed execution bus.
 
 #### **Step 4.1: The Entry Point**
 
 * **Action:** Create `src/runtime/client.ts`.
-* **Logic:**
-* Initialize `window.weaver = { signals: new Map(), ... }`.
-* Add a global `click` event listener to `document`.
+* **Logic:** Initialize `window.weaver = { signals: new Map() }` and the global event listener.
 
+#### **Step 4.2: Event Delegation & Resolution**
 
-
-#### **Step 4.2: Event Delegation & Loading**
-
-* **Action:** Implement the event handler in `client.ts`.
-1. `e.target.closest('[data-action]')`.
-2. `JSON.parse` the attribute.
-3. `await import(binding.module)`.
-4. Resolve signal values from `binding.signals` IDs.
-5. Invoke the module's default export with `[signals]`.
+* **Action:** Implement the event handler.
+1. Parse the wire format JSON from `data-action`.
+2. `await import(binding.m)`.
+3. Resolve dependencies from `weaver.signals` Map.
+4. Invoke logic and update the Sink at `binding.id` with the result.
 
 
 
 #### **Step 4.3: State Proxy (Optimistic UI)**
 
-* **Action:** Wrap the signals passed to the action in a `Proxy`.
-* **Logic:**
-* **Set Trap:** When `signal.value = x` happens:
-1. Update local Map.
-2. Find all DOM nodes bound to this signal (requires a DOM marking strategy, e.g., `` text nodes or `data-bind="s1"`).
-3. Update their `textContent`.
-
-
-
-
+* **Action:** Wrap Signal values in a `Proxy`.
+* **Logic:** When `signal.value = x` happens, update the Map and all DOM nodes marked with `data-bind="id"`.
 
 ---
 
 ### **Phase 5: Integration & Demo**
 
-**Goal:** Prove "Zero-Hydration" interactivity.
+**Goal:** Prove "Zero-Hydration" interactivity and Higher-Order Actions.
 
-#### **Step 5.1: The "Counter" Demo**
+#### **Step 5.1: The "Recursive Transformation" Demo**
 
-* **Action:** Create `src/components/Counter.tsx` and `src/actions/increment.ts`.
-* **Code:**
-* `increment.ts`: `export default ([s]) => s.value++`.
-* `Counter.tsx`: Standard button using `createSignal` and `import source`.
-
-
+* **Action:** Create `actions/total.ts` and `components/Cart.tsx`.
+* **Requirement:** Prove that one action can consume the output ID of another action with full TypeScript verification.
 
 #### **Step 5.2: End-to-End Test**
 
-* **Action:** Create a browser test (Playwright/Puppeteer or manual).
-* **Scenario:**
-1. Load page. Check network (no `increment.js`).
-2. Click button. Check network (`increment.js` loads).
-3. Verify DOM updates from 0 to 1.
-
-
-
----
-
-### **Execution Order**
-
-1. **Step 1.1** (Vite Config)
-2. **Step 2.3** (Serializer Update)
-3. **Step 3.1** (Signals)
-4. **Step 4.1 & 4.2** (Client Runtime)
-5. **Step 5.1** (Demo Integration)
+* **Scenario:** Click a button -> Load logic -> Update Sink -> UI reflects change -> All without hydration.

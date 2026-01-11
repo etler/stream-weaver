@@ -6,125 +6,104 @@
 
 Stream Weaver rejects proprietary compiler transforms in favor of the **ECMAScript Source Phase Import** proposal (Stage 3). We treat logic not as inline closures, but as addressable, static assets.
 
-This architecture delegates "Extraction" and "Splitting" entirely to the bundler (Vite/Rollup), ensuring maximum compatibility and stability.
-
 ### 1.1 The "Code as Data" Pattern
 
-Instead of writing logic inline (which requires complex AST analysis to extract), Stream Weaver relies on importing the **Source** of a module.
+Instead of writing logic inline, which requires complex AST analysis to "extract" for code-splitting, Stream Weaver relies on importing the **Source** of a module.
 
 **Developer Input (`Counter.tsx`):**
 
 ```typescript
-// 1. We import the 'Source Handle', not the execution.
+// 1. Import the 'Source Handle', not the execution.
 import source incrementLogic from './actions/increment';
 
-// 2. We pass this handle to the runtime.
-const handler = createAction(incrementLogic, [count]);
+// 2. Pass this handle to the factory.
+// This allocates a stable ID (e.g., 'a1') and a code pointer.
+const incrementAction = createAction(incrementLogic, [count]);
 
 ```
 
 ### 1.2 The Bundler Pipeline
 
-When Vite processes an `import source ...` statement, it performs standard code splitting:
-
-1. **Asset Emission:** The file `./actions/increment.ts` is treated as a separate entry point or chunk.
-2. **Handle Generation:** The import resolves to a `ModuleSource` object (or a polyfilled equivalent) containing the stable, public URL of that chunk.
-* **Example:** `{ url: "/assets/increment-B5x9sD.js" }`
-
-
-3. **Zero Execution:** Crucially, the server rendering the component **never executes** the imported logic. It simply passes the *reference* (the URL) to the client.
+1. **Asset Emission:** The bundler treats `./actions/increment.ts` as a separate chunk.
+2. **Handle Generation:** The import resolves to a `ModuleSource` object containing the stable public URL.
+3. **Zero Execution:** The server **never executes** the imported logic; it simply weaves the URL into the stream as a pointer.
 
 ---
 
 ## 2. The Type Inference Engine (TypeScript)
 
-Stream Weaver enforces type safety across the network boundary using standard TypeScript generics, without relying on compiler "Type Tunneling."
+Stream Weaver enforces type safety across the network boundary using standard TypeScript generics. Because actions can return signals, we use recursive inference to ensure safety when passing one action's result into another.
 
-### 2.1 The "Dual Import" Pattern
+### 2.1 The "Logic Transformation" Inference
 
-To ensure the View respects the Logic's requirements, we leverage the split between *Value* and *Type*.
-
-```typescript
-// The Definition (actions/increment.ts)
-export default ([signal]: [Signal<number>]) => signal.value++;
-
-```
+The `createAction` factory uses the return type of the source module to define its own identity.
 
 ```typescript
-// The Usage (Counter.tsx)
-import source incrementSrc from './actions/increment'; // The Runtime Handle
-import type incrementType from './actions/increment';  // The Contract
+// Definition (logic/math.ts)
+// Returns a Signal<number>
+export default ([s1]: [Signal<number>]) => s1.value * 2;
 
-// The `createAction` signature enforces the contract:
-createAction<typeof incrementType>(incrementSrc, [count]);
+// Usage
+import source mathSrc from './logic/math';
+import type mathType from './logic/math';
+
+// createAction infers that 'doubleSignal' is a Signal<number>
+const doubleSignal = createAction<typeof mathType>(mathSrc, [count]);
 
 ```
 
 ### 2.2 How Inference Flows
 
-1. **Constraint:** `createAction<Module>` expects `Module` to be a module type with a default export.
-2. **Analysis:** TS extracts `Parameters<Module['default']>[0]` from the type definition.
-3. **Enforcement:** The `dependencies` array (`[count]`) is checked against that parameter list.
-
-This ensures that if `actions/increment.ts` changes its signature to require a string, `Counter.tsx` immediately fails to compile.
+1. **Unwrapping:** `createAction` extracts the `ReturnType` of the logic module.
+2. **Signature Matching:** If `doubleSignal` is passed as a dependency to a second action, TypeScript verifies that the second action's input matches the first action's output.
 
 ---
 
-## 3. The Runtime Bridge (`createAction`)
+## 3. The Runtime Factories (`createSignal` & `createAction`)
 
-The `createAction` hook is the bridge between the **ModuleSource** handle and the **Wire Protocol**.
+These are **Deterministic Address Generators**. They ignore the "Rules of Hooks" because they rely on explicit ID addressing rather than positional memory.
 
-### 3.1 Server-Side (Render Phase)
+### 3.1 Universal Allocation
 
-When running in Node/Bun/Edge:
+Unlike React or Qwik, these factories can be called **anywhere**:
 
-1. **Input:** Receives the `ModuleSource` object (containing the chunk URL).
-2. **Serialization:** It extracts the URL (e.g., `/assets/inc.js`) and creates a binding definition.
-3. **Output:** Returns a JSON-serializable ID string.
+* **Global Constants:** For shared application state.
+* **Dynamic Loops:** For generating unique interactivity in the middle of a stream.
+* **Logic Modules:** For creating nested "Computed" chains.
 
-**Return Value:** `{"module":"/assets/inc.js","signals":["s1"]}`
+### 3.2 The Serializer (The "Loom")
 
-### 3.2 Client-Side (Hydration Phase)
+When the server encounters these primitives during the "ChainExplode" render:
 
-When running in the Browser:
-
-1. **Input:** Receives the same `ModuleSource` object.
-2. **Output:** Returns an Event Handler that calls `window.weaver.run()`, passing the static URL found in the source handle.
+1. **Signals:** It generates an ID (e.g., `s1`) and flushes a `<script>` tag to register the value.
+2. **Actions:** It generates an ID (e.g., `a1`) and serializes the code URL and dependency list into the **Wire Protocol**.
 
 ---
 
-## 4. The Wire Protocol
+## 4. The Wire Protocol (Condensed)
 
-Stream Weaver uses a minimal JSON protocol to bind logic to DOM elements. This keeps the HTML payload small.
+Stream Weaver uses a minimal JSON format to keep the HTML payload surgical.
 
-### 4.1 The `data-action` Attribute
+### 4.1 The `Binding` Address
 
-This attribute is placed on interactive elements.
+Represented in the `data-action` attribute of an element.
 
 ```json
-// Format
 {
-  "module": "/assets/increment-B5x.js",  // Module Path (from Source Import)
-  "export": "default",                   // Export Name (defaults to default)
-  "signals": ["s1", "s2"]                // Dependency Signal IDs
+  "id": "a1",           // The Address of this logic (and its result)
+  "m": "/assets/inc.js", // Module URL (minified key for 'module')
+  "s": ["s1", "a2"],     // Dependencies (Source Signals 's' and Derived Actions 'a')
+  "e": "default"         // Export Name
 }
-```
-
-**Example:**
-
-```html
-<button data-action='{"module":"/assets/increment-B5x.js","signals":["s1"]}'>+</button>
 
 ```
 
-### 4.2 The Signal Frame
+### 4.2 The Value Frame
 
-Signals are pushed to the stream as `<script>` tags that execute immediately.
+Pushed to the stream to populate the global Sink.
 
 ```html
-<script>
-  window.weaver.set("s1", 0);
-</script>
+<script>weaver.set("s1", 10)</script>
 
 ```
 
@@ -132,22 +111,22 @@ Signals are pushed to the stream as `<script>` tags that execute immediately.
 
 ## 5. The Signal Sink (Client Runtime)
 
-The runtime (`client.ts`) is a singleton agent that knows nothing about components. It only understands **Signals** and **URLs**.
+The Sink is a <1kb singleton agent. It acts as a **Distributed Execution Bus**.
 
-### 5.1 The "Lazy Execution" Flow
+### 5.1 The Resolution Flow
 
-1. **Event Delegation:** A global listener catches all `click` events.
-2. **Lookup:** It finds the closest `[data-action]` attribute.
-3. **Import:** It calls `await import(binding.module)`.
-* *Note:* Because `binding.module` comes directly from the bundler's chunk generation, it is a valid, cacheable URL.
+1. **Event Capture:** Global listener finds the `data-action` address.
+2. **Import:** Dynamic `import(binding.m)` fetches the logic.
+3. **Address Resolution:** It looks up all dependency IDs in its `Map`.
+* *Honesty:* If a dependency is an action ID (`a2`) that hasn't run yet, the Sink triggers that logic first (Recursive Resolution).
 
 
-4. **Injection:** It looks up the Signal IDs (`binding.signals`) in its local `Map`.
-5. **Execution:** It invokes the imported function, passing the Signal values.
+4. **Execution & Update:** It invokes the logic, passes the values, and stores any return value back in the Sink under the action's `id`.
 
-### 5.2 The State Proxy
+### 5.2 The Unified State Proxy
 
-To enable "Write-Back" (e.g., `signal.value++`), the Sink wraps the signals passed to the module in a Proxy.
+To enable `signal.value++`, the Sink wraps all resolved dependencies in a Proxy.
 
-* **Get:** Reads from the local Map.
-* **Set:** Updates the local Map + Triggers a DOM update for bound nodes.
+* **Set Trap:** 1. Updates the value in the Sink's Map.
+2. Synchronously updates all DOM elements marked with `data-bind="ID"`.
+3. Triggers re-resolution for any "Derived Actions" that depend on this ID.
