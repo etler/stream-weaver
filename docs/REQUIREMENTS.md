@@ -73,7 +73,7 @@ The framework must expose an API that treats state and logic as first-class, add
 * **Requirement 3.4.1:** **Everything is an ID.** Dependencies in the stream are always string pointers (`"s1"`, `"a1"`).
 * **Requirement 3.4.2:** **Registration Frames.**
 * Signals: `weaver.set("s1", value)`
-* Actions: `data-action='{"id":"a1", "m":"/url.js", "s":["s1"]}'`
+* Actions: `data-action='{"id":"a1", "module":"/url.js", "signals":["s1"]}'`
 
 
 * **Requirement 3.4.3:** Out-of-Order Execution.

@@ -54,7 +54,7 @@ export interface Binding<T = any> extends Signal<T> {
 * **Dependency Reference:** Just the ID string: `"s1"` or `"a1"`.
 * **Action Registration:** A condensed JSON object in the `data-action` attribute:
 ```json
-{ "id": "a1", "m": "/inc.js", "s": ["s1"] }
+{ "id": "a1", "module": "/inc.js", "signals": ["s1"] }
 
 ```
 

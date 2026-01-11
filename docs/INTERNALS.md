@@ -41,7 +41,7 @@ The `createAction` factory uses the return type of the source module to define i
 ```typescript
 // Definition (logic/math.ts)
 // Returns a Signal<number>
-export default ([s1]: [Signal<number>]) => s1.value * 2;
+export default (s1: Signal<number>) => s1.value * 2;
 
 // Usage
 import source mathSrc from './logic/math';
@@ -91,9 +91,9 @@ Represented in the `data-action` attribute of an element.
 ```json
 {
   "id": "a1",           // The Address of this logic (and its result)
-  "m": "/assets/inc.js", // Module URL (minified key for 'module')
-  "s": ["s1", "a2"],     // Dependencies (Source Signals 's' and Derived Actions 'a')
-  "e": "default"         // Export Name
+  "module": "/assets/inc.js", // Module URL (minified key for 'module')
+  "export": "default"         // Export Name
+  "signals": ["s1", "a2"],     // Dependencies (Source Signals 's' and Derived Actions 'a')
 }
 
 ```

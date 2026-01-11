@@ -33,7 +33,7 @@ In a distributed system, implicitly capturing variables from a parent scope is d
 **The Rule of Signals:** *Logic must be stateless. Dependencies must be explicit.*
 
 * **Bad (Implicit):** `() => count.value++` (Relies on closure magic).
-* **Good (Explicit):** `([s]) => s.value++` (Pure function, explicit input).
+* **Good (Explicit):** `(s) => s.value++` (Pure function, explicit input).
 
 ### III. Logic is Data (The Law of Addressability)
 
