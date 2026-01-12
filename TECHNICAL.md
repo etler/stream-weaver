@@ -4,7 +4,7 @@
 
 Modern distributed systems have well-established patterns for processing bounded data through MapReduce's parallel decomposition, but there are lacking complementary patterns for unbounded work that expands during execution over a stream. This paper defines the term ChainExplode, an operation that serves as a complement to MapReduce. Where MapReduce distributes work from datasets then collects results, ChainExplode discovers work from seeds then expands it in parallel. These operations chain work for sequential consumption and explode it with recursive injection, maintaining ordering guarantees as work grows through parallel discovery.
 
-To employ the ChainExplode operation, this paper presents Stream Weaver, a framework that orchestrates streams using two core primitives: Async Iterable Sequencers that maintain chained ordering via relay patterns, and Conductor Streams that enable recursive work injection. These primitives preserve stream efficiency while enabling arbitrary work expansion patterns. We demonstrate ChainExplode's ability to explode streaming data through implementations of parallel recursive AI agent swarms and isomorphic UI rendering of async functional components. By providing the operational complement to MapReduce for streaming systems, ChainExplode rounds out the fundamental patterns for coordinating both convergent and divergent parallel computation.
+To employ the ChainExplode operation, this paper presents Stream Weaver, a framework that orchestrates streams using two core primitives: Async Iterable Sequencers that maintain chained ordering via relay patterns, and delegate Streams that enable recursive work injection. These primitives preserve stream efficiency while enabling arbitrary work expansion patterns. We demonstrate ChainExplode's ability to explode streaming data through implementations of parallel recursive AI agent swarms and isomorphic UI rendering of async functional components. By providing the operational complement to MapReduce for streaming systems, ChainExplode rounds out the fundamental patterns for coordinating both convergent and divergent parallel computation.
 
 ## Introduction
 
@@ -16,7 +16,7 @@ ChainExplode inverts MapReduce's operational pattern. Where MapReduce distribute
 
 The operations are enabled through two core primitives:
 * **Async Iterable Sequencers** provide the chaining mechanism, maintaining sequential ordering guarantees through the **relay pattern**
-* **Conductor Streams** provide the exploding mechanism, orchestrating parallel work injection at multiple points
+* **delegate Streams** provide the exploding mechanism, orchestrating parallel work injection at multiple points
 
 Together, these primitives enable streaming ChainExplode operations: chaining work in sequence while exploding parallel work by chaining and recursively injecting streams. This framework allows data production to maintain optimal streaming efficiency while coordinating arbitrarily complex generative work patterns.
 
@@ -34,8 +34,8 @@ This work makes the following contributions:
 
 * **Relay Pattern**: A novel approach using async generators with unresolved tail promises that enables unbounded async iterator chains to be dynamically extended at runtime.
 * **Async Iterable Sequencer**: A primitive that provides a queue-like interface for chaining async iterators in guaranteed sequence order with minimal memory overhead, enabling the chaining of entire streams through their async iterator implementation.
-* **Conductor Stream**: A transform stream interface implementation that utilizes an Async Iterable Sequencer to enable decentralized coordination of parallel work by allowing entire streams to be injected.
-* **Stream Weaver Framework**: An orchestration framework that coordinates multiple Conductor Streams and Async Iterable Sequencers to enable streaming pipelines that execute unblocked parallel work.
+* **delegate Stream**: A transform stream interface implementation that utilizes an Async Iterable Sequencer to enable decentralized coordination of parallel work by allowing entire streams to be injected.
+* **Stream Weaver Framework**: An orchestration framework that coordinates multiple delegate Streams and Async Iterable Sequencers to enable streaming pipelines that execute unblocked parallel work.
 * **Parallel Recursive AI Agents**: Demonstration of massively parallelized AI agent swarms that can spawn sub-agents while maintaining streaming output order.
 * **Concurrent Isomorphic UI Framework**: Exploration of a Stream Weaver implementation for unified server-client component rendering with isomorphic asynchronous component generation.
 * **Cross-Context Stream Chaining**: An application of a Stream Weaver Framework to maintain serial behavior across execution boundaries while allowing concurrent work to be chained without blocking execution.
@@ -98,28 +98,28 @@ export function asyncIterableSequencer<T>(): AsyncIterableSequencerReturn<T> {
 
 <small>[Implementation with tests: https://github.com/etler/async-iterable-sequencer](https://github.com/etler/async-iterable-sequencer)</small>
 
-### Orchestration: Conductor Streams and Stream Weaver Frameworks
+### Orchestration: delegate Streams and Stream Weaver Frameworks
 
 The **Async Iterable Sequencer** enables us to chain entire streams that implement the async iterator pattern together with an open ended chain. As streams maintain their own buffers they can process incoming data asynchronously and in parallel while being chained in a sequencer with their content pending consumption. This allows us to have parallel streams that can be consumed in a FIFO order on the async iterable chain.
 
-This can be employed in a module that implements a transform stream interface that we define as a **Conductor Stream**. The transform callback of the conductor can be used to process the writable inbound stream to detect directives to invoke chaining other streams onto the outbound readable stream. Like a conductor, the Conductor Stream orchestrates streams by deciding how the streams should be sequenced.
+This can be employed in a module that implements a transform stream interface that we define as a **delegate Stream**. The transform callback of the delegate can be used to process the writable inbound stream to detect directives to invoke chaining other streams onto the outbound readable stream. Like a delegate, the delegate Stream orchestrates streams by deciding how the streams should be sequenced.
 
 The sequencer iterable can then be consumed in a detached asynchronous execution context and process the iterable chain to enqueue the output onto the outbound readable stream controller until it receives a terminate signal and completes at which point it can close the stream controller.
 
 ```typescript
 import { asyncIterableSequencer, Chain } from "asyncIterableSequencer";
 
-export interface ConductorStreamOptions<I, O> {
+export interface DelegateStreamOptions<I, O> {
   start?: (chain: Chain<O>) => void;
   transform: (chunk: I, chain: Chain<O>) => void;
   finish?: (chain: Chain<O>) => void;
 }
 
-export class ConductorStream<I, O> {
+export class DelegateStream<I, O> {
   public readable: ReadableStream<O>;
   public writable: WritableStream<I>;
 
-  constructor({ start, transform, finish }: ConductorStreamOptions<I, O>) {
+  constructor({ start, transform, finish }: DelegateStreamOptions<I, O>) {
     const { sequence, chain } = asyncIterableSequencer<O>();
     this.readable = ReadableStream.from<O>(sequence);
     this.writable = new WritableStream<I>({
@@ -137,7 +137,7 @@ export class ConductorStream<I, O> {
 
 <small>[Implementation with tests: https://github.com/etler/delegate-stream](https://github.com/etler/delegate-stream)</small>
 
-Using a conductor stream we can produce a framework which we will define as a **Stream Weaver**. A weaver enables coordinating streaming pipelines while maintaining stream-level encapsulation, where entire streams can be treated as composable units regardless of their internal complexity, and chained conductor streams can be used to inject additional work within existing streams.
+Using a delegate stream we can produce a framework which we will define as a **Stream Weaver**. A weaver enables coordinating streaming pipelines while maintaining stream-level encapsulation, where entire streams can be treated as composable units regardless of their internal complexity, and chained delegate streams can be used to inject additional work within existing streams.
 
 ## Ordered Consumption of Parallel Production
 
@@ -147,7 +147,7 @@ All computer media requires some level of data ordering to give meaning to the c
 
 Computer media is composed of semantic units of data that can be parsed and processed as individual chunks without requiring the full context of the full media container. These semantic units provide the opportunity to be produced in parallel, however their consumption must still happen in order for the containing media to retain its full semantic meaning. In most cases, the full media context is not required to produce a semantic data chunk and a subset of the greater context can be used to successfully produce a particular part of the greater media.
 
-Weaver frameworks enable decentralized orchestration of parallel media production while allowing sequence dependent semantic units to be consumed in their required order. As each conductor in the chain does not require knowledge of its position in the chain to discover and allocate new work in the chain, no central orchestration of each producer in the chain is necessarily needed to process a data stream while allowing the processing to occur in parallel. No active central orchestration is needed for consumption of the stream as each chain in the stream maintains its own order and no external mechanism is required to maintain the ordering of the chain.
+Weaver frameworks enable decentralized orchestration of parallel media production while allowing sequence dependent semantic units to be consumed in their required order. As each delegate in the chain does not require knowledge of its position in the chain to discover and allocate new work in the chain, no central orchestration of each producer in the chain is necessarily needed to process a data stream while allowing the processing to occur in parallel. No active central orchestration is needed for consumption of the stream as each chain in the stream maintains its own order and no external mechanism is required to maintain the ordering of the chain.
 
 ### Enabling Asynchronous Stream Planning in Synchronous Patterns
 
@@ -159,7 +159,7 @@ This approach inverts typical streaming orchestration patterns by enabling synch
 
 ### Parallel Recursive Work Planning
 
-As Conductors are streams themselves, Conductors within a Weaver Framework can chain other conductors allowing for recursive injection of newly discovered work from the input stream onto the consumption chain by chaining other conductors. It should be noted that recursion is referring to the self referential nature of the code structure, and the iterator delegation of the Async Iterator Sequencers produce a flattened call stack. As these streams are all ultimately flattened, any discovered work is still able to execute in parallel even within a recursive code context.
+As Delegates are streams themselves, Delegates within a Weaver Framework can chain other delegates allowing for recursive injection of newly discovered work from the input stream onto the consumption chain by chaining other delegates. It should be noted that recursion is referring to the self referential nature of the code structure, and the iterator delegation of the Async Iterator Sequencers produce a flattened call stack. As these streams are all ultimately flattened, any discovered work is still able to execute in parallel even within a recursive code context.
 
 This behavior allows you to essentially treat the iterator chain as an injectable execution queue, ensuring blocking execution order when consumed while allowing unblocked execution order during production. Simply, you are writing out a distributed plan in real time and consuming the output of the plan in order, waiting for results any time you reach a step that has not yet been completed by its worker. This allows you to write out the plan that can get executed in parallel at multiple depth levels of injection.
 
@@ -199,11 +199,11 @@ This added efficiency would allow seamlessly chaining meta prompt generation for
 
 ## Example: A Unified Isomorphic Natively Streaming UI Framework
 
-Complex applications require coordination across multiple execution contexts such as server to client communication as well as other execution context barriers. Conductor output can be serialized at stream boundaries to bridge cross context gaps, and deserialized in the target execution context to extend the pattern to multi system contexts. As these cross context transports are also streams, they can also be consumed and chained onto Conductors managed by Weavers.
+Complex applications require coordination across multiple execution contexts such as server to client communication as well as other execution context barriers. Delegate output can be serialized at stream boundaries to bridge cross context gaps, and deserialized in the target execution context to extend the pattern to multi system contexts. As these cross context transports are also streams, they can also be consumed and chained onto Delegates managed by Weavers.
 
-One such framework could be a component based server/client framework that implements a custom `jsx` factory function that outputs element tags onto an underlying component scoped conductor stream as well as Child Components. Child component `jsx` calls can return an additional conductor stream to enable recursively chaining conductor streams to an arbitrary depth with the low level sequencer ensuring flattened and sequential output.
+One such framework could be a component based server/client framework that implements a custom `jsx` factory function that outputs element tags onto an underlying component scoped delegate stream as well as Child Components. Child component `jsx` calls can return an additional delegate stream to enable recursively chaining delegate streams to an arbitrary depth with the low level sequencer ensuring flattened and sequential output.
 
-As the child component chains are also streams, this enables the parent component to continue to process the subsequent element tags and also enqueue them onto the iterator chain. Furthermore the parent component is unblocked to continue processing additional Child Component it encounters and chain those conductor streams as well. As the child components are returning streams, this allows the parent process to complete its execution without blocking while also allowing the child component streams to process in parallel allowing fully parallelized asynchronous processing of all components at any level of arbitrary depth.
+As the child component chains are also streams, this enables the parent component to continue to process the subsequent element tags and also enqueue them onto the iterator chain. Furthermore the parent component is unblocked to continue processing additional Child Component it encounters and chain those delegate streams as well. As the child components are returning streams, this allows the parent process to complete its execution without blocking while also allowing the child component streams to process in parallel allowing fully parallelized asynchronous processing of all components at any level of arbitrary depth.
 
 ### Seamless Client and Server Integration
 
@@ -216,12 +216,12 @@ In the context of server to client communication, Server Weavers generate a virt
 On a browser, the initial raw HTML render stream is consumed by the browser to enable immediate rendering of server rendered components. The HTML render stream can also stream in `<script>` tags to allow browser clients to establish the client side execution context to initialize hydration, bundle resolution and fallback component reconciliation.
 
 ### Server Weaver Execution Context
-The Server Renderer Stream Weaver is responsible for rendering Virtual Component representations and establishing Client Weaver execution context initialization and any other execution context routines that may be desired. It should be noted that while a Client Weaver in most cases will be a Browser, this is not strictly the case and virtual representations of the various conductor outputs may be made generic enough so it could be serialized to establish context in any form of Client including other Servers.
+The Server Renderer Stream Weaver is responsible for rendering Virtual Component representations and establishing Client Weaver execution context initialization and any other execution context routines that may be desired. It should be noted that while a Client Weaver in most cases will be a Browser, this is not strictly the case and virtual representations of the various delegate outputs may be made generic enough so it could be serialized to establish context in any form of Client including other Servers.
 
-* Hydration Conductor (Chains Hydration Representation)
-* Component Conductor (Isomorphic Virtual Component Representation)
-* Fallback Component Conductor (Chains Fallback Components)
-* Bundle Conductor (Establishes Bundle Resolution for Code Module and Asset Bundles)
+* Hydration Delegate (Chains Hydration Representation)
+* Component Delegate (Isomorphic Virtual Component Representation)
+* Fallback Component Delegate (Chains Fallback Components)
+* Bundle Delegate (Establishes Bundle Resolution for Code Module and Asset Bundles)
 
 ### Server Output Stream Browser Serializer
 In the case of a Browser Client, Browser specific serializers can be used to transform the virtual stream representations into serialized HTML that can be natively deserialized by a Browser. To establish the site wrapper and execution context, Hydration representations can be serialized into `<html>`, `<head>`, `<body>`, and `<script>` tags with the script tags used to initialize the execution context of a Client Weaver. Virtual Components can be serialized into standard HTML and streamed in natively and rendered immediately. At the end of the HTML component content, subsequent script tags can be serialized to perform additional specific tasks such as fallback reconciliation and asset bundle resolution.
@@ -235,20 +235,20 @@ In the case of a Browser Client, Browser specific serializers can be used to tra
 Browser Stream Deserialization is actually simply standard browser HTML stream parsing and rendering and no special implementation is needed (or possible). The serialized content from the Server Weaver Serialization comes in the form of HTML tags, and hydration, reconciliation, and bundling is performed via the execution of serialized script tags from the Server serialization stream.
 
 * Browser HTML Deserialization (Natively parsed by the Browser and Displayed Immediately)
-* Hydration Stream Content Script Deserialization (Establishes Weaver Script Execution Context and Primary Conductor)
-* Fallback Component Script Deserialization (Chains Reconciliation Conductors onto the Weaver Conductor)
-* Bundle Script Deserialization (Chains Bundle Representations onto the Weaver Conductor to Ensure Dependency Execution Context Availability)
+* Hydration Stream Content Script Deserialization (Establishes Weaver Script Execution Context and Primary Delegate)
+* Fallback Component Script Deserialization (Chains Reconciliation Delegates onto the Weaver Delegate)
+* Bundle Script Deserialization (Chains Bundle Representations onto the Weaver Delegate to Ensure Dependency Execution Context Availability)
 
 ### Client Weaver Execution Context
-After the Browser Client Weaver is initialized and has established the primary Conductor and processed the Hydration Conduction setup, it can stabilize into an event loop, leaving an Interaction Conductor permanently unclosed at the end of the conductor chain to accept and evaluate DOM interaction events. These events can be transformed to trigger additional conductors to perform State, Component, and Lifecycle streams to update the application state and DOM state, and trigger any component lifecycle events needed. As the Interaction Conductor is conducting conductors onto the consumptions side of iteration, it can leave itself unclosed to continue to chain user events for evaluation as soon as the chained conductors have finished evaluation.
+After the Browser Client Weaver is initialized and has established the primary Delegate and processed the Hydration Delegation setup, it can stabilize into an event loop, leaving an Interaction Delegate permanently unclosed at the end of the delegate chain to accept and evaluate DOM interaction events. These events can be transformed to trigger additional delegates to perform State, Component, and Lifecycle streams to update the application state and DOM state, and trigger any component lifecycle events needed. As the Interaction Delegate is delegating delegates onto the consumptions side of iteration, it can leave itself unclosed to continue to chain user events for evaluation as soon as the chained delegates have finished evaluation.
 
-* Interaction Conductor (Unresolved Tail Conductor That Evaluates Chained Interation Events to Conduct State Conductors Onto the Consumption Stream while remaining unclosed at the end of the chain)
-* State Conductor (State Action Reducer That Updates Application State and Chains Subscribed Component Conductors)
-* Component Conductors (Isomorphic Virtual Component Representation that Renders a Component and triggers a Lifecycle Conductor)
+* Interaction Delegate (Unresolved Tail Delegate That Evaluates Chained Interation Events to Delegate State Delegates Onto the Consumption Stream while remaining unclosed at the end of the chain)
+* State Delegate (State Action Reducer That Updates Application State and Chains Subscribed Component Delegates)
+* Component Delegates (Isomorphic Virtual Component Representation that Renders a Component and triggers a Lifecycle Delegate)
 * Component Stream DOM Serializer (Conversion to DOM instance)
-* Bundle Conductor (Realtime Bundle Resolution when needed)
-* Lifecycle Conductor (Triggers component hydration, mounting, painting, and other lifecycle events)
-* Reconciliation Conductor (Reconciles Fallback Components with rendered delayed components)
+* Bundle Delegate (Realtime Bundle Resolution when needed)
+* Lifecycle Delegate (Triggers component hydration, mounting, painting, and other lifecycle events)
+* Reconciliation Delegate (Reconciles Fallback Components with rendered delayed components)
 
 ### Client Output Stream Serializer
 As the client weaver also produces a consumption stream, that consumption stream can also be consumed elsewhere. The stream could be written back to a server for seamless state synchronization and server database update pipelines with another serialization stream to be consumed by the server.
@@ -257,15 +257,15 @@ As the client weaver also produces a consumption stream, that consumption stream
 
 ### Server Input Stream Deserializer
 * Event Stream Deserializer (Conversion of Event JSON to Events)
-* Event Conductor (Conducts Actions Based on Events)
+* Event Delegate (Delegates Actions Based on Events)
 * Event Transaction Serializer (Execution of Events into Transactions such as Persistent Storage)
 
 ### Session Weaver Execution Context
-An ongoing session weaver can receive serialized server stream updates with a Message Conductor to push server-side messaging events to established client weaver Message Conductor Stream connections to provide real time updates.
+An ongoing session weaver can receive serialized server stream updates with a Message Delegate to push server-side messaging events to established client weaver Message delegate Stream connections to provide real time updates.
 
-* Messaging Conductor (Conducts Messages based on actions triggered from an external source)
+* Messaging Delegate (Delegates Messages based on actions triggered from an external source)
 * Messaging Serializer (Converts Messages to JSON or other Message Format for Consumption by a Remote Client Consumer)
-* Messaging Deserializer (Receives Messages on the Client from the Session Weaver and Conducts them as Events on the Event Tail Chain)
+* Messaging Deserializer (Receives Messages on the Client from the Session Weaver and Delegates them as Events on the Event Tail Chain)
 
 ### Patterns
 
@@ -273,7 +273,7 @@ An ongoing session weaver can receive serialized server stream updates with a Me
 
 As the streams are asynchronous, they can await on external data sources they can use to populate rendered output. This has the caveat that any non streaming asynchronous requests would block the sequential output stream if the output stream has caught up with its output. In the case of local in cluster data lookups, this blocking time would be minimal in practice, only adding milliseconds of latency in most practical cases. However this blocking time could be significant if it is blocking on an out of cluster network request and incur external network latency. These cases could be mitigated however by skipping over those components and resolving them through another method.
 
-#### Fallback Component Conductors
+#### Fallback Component Delegates
 
 As the underlying async iterator chain returns promises on the iterator output, this allows us to use promise patterns to orchestrate the stream. In order to prevent unnecessarily long blocking of the sequential chain output during non streaming pre-processing steps such as a database call, a race promise can be used to prevent any component from taking an overly long time even if it blocks on a lengthy external subroutine. The fallback promise winning the race could then produce unblocking fallback component content that can be used to resolve the fallback component back to the completed output at a later point.
 
@@ -285,27 +285,27 @@ When a component encounters an error, instead of terminating the full stream, th
 
 It would be possible to apply component boundary markers around component streams to denote error boundaries that would allow a client to recover in the event that the component stream content produces an error by rolling back the streamed changes to the previously encountered error boundary.
 
-### Merging Parallel Conductor Chains
+### Merging Parallel Delegate Chains
 
-Parallel Conductor Chains could be consumed using a Merge Stream to enable specialized conductors with independent concerns to open multiple open chains to process different kinds of data at the same time. This enables foreplanning for different kinds of decoupled operations that can be combined at the merge point. This could be used to enable multiple modes of input, for example you can maintain an open Interaction Conductor for UI Events while also maintaining a Fallback Conductor to pull slow component renders out of the main stream, as well as a Message Conductor to communicate with a remote Server Session Weaver to receive asynchronous server-side push messages.
+Parallel Delegate Chains could be consumed using a Merge Stream to enable specialized delegates with independent concerns to open multiple open chains to process different kinds of data at the same time. This enables foreplanning for different kinds of decoupled operations that can be combined at the merge point. This could be used to enable multiple modes of input, for example you can maintain an open Interaction Delegate for UI Events while also maintaining a Fallback Delegate to pull slow component renders out of the main stream, as well as a Message Delegate to communicate with a remote Server Session Weaver to receive asynchronous server-side push messages.
 
-#### Placeholder Conductors
+#### Placeholder Delegates
 
-The render conductor can chain to a component lifecycle conductor which chains to a UI event stream interaction conductor which chains to a state conductor which chains back to a lifecycle conductor which can chain additional render streams and so forth. Placeholder conductors can be chained for execution even if they don't get used, allowing you to chain any amount of interaction conductors at points in the plan where they are valid for consumption, and new UI events can be chained onto the last interaction conductor on the stream.
+The render delegate can chain to a component lifecycle delegate which chains to a UI event stream interaction delegate which chains to a state delegate which chains back to a lifecycle delegate which can chain additional render streams and so forth. Placeholder delegates can be chained for execution even if they don't get used, allowing you to chain any amount of interaction delegates at points in the plan where they are valid for consumption, and new UI events can be chained onto the last interaction delegate on the stream.
 
 ## Further Considerations
 
-### Stack Trace Conductors
+### Stack Trace Delegates
 
-Since conductor streams can be chained to the sequencer alongside content conductors, a Stack Trace Conductors can conceivably be integrated directly into the execution plan to provide stack boundaries for debugging capabilities. Stack Trace Conductors could track execution plan state by chaining debugging metadata through the sequencer that can be reduced to determine the current location in the stream plan, enabling visibility into conductor nesting. This approach would provide execution plan introspection that traditional stack traces cannot offer, as the sequential consumption pattern ensures execution stack position is consumed in the same deterministic order as content execution.
+Since delegate streams can be chained to the sequencer alongside content delegates, a Stack Trace Delegates can conceivably be integrated directly into the execution plan to provide stack boundaries for debugging capabilities. Stack Trace Delegates could track execution plan state by chaining debugging metadata through the sequencer that can be reduced to determine the current location in the stream plan, enabling visibility into delegate nesting. This approach would provide execution plan introspection that traditional stack traces cannot offer, as the sequential consumption pattern ensures execution stack position is consumed in the same deterministic order as content execution.
 
 ### Stream Robustness
 
-Local conductor streams operate in predictable execution environments without the failure modes inherent to network streams, eliminating concerns about connection drops, timeouts, and network partitions that commonly trigger failures in traditional streaming contexts. For conductor streams that interact with fragile external resource streams, error boundaries can be placed around individual conductors to isolate failures and prevent catastrophic stream termination. This granular error isolation ensures that a single conductor failure cannot terminate the entire execution plan, while the sequential consumption pattern guarantees that error recovery mechanisms are processed in deterministic order alongside content streams.
+Local delegate streams operate in predictable execution environments without the failure modes inherent to network streams, eliminating concerns about connection drops, timeouts, and network partitions that commonly trigger failures in traditional streaming contexts. For delegate streams that interact with fragile external resource streams, error boundaries can be placed around individual delegates to isolate failures and prevent catastrophic stream termination. This granular error isolation ensures that a single delegate failure cannot terminate the entire execution plan, while the sequential consumption pattern guarantees that error recovery mechanisms are processed in deterministic order alongside content streams.
 
 ### Cross-execution Context Coordination
 
-Applications often require complex coordination between different execution contexts. This can include separate processes, threads, runtimes, or network boundaries, creating performance bottlenecks and race conditions during state synchronization and component interactions. The Stream Weaver architecture can also be applied in these situations to eliminate these coordination complexities by implementing execution context specific conductor streams that orchestrate updates through the same sequential consumption pattern regardless of execution boundaries. For example, React Native's JavaScript and native platform coordination can be solved by implementing native components as conductor streams that chain seamlessly with JavaScript component streams, ensuring deterministic update ordering across execution boundaries while maintaining parallelism within each context. This approach transforms cross-context coordination from complex orchestration problems into unified streaming coordination architectures where execution context differences become implementation details rather than architectural barriers.
+Applications often require complex coordination between different execution contexts. This can include separate processes, threads, runtimes, or network boundaries, creating performance bottlenecks and race conditions during state synchronization and component interactions. The Stream Weaver architecture can also be applied in these situations to eliminate these coordination complexities by implementing execution context specific delegate streams that orchestrate updates through the same sequential consumption pattern regardless of execution boundaries. For example, React Native's JavaScript and native platform coordination can be solved by implementing native components as delegate streams that chain seamlessly with JavaScript component streams, ensuring deterministic update ordering across execution boundaries while maintaining parallelism within each context. This approach transforms cross-context coordination from complex orchestration problems into unified streaming coordination architectures where execution context differences become implementation details rather than architectural barriers.
 
 ### Deterministic Ordering of Stream Consumption to Enable Caching Strategies
 
@@ -319,11 +319,11 @@ To balance determinism with performance flexibility, it would be possible to spl
 
 ### In Place Data Processing
 
-{{{Imagine a PDF. It is being processed. Get text text text etc, then gets an image. Conductors can process that image in place while rest of stream continues getting processed.}}}
+{{{Imagine a PDF. It is being processed. Get text text text etc, then gets an image. Delegates can process that image in place while rest of stream continues getting processed.}}}
 
-### Cross-Conductor Communication
+### Cross-Delegate Communication
 
-{{{It's also possible for conductors to communicate with each other through global scope references...}}}
+{{{It's also possible for delegates to communicate with each other through global scope references...}}}
 
 ### Weaving Weavers
 
@@ -333,7 +333,7 @@ Weaver frameworks ultimately output a stream, and as Async Iterable Sequencers c
 
 Stream sequencing allows anything to be planned out and consumed like a synchronous operation because it makes the consumption sequential, allowing standard easy to understand sequential patterns to be applied to a stream chain that can be dynamically and recursively built without compromising parallelism.
 
-The chain can simply focus on conducting the plan and the plan can be developed in real time by multiple encapsulated sub routines, agents, or any other content producing method with an interface exposed to inject those newly generated plans in place. This allows the plan to be generated in parallel at any depth with guaranteed sequential ordering to ensure dependencies are resolved in the order needed.
+The chain can simply focus on delegating the plan and the plan can be developed in real time by multiple encapsulated sub routines, agents, or any other content producing method with an interface exposed to inject those newly generated plans in place. This allows the plan to be generated in parallel at any depth with guaranteed sequential ordering to ensure dependencies are resolved in the order needed.
 
 ## Appendix
 
