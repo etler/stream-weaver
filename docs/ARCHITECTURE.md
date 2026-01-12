@@ -1,4 +1,4 @@
-# Stream Weaver: The Canonical Stream Architecture
+# 📐 Stream Weaver: The Canonical Stream Architecture
 
 ## 1. Mission Statement
 
@@ -28,47 +28,52 @@ A Component is not a template; it is a **Pure UI Action**.
 
 ### II. Logic is Data (The Law of Addressability)
 
-We treat executable code exactly like strings or numbers. Logic is a serializable value. By leveraging **Source Phase Imports**, we treat code as a static asset to be delivered only when needed.
+We treat executable code exactly like strings or numbers. Logic is a serializable value. By leveraging **Source Phase Imports** (Stage 3), we treat code as a static asset to be delivered only when needed.
 
 ### III. Explicit Over Implicit (No Magic)
 
-We reject "Automatic Closure Capture."
+We reject "Automatic Closure Capture." Logic must be explicitly bound.
 
 * **Bad (Implicit):** `() => count.value++` (Relies on closure magic).
-* **Good (Explicit):** `(count) => count + 1` (Pure function, explicit input).
+* **Good (Explicit):** `createAction(incSrc, [count])` (Pure function, explicit input).
 
 ### IV. Universal Allocation
 
-Because every entity is an **Explicitly Addressed Pointer**, we eliminate positional memory constraints (Rules of Hooks).
+Because every entity is an **Explicitly Addressed Pointer** (`s1`, `a1`, `c1`), we eliminate positional memory constraints ("Rules of Hooks").
 
-* **Deterministic Factories:** `createSignal` and `createAction` allocate addresses.
+* **Deterministic Factories:** `createSignal`, `createAction`, and `createComponent` allocate addresses immediately.
 * **No Boundaries:** Factories can be called anywhere—inside loops, components, or global files. The framework cares only about the **Address**.
 
 ## 4. High-Level Approach
 
-### Layer 1: The Transport (Addressable DOM)
+### Layer 1: The Transport (Sequential Delivery)
 
-The backbone is a parallel, recursive `ReadableStream`.
+The backbone is a **Sequential, Recursive Stream** powered by `DelegateStream`.
 
-* **The Sink as Registry:** The client-side runtime (The Sink) uses the DOM as its address book.
-* **Surgical Holes:** Signals are bound to specific text nodes or attributes via IDs (`data-w-id`).
-* **Interactive Portals:** Custom components are bound via Action IDs and Source URLs (`data-w-src`).
+* **Parallel Production, Ordered Consumption:** The server may execute logic in parallel, but the `AsyncIterableSequencer` ensures that the output (HTML + Scripts) arrives at the client in a strictly deterministic, topological order.
+* **The Linear Guarantee:** The client runtime assumes that if Component `c1` depends on Action `a1`, the definition for `a1` has already appeared in the stream.
 
-### Layer 2: The Factory (Implicit Signal Boundaries)
+### Layer 2: The Decoupled Pipeline (Server-Side)
 
-The JSX transform automates the "Plumbing" of addressability:
+We strictly separate **Logic** from **Serialization** using a composable stream pipeline:
 
-* **Native Tags (`div`, `span`):** Compiled to static strings with surgical signal holes. Zero overhead.
-* **Custom Components (`<UserCard />`):** Automatically wrapped in an addressable **Component Signal**.
-* **Automatic Wrapping:** The return value of any Action or Component is automatically wrapped in a Signal, making the entire UI a **Recursive Reactive Graph**.
+1.  **Component Delegate (Logic Layer):** Resolves Promises and emits high-level `Marker` objects (`Signal`, `Open`, `Close`, `Text`). It knows nothing about HTML.
+2.  **Signal Serializer (Protocol Layer):** Transforms Operations into Wire Protocol tokens.
+    * `Signal` $\to$ `<script>weaver.set(...)</script>`
+    * `Open` $\to$ `<div data-w-id="...">`
+3.  **Component Serializer (Syntax Layer):** Converts tokens into escaped HTML strings.
 
-### Layer 3: The Engine (The Signal Sink)
+### Layer 3: The Engine (The Linear Sink)
 
-The client-side runtime is a <1kb **Signal Sink**. It does not "render" components; it acts as a **Distributed Resolver**.
+The client-side runtime is a <1kb **Signal Sink**. It acts as a **Distributed Resolver** that expects instructions in linear order.
 
-* **It Listens:** Captures stream updates for signal values.
-* **It Resolves:** When a signal changes, it identifies affected **Component Addresses**.
-* **It Executes:** It lazy-loads the module source, spreads the current signal values into the pure function, and performs a surgical DOM transplant.
+* **It Registers:** As `<script>` tags stream in, it populates the `weaver.store` (State) and `weaver.registry` (Logic Definitions) immediately.
+* **It Listens:** It observes DOM nodes for `data-w-bind` (Text) and `data-w-id` (Portals).
+* **It Resolves:** When a signal changes, it triggers the recursive resolution engine:
+    1.  Resolve dependencies (`deps`) from the store.
+    2.  Lazy-load the module source (`src`).
+    3.  Execute the specific export (`key`).
+    4.  Surgically update the DOM.
 
 ## 5. Design Goals
 
@@ -76,18 +81,18 @@ The client-side runtime is a <1kb **Signal Sink**. It does not "render" componen
 
 By isolating logic into **Pure Modules**, we guarantee per-interaction tree shaking. A "Buy Button" loads *only* the code required for that button. The code used to render the page on the server is never downloaded by the client.
 
-### II. Fractal Resumability
+### II. Linear Resumption
 
-Any component can be re-resolved in isolation. You don't need a "Root" or a "Provider." You just need the **Action Address** and the **Signal IDs**.
+The client resumes interactivity linearly as the stream arrives. There is no "Hydration Phase" that blocks the main thread. If a user clicks a button that has streamed in, the Action ID is already registered, and execution happens instantly.
 
 ### III. Isomorphic Purity
 
-Our strict isolation model enforces "Clean Room" development. Functions receive context only via arguments (Spread Pattern). The same logic executes on the Server, in a Web Worker, or on the Client without modification.
+Our strict isolation model enforces "Clean Room" development. Functions receive context only via positional arguments (Spread Pattern). The same logic executes on the Server, in a Web Worker, or on the Client without modification.
 
 ### IV. The "Standardized Referencing" Standard
 
 We bet on the Platform:
 
 * **Source Phase Imports:** (Stage 3 ECMAScript) for code addressing.
-* **Streams API:** For recursive, out-of-order delivery.
+* **Streams API:** For recursive, sequential delivery.
 * **ES Modules:** For native lazy-loading.

@@ -37,16 +37,16 @@ Stream Weaver enforces type safety across the network boundary. Because actions 
 
 ### 2.1 The "Spread" Signature Inference
 
-The `createAction` and `createComponent` factories infer their identities from the module's default export. We use **Positional Argument Mapping** (Spread) to keep signatures framework-ignorant.
+The `createAction` and `createComponent` factories infer their identities from the module's export. We use **Positional Argument Mapping** (Spread) to keep signatures framework-ignorant.
 
 ```typescript
 // Definition (logic/math.ts)
-export default (val: number, factor: number) => val * factor;
+export const add = (val: number, factor: number) => val * factor;
 
 // Usage
 import source mathSrc from './logic/math';
 // createAction infers the return type and automatically wraps it: Signal<number>
-const result = createAction(mathSrc, [countSignal, factorSignal]);
+const result = createAction(mathSrc, [countSignal, factorSignal], 'add');
 
 ```
 
@@ -58,7 +58,7 @@ const result = createAction(mathSrc, [countSignal, factorSignal]);
 
 ---
 
-## 3. The Runtime Factories (`createSignal`, `createAction`, `createComponent`)
+## 3. The Server Runtime (Pipeline & Factories)
 
 These are **Deterministic Address Generators**. They ignore the "Rules of Hooks" because they rely on explicit ID addressing rather than positional memory.
 
@@ -66,94 +66,125 @@ These are **Deterministic Address Generators**. They ignore the "Rules of Hooks"
 
 These factories can be called **anywhere**: Global constants, dynamic loops, or inside other logic modules. The framework never relies on call order; it only cares about the **Address**.
 
-### 3.2 The Serializer (The "Loom")
+* **`createSignal`**: Allocates a state ID (`s1`).
+* **`createAction`**: Allocates a logic ID (`a1`).
+* **`createComponent`**: Allocates a portal ID (`c1`).
 
-When the server encounters these primitives, it serializes them differently based on their role in the DOM:
+### 3.2 The Stream Pipeline (Decoupled Serialization)
 
-1. **Signals (`createSignal`):**
-* Generates an ID (e.g., `s1`).
-* Flushes a `<script>` tag to register the initial value.
+To maintain clean separation of concerns, the server render pipeline is composed of three distinct transform streams. Logic is decoupled from HTML generation.
 
-
-2. **Logic (`createAction`):**
-* Generates an ID (e.g., `a1`).
-* Serializes the binding (URL + Deps) into the Sink's registry.
-* **Side Effect:** None (Virtual).
+1. **`ComponentDelegate` (Logic Layer)**
+* **Input:** JSX Nodes, Promises, Signals.
+* **Role:** Resolves async logic and builds the execution plan.
+* **Output:** A stream of **`Marker`** objects (`Signal`, `Open`, `Close`, `Text`).
 
 
-3. **UI (`createComponent`):**
-* Generates an ID (e.g., `c1`).
-* Serializes the binding (URL + Deps) into the Sink's registry.
-* **Side Effect:** Flushes a **DOM Portal** (`<div data-w-id="c1">`) to reserve the physical screen real estate for the component's output.
+2. **`SignalSerializer` (Protocol Layer)**
+* **Input:** `Marker`.
+* **Role:** Translates abstract markers into the Wire Protocol.
+* **Transformation:**
+* `Signal` -> `<script>weaver.set(...)</script>`
+* `Open` -> `<div data-w-id="...">`
+
+
+
+
+3. **`ComponentSerializer` (Syntax Layer)**
+* **Input:** HTML Tokens.
+* **Role:** Handles string escaping and final byte emission.
+* **Output:** `ReadableStream<string>` (HTML).
 
 
 
 ---
 
-## 4. The Wire Protocol (Condensed)
+## 4. The Wire Protocol (Serialization Standards)
 
-### 4.1 The `Binding` Address
+Stream Weaver uses a **Readable, Explicit Protocol**. It does not use minified shorthands (like `w.s`) in the protocol itself, relying on Gzip/Brotli for compression.
 
-Metadata is woven directly into the DOM (for components) or sent as a minimal JSON frame (for actions).
+### 4.1 State Signal (`kind: 'state'`)
 
-**The Component Portal (Physical):**
+Pushed to the stream immediately to populate the client store.
+
+```html
+<script>weaver.set("s1", 10)</script>
+```
+
+### 4.2 Action Binding (`kind: 'action'`)
+
+Registers logic without executing or downloading it.
+
+```html
+<script>
+  weaver.registerAction("a1", {
+    src: "/assets/logic.js",
+    key: "default",      // The named export
+    deps: ["s1", "a2"]   // Positional dependency IDs
+  })
+</script>
+```
+
+### 4.3 Component Portal (`kind: 'component'`)
+
+The physical anchor for a component.
 
 ```html
 <div
   data-w-id="c1"
   data-w-src="/assets/UserProfile.js"
-  data-w-deps="s1, s2"
+  data-w-key="default"
+  data-w-deps="s1,s2"
 >
   </div>
-
-```
-
-**The Action Binding (Virtual):**
-
-```json
-{
-  "id": "a1",                 // The Address
-  "module": "/assets/math.js", // Stable URL
-  "signals": ["s1", "a2"]      // Positional Dependency IDs
-}
-
-```
-
-### 4.2 The Value Frame
-
-Pushed to the stream to populate the global Sink.
-
-```html
-<script>weaver.set("s1", 10)</script>
-
 ```
 
 ---
 
 ## 5. The Signal Sink (Client Runtime)
 
-The Sink is a <1kb singleton agent acting as a **Distributed Execution Bus**.
+The Sink is a <1kb singleton agent acting as a **Linear Distributed Resolver**. It assumes **Sequential Delivery**—definitions arrive before or alongside their usage.
 
-### 5.1 The Resolution Flow (Recursive)
+### 5.1 The Global API (`window.weaver`)
 
-1. **Event/Signal Trigger:** The Sink identifies an affected Address ID.
-2. **Import:** Dynamic `import()` fetches the module source.
-3. **Address Resolution:** It looks up dependency IDs in its `Map`.
-* **Honesty:** If a dependency is an action ID (`a2`) that is "dirty," the Sink triggers that logic first.
+* **`store`**: `Map<Address, any>` (Memory).
+* **`registry`**: `Map<Address, ActionDefinition>` (Logic).
+* **`set(id, val)`**: Updates state and triggers surgical DOM updates.
+* **`registerAction(id, def)`**: Caches logic definitions (zero network).
+* **`resolve(id)`**: The recursive execution engine.
+
+### 5.2 The Resolution Flow (Recursive & Lazy)
+
+When a signal changes or an event fires:
+
+1. **Cache Check:** Check `store`. If value exists, return it.
+2. **Definition Lookup:** Retrieve definition from `registry`.
+3. **Recursive Resolution:**
+* Call `resolve()` for all dependency IDs in `deps`.
+* *Note:* This happens in parallel (`Promise.all`).
 
 
-4. **Execution (The Spread):** The Sink unwraps the dependency values and calls `module.default(...values)`.
-5. **Update Strategy:**
-* **Data Action (`createAction`):** Stores the result in the Map under the ID `a1`.
-* **UI Component (`createComponent`):** Takes the resulting HTML/DOM and **surgically swaps** the content of the element matching `[data-w-id="c1"]`.
+4. **Lazy Import:**
+* Dynamic `await import(src)`.
+* This is the **first time** code is downloaded.
+
+
+5. **Execution (The Spread):**
+* Access `module[key]`.
+* Call `fn(...resolvedValues)`.
+
+
+6. **Surgical Update:**
+* If the result is data, update the `store`.
+* If the result is a Node (Component), swap the content of the Portal `div`.
 
 
 
-### 5.2 The Unified State Proxy
+### 5.3 The Unified State Proxy
 
 To enable `signal.value++`, the Sink wraps all resolved dependencies in a Proxy.
 
 * **Set Trap:**
 1. Updates the Sink's Map.
 2. Synchronously updates all DOM elements with surgical bindings (`data-w-bind`).
-3. Marks all dependent Actions (`aX`) and Components (`cX`) as "Dirty" for the next resolution cycle.
+3. Triggers re-resolution for dependent Portals (`c1`).

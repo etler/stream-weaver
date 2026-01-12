@@ -1,138 +1,206 @@
-# Development Planning: Stream Weaver MVP POC
+# 🔭 Development Planning: Stream Weaver MVP POC
 
-This document outlines the execution plan to build the **Stream Weaver MVP** using the **Source Phase Import** architecture, treating components as addressable signals.
+This document outlines the execution plan to build the **Stream Weaver MVP** using the **Source Phase Import** architecture. It treats the entire application (Transport, Logic, UI, State) as a serializable stream of **Universal Addresses**.
 
 ---
 
-### **Phase 1: Foundation & Tooling**
+### **Phase 1: Foundation & Tooling (The Dual Build)**
 
-**Goal:** Configure the build system to treat Action and Component files as static assets (`import source`) and establish the project structure.
+**Goal:** Configure the build system to create two distinct artifacts that share a common "Universal Key" (the source file path).
 
-#### **Step 1.1: Vite Configuration**
+#### **Step 1.1: Vite Configuration (`vite.config.ts`)**
 
-* **Action:** Update `vite.config.ts`.
-* **Requirement:** Ensure that `import source` (or the `?url` proxy) returns the public URL of the emitted chunk.
-* **Verification:** Log an imported component source in `index.ts`. It must be a string (URL).
+* **Action:** Configure a multi-pass build pipeline.
+* **Pass 1: Client Build:**
+* Standard Vite production build.
+* **Output:** `dist/client/` (Hashed assets).
+* **Requirement:** Must generate `manifest.json`.
+
+
+* **Pass 2: Server Build:**
+* **Output:** `dist/server/` (Node.js compatible).
+* **Config:** `build.rollupOptions.output.preserveModules = true`.
+* **Goal:** Ensure the server file structure mirrors the source directory exactly.
+
+* **Module Registry Map**
+* **Output:** A registry file for mapping server import source paths to public client module bundle urls.
+* **Goal:** Enable component imports to be executable serverside and resolve to the correct addressable code urls client side.
+
+* **Verification:**
+* Ensure that importing a file via `?url` on the server returns the **Source Path ID** (e.g., `/src/components/User.tsx`), not a file system path.
+* Ensure Action and Component bindings contain the public client module bundle urls.
 
 #### **Step 1.2: Project Structure**
 
-* `src/actions/`: Stateless logic files (Data Transformers).
-* `src/components/`: Pure UI functions (Loom Transformers).
-* `src/runtime/`: The Signal Sink and ID management logic.
+* `src/actions/`: Stateless logic files.
+* `src/components/`: Pure UI functions.
+* `src/runtime/`: The factories and client-side runtime.
+* `src/streaming/`: Server-side stream transformers.
 
 ---
 
-### **Phase 2: The Core Protocol (The Addressable Factory)**
+### **Phase 2: The Address Contract (Types & Factories)**
 
-**Goal:** Enable the server to serialize "Code Handles" and "Signals" into a unified format while maintaining full Type Safety.
+**Goal:** Define the data structures for the **Wire Protocol**.
 
-#### **Step 2.1: The Type System (The Developer Contract)**
+**Constraints:**
 
-* **Action:** Create `src/types/Addressable.ts`.
-* **Requirement:** Define how Signals, Actions, and Components are represented.
+* **Wire Format:** The `Binding` interface describes what the **Client** receives. Therefore, `src` must be a fetchable URL.
+* **Server State:** The Server will work with an "Internal Binding" type that holds the `UniversalKey` until serialization.
+
+#### **Step 2.1: The Wire Type System (`src/types/Addressable.ts`)**
+
+* **Action:** Create the strict type definitions for the **Client Protocol**.
 
 ```typescript
-export type Address = string; // e.g., "s1", "a1", "c1"
+export type Address = string;      // "s1", "a1", "c1"
+export type ModuleSource = string; // Public URL to script
 
-export interface Signal<T> {
+export interface Signal<T = unknown> {
   id: Address;
   value: T;
+  kind: 'state' | 'action' | 'component';
 }
 
-// Bindings are "Calculated Signals" (Actions or Components)
-export interface Binding<T = any> extends Signal<T> {
-  module: string;     // URL to the code chunk
-  signals: Address[]; // Array of positional dependency IDs (Spread arguments)
-  export: string;     // Named export (default: "default")
-  type: 'action' | 'component';
+// 1. State: The Atom
+export interface StateSignal<T> extends Signal<T> {
+  kind: 'state';
 }
+
+// 2. Binding: The Code Link
+export interface Binding<T = unknown> extends Signal<T> {
+  src: ModuleSource;
+  key?: string;    // Export name (default: "default")
+  deps: Address[]; // Positional dependency IDs
+}
+
+// 3. Action: Virtual Logic
+export interface ActionBinding<T = unknown> extends Binding<T> {
+  kind: 'action';
+}
+
+// 4. Component: Physical UI Portal
+export interface ComponentBinding extends Binding<unknown> {
+  kind: 'component';
+}
+
+export type AnySignal<T = unknown> = StateSignal<T> | ActionBinding<T> | ComponentBinding;
 
 ```
 
-#### **Step 2.2: The Wire Format (The Network Contract)**
+#### **Step 2.2: The Universal Factories (`src/runtime/factories.ts`)**
 
-* **Action:** Define the serialized representation for the `html` loom.
-* **Logic:** Use the DOM as the registry to save bytes.
-* **Surgical Binding:** For raw values: `<span data-w-bind="s1"></span>`.
-* **Addressable Portal:** For components (the "anchor"):
-
-```html
-<div data-w-id="c1" data-w-src="/Profile.js" data-w-deps="s1,s2"></div>
-
-```
-
-#### **Step 2.3: Implement `createAction` & `createComponent**`
-
-* **Action:** Create `src/factories.ts`.
+* **Action:** Implement the ID allocators. Use global counters for this POC.
 * **Logic:**
-* Accept a `ModuleSource` and a dependency array.
-* **Spread Inference:** Use TypeScript to ensure the dependency array matches the positional arguments of the source function.
-* **Differentiation:**
-* `createAction` returns a Binding with `type: 'action'` (Virtual).
-* `createComponent` returns a Binding with `type: 'component'` (Physical).
+* `createSignal(value)` -> Returns `StateSignal`. Output ID: `s1`, `s2`...
+* `createAction(src, deps, key)` -> Returns `ActionBinding`. Output ID: `a1`...
+* `createComponent(src, props, key)` -> Returns `ComponentBinding`. Output ID: `c1`...
 
 
-
-
-* **JSX Integration:** The compiler wraps capitalized tags in `weaver.createComponent()`.
-
-#### **Step 2.4: Upgrade `ComponentSerializer**`
-
-* **Action:** Modify `src/ComponentHtmlSerializer/ComponentSerializer.ts`.
-* **Logic:** Detect `Binding` objects.
-* If `type: 'component'`: Render the wrapper `div` (The Portal) with `data-w-src`, `data-w-deps`, and `data-w-id`. Execute the component once on the server to fill the initial innerHTML.
-* If `type: 'action'`: No HTML output; serialize into the Sink registry if needed by client-side logic.
-
-
+* **Signature Distinction:**
+* **Actions (Spread):** The `deps` array maps to positional arguments: `fn(...deps)`.
+* **Components (Props):** The `props` object is passed directly as the single argument: `fn(props)`. This object preserves the shallow prop structure, allowing specific values to be either static data or Signal IDs.
 
 ---
 
-### **Phase 3: The Universal Signal System**
+### **Phase 3: The Stream Pipeline (Server-Side)**
 
-**Goal:** Create reactive primitives that ignore the "Rules of Hooks" and work anywhere.
+**Goal:** Decouple "Logic Resolution" from "HTML Serialization" using a composite stream pipeline.
+**Architecture:** `ComponentDelegate` (Logic) -> `SignalSerializer` (Protocol) -> `ComponentSerializer` (Stringify).
 
-#### **Step 3.1: Implement `createSignal**`
+#### **Step 3.1: Define Stream Markers**
 
-* **Action:** Create `src/runtime/Signal.ts`.
-* **Logic:** Returns the `Signal<T>` interface.
-* **Allocation:** Can be defined as a global constant or within a dynamic loop/component.
+* **Action:** Create `src/ComponentDelegate/types/Marker.ts`.
+* **Logic:**
 
-#### **Step 3.2: Implement `StreamWeaver.context` (The Value Weave)**
+```typescript
+import { StateSignal, ActionBinding, ComponentBinding } from "../../types/Addressable";
 
-* **Action:** Update `StreamWeaver.ts`.
-* **Logic:** Emit `<script>weaver.set("s1", 10)</script>` for every signal created to populate the client Sink before logic executes.
+export type Marker =
+  | { kind: 'text'; content: string }
+  | { kind: 'signal'; signal: StateSignal | ActionBinding } // Mark <script> injection
+  | { kind: 'open'; binding: ComponentBinding }             // Mark Portal start
+  | { kind: 'close' };                                      // Mark Portal end
+
+```
+
+#### **Step 3.2: Refactor `ComponentDelegate**`
+
+* **Action:** Update `src/ComponentDelegate/ComponentDelegate.ts`.
+* **Logic:**
+* **Input:** JSX Nodes / Promises / Signals.
+* **Process:** Resolve Promises, iterate children.
+* **Output:** Emit `Marker` objects. **Do not emit HTML strings here.**
+
+#### **Step 3.3: Implement `SignalSerializer` (The Transformer)**
+
+* **Action:** Create `src/streaming/SignalSerializer.ts`.
+* **Type:** `TransformStream<Marker, Token>` (where `Token` is the existing HTML Token type).
+* **Logic:** Translate Markers into the **Wire Protocol**:
+* **Signal (State):** `<script>weaver.set("s1", val)</script>`
+* **Signal (Action):** `<script>weaver.registerAction("a1", { src, key, deps })</script>`
+* *Note:* `deps` is the array of Signal IDs for positional arguments.
+* **Component Open:** Emit Open Tag `<div data-w-id="c1" data-w-src="..." data-w-key="..." data-w-props="...">`
+* *Note:* `data-w-props` is a serialized JSON object where values are either static data or Signal IDs.
+* **Component Close:** Emit `</div>`
+* **Text:** Pass through as text tokens.
+
+
+
+#### **Step 3.4: Integrate `StreamWeaver.ts**`
+
+* **Action:** Update the pipeline construction.
+
+```typescript
+delegate.readable
+  .pipeThrough(new SignalSerializer())    // Protocol Layer (Markers -> Tokens)
+  .pipeThrough(new ComponentSerializer()) // Syntax Layer (Tokens -> String)
+
+```
 
 ---
 
-### **Phase 4: The Client Runtime (The Sink)**
+### **Phase 4: The Client Runtime (The Linear Sink)**
 
 **Goal:** Build the <1kb script that acts as the distributed execution bus.
 
-#### **Step 4.1: The Entry Point**
+#### **Step 4.1: The Entry Point (`src/runtime/client.ts`)**
 
-* **Action:** Create `src/runtime/client.ts`.
-* **Logic:** Initialize `window.weaver = { signals: new Map() }` and the global event/signal observer.
+* **Action:** Initialize `window.weaver`.
+* **Global Interface:** `window.weaver = { set, registerAction, resolve }`
 
-#### **Step 4.2: Resolution & The Spread Invoke**
+#### **Step 4.2: Runtime Logic**
 
-* **Action:** Implement the resolver.
-1. Parse the wire format from `data-w-src` and `data-w-deps`.
-2. `await import(moduleURL)`.
-3. **The Spread:** Map dependency IDs to current values: `const args = deps.map(id => weaver.get(id))`.
-4. **Execution:** `const result = module.default(...args)`.
-5. **Update Strategy:**
-* **If Action:** Update Sink Map (Virtual Update).
-* **If Component:** Locate the Portal `[data-w-id="..."]` and surgically swap `innerHTML` (Physical Update).
+* **`set(id, value)`**:
+* Update `store`.
+* Update DOM text nodes matching `[data-w-bind="s1"]`.
+* Trigger dirty portals matching `[data-w-deps*="s1"]`.
 
 
-#### **Step 4.3: State Proxy (Optimistic UI & Surgicality)**
+* **`registerAction(id, def)`**:
+* Store the definition in the registry.
+* **DO NOT** import code yet (Lazy).
 
-* **Action:** Wrap Signal values in a `Proxy`.
-* **Logic:** When `signal.value = x` happens:
-1. Update Map.
-2. Sync all `data-w-bind="id"` nodes (Surgical text updates).
-3. Mark dependent `data-w-id` portals as "Dirty" for re-resolution.
 
+* **`resolve(id)`**:
+1. Check Store (return value if exists).
+2. Check Registry.
+3. **Recursion:** `await Promise.all(deps.map(resolve))` (Parallel).
+4. **Import:** `await import(src)`.
+5. **Execute:** `module[key](...resolvedDeps)`.
+
+
+
+#### **Step 4.3: Surgical DOM Integration**
+
+* **Action:** Implement `resolvePortal(id)` logic.
+* **Process:**
+1. **Locate:** Find the DOM anchor matching `[data-w-id="c1"]`.
+2. **Read:** Extract `data-w-src`, `data-w-key`, and `data-w-props`.
+3. **Resolve Props:** Parse `data-w-props` (JSON). Iterate through its values; if a value is a Signal ID, resolve it from the `store` recursively.
+4. **Import:** Lazy load the `src` module if not present.
+5. **Render:** Call the component function with the resolved `props` object as the single argument: `fn(props)`.
+6. **Swap:** Replace the portal's inner content with the result.
 
 
 ---
@@ -144,8 +212,16 @@ export interface Binding<T = any> extends Signal<T> {
 #### **Step 5.1: The "Component Switcher" Demo**
 
 * **Action:** Create `actions/view-resolver.ts` and components `Login/Profile`.
-* **Requirement:** Prove that changing an `isLoggedIn` signal triggers the Sink to fetch and swap the entire component portal without a page reload.
+* **Requirement:**
+1. Render initial HTML stream (Server).
+2. Client receives `weaver.set("s1", false)` (Logged Out).
+3. User clicks "Login" (Updates `s1` to `true`).
+4. Sink triggers `view-resolver` action (Logic).
+5. Action returns a new `ComponentBinding` (for `<Profile />`).
+6. Sink swaps the DOM portal.
 
-#### **Step 5.2: End-to-End Test**
 
-* **Scenario:** Click a button -> Update Signal -> Trigger Resolver Action -> Resolver returns new JSX Binding -> Sink swaps UI -> **Total bytes executed < 2kb.**
+
+#### **Step 5.2: End-to-End Verification**
+
+* **Test:** Verify that the `Profile` component code was **not loaded** by the browser until the interaction occurred.

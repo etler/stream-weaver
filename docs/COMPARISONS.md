@@ -1,7 +1,3 @@
-This final update to **COMPARISONS.md** integrates the "Addressable Factory" revelation. It contrasts Stream Weaver's **Address-Centric** model (where state and logic are universal pointers) against the **Tree-Centric** model of React and the **Compiler-Centric** model of Qwik.
-
----
-
 # ⚖️ COMPARISONS.md: Stream Weaver vs. The World
 
 > **Goal:** To articulate why Stream Weaver exists by contrasting its trade-offs with existing solutions. We prioritize **Architectural Transparency** and **Universal Addressability** over implicit magic.
@@ -81,7 +77,3 @@ Stream Weaver is **NOT** a general-purpose tool for every use case.
 * **React:** "I will trade Startup Performance for high-fidelity Client State."
 * **Qwik:** "I will trade Architectural Simplicity for Developer Convenience."
 * **Weaver:** "I will trade Developer Convenience (explicitly passing IDs) for **Total Addressability and Unbounded Scale**."
-
----
-
-**Next Step:** With all documentation updated to the "Universal Addressable Factory" model, are you ready to implement the first piece of the "Walking Skeleton"—the **`createSignal`** ID allocator in `src/runtime/Signal.ts`?
