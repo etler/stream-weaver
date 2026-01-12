@@ -1,4 +1,4 @@
-import { OpenTagToken, Token } from "@/ComponentConductor/types/Token";
+import { OpenTagToken, Token } from "@/ComponentDelegate/types/Token";
 
 export class ComponentSerializer extends TransformStream<Token, string> {
   constructor() {

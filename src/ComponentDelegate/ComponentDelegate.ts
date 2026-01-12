@@ -1,10 +1,10 @@
-import { chunkify } from "@/ComponentConductor/chunkify";
-import { tokenize } from "@/ComponentConductor/tokenize";
-import { Token } from "@/ComponentConductor/types/Token";
+import { chunkify } from "@/ComponentDelegate/chunkify";
+import { tokenize } from "@/ComponentDelegate/tokenize";
+import { Token } from "@/ComponentDelegate/types/Token";
 import { DelegateStream } from "delegate-stream";
 import { Node } from "@/jsx/types/Node";
 
-export class ComponentConductor extends DelegateStream<Node, Token> {
+export class ComponentDelegate extends DelegateStream<Node, Token> {
   constructor() {
     super({
       transform: (node, chain) => {
@@ -13,9 +13,9 @@ export class ComponentConductor extends DelegateStream<Node, Token> {
           if (Array.isArray(chunk)) {
             chain(chunk);
           } else {
-            const conductor = new ComponentConductor();
-            const writer = conductor.writable.getWriter();
-            chain(conductor.readable);
+            const delegate = new ComponentDelegate();
+            const writer = delegate.writable.getWriter();
+            chain(delegate.readable);
             (async () => {
               const { type, props } = chunk;
               const node = await type(props);
