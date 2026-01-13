@@ -2,9 +2,9 @@
 
 ## 1. Mission Statement
 
-To eliminate the barrier between Server and Client by treating the entire application lifecycle—rendering, state, and logic—as a **single, continuous, serializable stream of addresses**.
+To eliminate the barrier between Server and Client by treating the entire application lifecycle—rendering, state, and logic—as a **single, continuous, serializable stream of operations**.
 
-Stream Weaver rejects the "Hydration" model (React) and the "Magical Closure" model (Qwik) in favor of a **Canonical Stream**: a recursive, type-safe flow of data and logic where every UI element and every piece of logic is a **Stateless Transformer** residing at a stable address.
+Stream Weaver rejects the "Hydration" model (React) and the "Magical Closure" model (Qwik) in favor of a **Canonical Stream**: a recursive, type-safe flow of data where the Client is simply a continuation of the Server's execution context, processing events instead of requests.
 
 ## 2. The Need: Escaping the "Uncanny Valley"
 
@@ -14,7 +14,7 @@ Modern web development is stuck in a compromise between two extremes:
 2. **The Resumability Trap (Qwik):** To avoid hydration, frameworks use complex compilers to "capture" closures. While performant, this creates "Black Box" magic and accidental serialization of massive objects.
 
 **The Industry Gap:**
-Stream Weaver fills the gap by demanding **Architectural Honesty**. It transforms "Explicitness" from a tax into a **Superpower**, giving developers the ability to address any part of a distributed system (Server or Client) using a unified pointer.
+Stream Weaver fills the gap by demanding **Architectural Honesty**. It transforms "Explicitness" from a tax into a **Superpower**, giving developers the ability to address any part of a distributed system using a unified pointer within a continuous stream.
 
 ## 3. Core Philosophy
 
@@ -23,8 +23,8 @@ Stream Weaver fills the gap by demanding **Architectural Honesty**. It transform
 A Component is not a template; it is a **Pure UI Action**.
 
 * It takes **Raw Values** as arguments (delivered via spread).
-* It returns a **Loom Instruction** (compiled JSX).
-* It is **Environment-Agnostic**: It can run once on the server to flush HTML or once on the client to resolve a structural swap. **It never runs twice.**
+* It returns a **Stream Instruction** (compiled JSX).
+* It is **Environment-Agnostic**: It can run on the server to emit HTML tokens or on the client to emit DOM Patch tokens. **It never runs twice.**
 
 ### II. Logic is Data (The Law of Addressability)
 
@@ -37,43 +37,47 @@ We reject "Automatic Closure Capture." Logic must be explicitly bound.
 * **Bad (Implicit):** `() => count.value++` (Relies on closure magic).
 * **Good (Explicit):** `createAction(incSrc, [count])` (Pure function, explicit input).
 
-### IV. Universal Allocation
+### IV. State is Stream Context
 
-Because every entity is an **Explicitly Addressed Pointer** (`s1`, `a1`, `c1`), we eliminate positional memory constraints ("Rules of Hooks").
-
-* **Deterministic Factories:** `createSignal`, `createAction`, and `createComponent` allocate addresses immediately.
-* **No Boundaries:** Factories can be called anywhere—inside loops, components, or global files. The framework cares only about the **Address**.
+State is not a "place" in a database or a global store. State is the **accumulated context** of the stream itself.
+* **Registry as Context:** The stream maintains a scope (Registry) that evolves as it processes definitions.
+* **Updates as Flow:** A "State Update" is just a message flowing down the stream that modifies this context for future operations.
 
 ## 4. High-Level Approach
 
-### Layer 1: The Transport (Sequential Delivery)
+### Layer 1: Isomorphic Stream Orchestration
 
-The backbone is a **Sequential, Recursive Stream** powered by `DelegateStream`.
+The core engine is the **Stream Weaver**, powered by the `DelegateStream` primitive. It functions identically on Server and Client, providing ordered consumption of parallel production.
 
-* **Parallel Production, Ordered Consumption:** The server may execute logic in parallel, but the `AsyncIterableSequencer` ensures that the output (HTML + Scripts) arrives at the client in a strictly deterministic, topological order.
-* **The Linear Guarantee:** The client runtime assumes that if Component `c1` depends on Action `a1`, the definition for `a1` has already appeared in the stream.
+* **Server:** `Request -> Logic Stream -> HTML Stream -> Browser Parser`
+* **Client:** `Event -> Logic Stream -> DOM Patch Stream -> DOM Patcher`
 
-### Layer 2: The Decoupled Pipeline (Server-Side)
+The Client Weaver is effectively the Server Weaver running inside the browser, accepting **Events** as its input source instead of HTTP Requests.
 
-We strictly separate **Logic** from **Serialization** using a composable stream pipeline:
+### Layer 2: The Server Weaver (HTML Production)
 
-1.  **Component Delegate (Logic Layer):** Resolves Promises and emits high-level `Marker` objects (`Signal`, `Open`, `Close`, `Text`). It knows nothing about HTML.
-2.  **Signal Serializer (Protocol Layer):** Transforms Operations into Wire Protocol tokens.
-    * `Signal` $\to$ `<script>weaver.set(...)</script>`
-    * `Open` $\to$ `<div data-w-id="...">`
-3.  **Component Serializer (Syntax Layer):** Converts tokens into escaped HTML strings.
+The server orchestrates the initial render.
 
-### Layer 3: The Engine (The Linear Sink)
+1.  **Component Delegate:** Executes logic and yields `Binding Markers` and `Registration Scripts`.
+2.  **HTML Serializer:** Converts the stream into HTML bytes.
+    * **Bindings:** Emitted as `...` ranges.
+    * **Context:** Emitted as `<script>weaver.register(...)</script>` to prime the client's stream context.
 
-The client-side runtime is a <1kb **Signal Sink**. It acts as a **Distributed Resolver** that expects instructions in linear order.
+### Layer 3: The Client Weaver (Interaction Processing)
 
-* **It Registers:** As `<script>` tags stream in, it populates the `weaver.store` (State) and `weaver.registry` (Logic Definitions) immediately.
-* **It Listens:** It observes DOM nodes for `data-w-bind` (Text) and `data-w-id` (Portals).
-* **It Resolves:** When a signal changes, it triggers the recursive resolution engine:
-    1.  Resolve dependencies (`deps`) from the store.
-    2.  Lazy-load the module source (`src`).
-    3.  Execute the specific export (`key`).
-    4.  Surgically update the DOM.
+The client runtime is a living stream instance that continues where the server left off. It uses the **ChainExplode** operation to expand simple events into complex updates.
+
+1.  **Interaction Delegate:** An infinite stream that listens for DOM events (e.g., `click`).
+2.  **ChainExplode:** When an event occurs, it matches an Action ID and "explodes" a new **Action Stream** into the pipeline.
+3.  **State Conductor:** The Action Stream yields `SignalUpdate` messages. These update the stream's internal Context (Registry) and trigger derived computations.
+4.  **Binding Conductor:** Computed values flow into Component functions, which yield `BindingUpdate` messages containing new DOM structures.
+
+### Layer 4: The Binding Sink
+
+The final consumer is a dumb, lightweight (~1kb) **DOM Patcher**. It is not a runtime; it is a sink.
+
+* **It Tracks:** It maintains a Map of active DOM ranges (`Binding Markers`) found in the HTML.
+* **It Patches:** It consumes the Client Weaver's output stream. When it receives a `{ id: 'b1', nodes: [...] }` message, it blindly replaces the content of range `b1`.
 
 ## 5. Design Goals
 
@@ -81,9 +85,9 @@ The client-side runtime is a <1kb **Signal Sink**. It acts as a **Distributed Re
 
 By isolating logic into **Pure Modules**, we guarantee per-interaction tree shaking. A "Buy Button" loads *only* the code required for that button. The code used to render the page on the server is never downloaded by the client.
 
-### II. Linear Resumption
+### II. Time-Travel Continuity
 
-The client resumes interactivity linearly as the stream arrives. There is no "Hydration Phase" that blocks the main thread. If a user clicks a button that has streamed in, the Action ID is already registered, and execution happens instantly.
+Because the entire client session is a linear stream of operations derived from events, the application state is deterministic. Replaying the Event Stream guarantees the exact same DOM state, unlocking trivial Time-Travel Debugging.
 
 ### III. Isomorphic Purity
 
