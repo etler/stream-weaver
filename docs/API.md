@@ -106,6 +106,8 @@ When a signal appears in a binding position (e.g., `<div>{countSignal}</div>`), 
 
 If a signal is created but never bound, it never enters the stream and remains a simple JavaScript object.
 
+For computed signals, registration is also when initial execution occurs - the computed function runs at registration time to produce its first value.
+
 ### 2.2 Logic
 
 Logic represents addressable references to executable code. Rather than serializing closures or function implementations, Stream Weaver serializes references to modules that can be dynamically loaded and executed in any context.
