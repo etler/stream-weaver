@@ -661,7 +661,7 @@ When a prop signal updates:
 3. Re-executes component function with new prop values
 4. Generates new rendered output
 5. Emits sync message: `{ id: 'c1', html: '...' }`
-6. Sink replaces all `<!--^c1-->...</c1-->` regions with new HTML
+6. Sink replaces all `<!--^c1-->...<!--/c1-->` regions with new HTML
 
 **Component Instance Identity**:
 Each JSX component instantiation creates a **new** component signal:
@@ -1430,7 +1430,7 @@ const increment = createHandler(incrementSrc, [count]);
 HTML output:
 ```html
 <script>weaver.push({kind:'signal-definition',signal:{id:'s1',kind:'state',value:0}})</script>
-<script>weaver.push({kind:'signal-definition',signal:{id:'h1',kind:'handler',logic:{src:'/assets/increment.js'},deps:['s1']}})</script>
+<script>weaver.push({kind:'signal-definition',signal:{id:'a1',kind:'handler',logic:{src:'/assets/increment.js'},deps:['s1']}})</script>
 <button data-w-action="a1">+1</button>
 ```
 
