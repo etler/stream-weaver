@@ -242,10 +242,35 @@ A signal object containing:
 - `kind`: Type discriminator (`'state'`)
 
 **ID Allocation**:
-`createSignal` manages global ID generation to ensure uniqueness across the entire application. The allocation strategy is an implementation detail, but IDs are:
-- Stable across calls
-- Unique globally (not per-component or per-weaver)
-- Short and serializable (e.g., `s1`, `s2`, ...)
+Stream Weaver uses two ID allocation strategies depending on signal type:
+
+**State Signals (Counter-Based)**:
+`createSignal` uses sequential counter-based IDs (`s1`, `s2`, `s3`, ...). Each call allocates a new unique ID:
+- Always unique (never reused)
+- Globally sequential
+- Allocated at creation time
+
+**Computed/Component/Action/Handler Signals (Content-Addressable)**:
+These use content-addressable IDs based on hashing their definition signature:
+```
+ID = hash(logic.src + deps.map(d => d.id).join(','))
+```
+
+Since logic is an immutable module reference and deps are immutable signal IDs, the same signature always produces the same ID. This enables automatic deduplication:
+
+```typescript
+// First call: allocates c1 = hash("Card" + "s5")
+const card1 = createComponent(CardSrc, { data: item1Signal });
+
+// Later, same signature: reuses c1
+const card2 = createComponent(CardSrc, { data: item1Signal });
+// card1.id === card2.id
+```
+
+**Benefits**:
+- **Automatic identity stability**: Same logic + deps = same component ID
+- **No explicit keys needed**: Solves the "list rendering" problem without key props
+- **Definition deduplication**: Prevents redundant registrations and re-execution
 
 **Usage Examples**:
 
@@ -1903,3 +1928,13 @@ This pattern enables:
 - Route-like navigation
 
 All with surgical DOM updates and zero hydration cost.
+
+## 11. Future Work
+
+The following areas are intentionally deferred for later iterations:
+
+- **Bind Point Cleanup**: Memory optimization for removing bind points when DOM nodes are removed (MutationObserver-based GC)
+- **Error Handling**: Standardized error boundaries and recovery strategies for action/computed failures
+- **Update Batching**: Coalescing multiple signal updates within a single event loop tick
+- **Race Condition Handling**: Cancellation and priority strategies for concurrent async actions
+- **Source Phase Import Polyfill**: Build-time transformation for environments without native support
