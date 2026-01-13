@@ -174,6 +174,22 @@ bindPoints: Map<string, Range[]>
 
 When signal `s1` updates, the Sink replaces content in **all** ranges mapped to that signal ID.
 
+**Attribute Bindings**:
+Attributes bound to signals use `data-w-{attrname}` to track the binding:
+```html
+<div class="dark" data-w-classname="s1">Content</div>
+```
+- Static attributes have no data attribute
+- Bound attributes get `data-w-{attrname}` with the signal ID
+- When the signal updates, the Sink updates the attribute directly (no comment markers)
+
+Event handlers follow the same pattern:
+```html
+<button data-w-onclick="a1">Click</button>
+```
+- JSX prop names map to data attributes (e.g., `onClick` → `data-w-onclick`)
+- Event delegation uses these attributes to route events to handlers
+
 **Components as Bind Points**:
 Since components are signals, each component instance has its own signal ID:
 ```html
@@ -868,7 +884,7 @@ type StreamEvent =
   | { kind: 'signal-update', id: string, value: unknown }
   | { kind: 'bind-open', signalId: string }
   | { kind: 'bind-close', signalId: string }
-  | { kind: 'token-open', tag: string, attributes: Record<string, string> }
+  | { kind: 'token-open', tag: string, attributes: Record<string, string>, bindings?: Record<string, string> }
   | { kind: 'token-text', content: string }
   | { kind: 'token-close', tag: string }
 ```
@@ -888,7 +904,7 @@ When signals appear in binding positions:
 
 **VDOM Token Events**:
 Standard HTML structure:
-- `token-open`: Opening tag with attributes
+- `token-open`: Opening tag with attributes and optional bindings for signal-bound attributes/events
 - `token-text`: Text content
 - `token-close`: Closing tag
 
@@ -1104,6 +1120,10 @@ Hello
 { kind: 'token-close', tag: 'div' }
 ↓
 </div>
+
+{ kind: 'token-open', tag: 'button', attributes: { }, bindings: { onclick: 'a1' } }
+↓
+<button data-w-onclick="a1">
 ```
 
 **Complete Example**:
@@ -1407,9 +1427,9 @@ User interactions trigger handlers that can mutate signals.
 
 **Event Delegation**:
 Global event listeners are attached to the document for common events (click, submit, input). When an event fires:
-- Check if the event target or any ancestor has a `data-w-action` attribute
-- If found, extract the action ID
-- Pass the action ID and event to the Weaver for execution
+- Check if the event target or any ancestor has a `data-w-{eventname}` attribute (e.g., `data-w-onclick`)
+- If found, extract the handler ID
+- Pass the handler ID and event to the Weaver for execution
 
 **Handler Execution**:
 When the Weaver executes a handler:
@@ -1434,7 +1454,7 @@ HTML output:
 ```html
 <script>weaver.push({kind:'signal-definition',signal:{id:'s1',kind:'state',init:0}})</script>
 <script>weaver.push({kind:'signal-definition',signal:{id:'a1',kind:'handler',logic:{src:'/assets/increment.js'},deps:['s1']}})</script>
-<button data-w-action="a1">+1</button>
+<button data-w-onclick="a1">+1</button>
 ```
 
 Handler module (`increment.js`):
@@ -1446,8 +1466,8 @@ export default (event: MouseEvent, count: StateSignal<number>) => {
 
 User clicks:
 1. Global click listener catches event
-2. Finds `data-w-action="a1"`
-3. Loads handler action logic from registry
+2. Finds `data-w-onclick="a1"`
+3. Loads handler logic from registry
 4. Imports `/assets/increment.js`
 5. Executes with `event` and `countSignal` object
 6. `count.value++` triggers setter
@@ -1835,7 +1855,7 @@ const Counter = () => {
 <script>weaver.push({kind:'signal-definition',signal:{id:'s1',init:0}})</script>
 <div>
   <p>Count: <!--^s1-->0<!--/s1--></p>
-  <button data-w-action="a1">+1</button>
+  <button data-w-onclick="a1">+1</button>
 </div>
 ```
 
