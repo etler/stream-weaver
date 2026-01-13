@@ -93,14 +93,31 @@ A Component is not a template; it is a **Pure UI Action**.
 
 We treat executable code exactly like strings or numbers. Logic is a serializable value. By leveraging **Source Phase Imports** (Stage 3), we treat code as a static asset to be delivered only when needed.
 
-**Action Chains:**
-- An action can return a signal
-- An action can receive another action as a dependency
-- You can pass a "Validation Action" into a "Submit Action" as a serialized pointer
-- The server flushes a "Plan," and the client executes the "Logic Lego" bricks as needed
+**Logic Composition:**
+- Actions receive signals as dependencies and can mutate them
+- Computed logic receives signals as read-only dependencies and produces output
+- Components receive signals as read-only dependencies and produce DOM output
+- You can compose complex behaviors by connecting these primitives through signal references
+- The server transmits the "plan" (signal definitions and logic references), and the client executes only what's needed
 - Result: Complex, nested interactivity with zero hydration cost and full type safety across the wire
 
-### III. Explicit Over Implicit (No Magic)
+### III. Sources vs Dependents (Mutation Control)
+
+Circular dependencies are prevented through an architectural constraint: only **Sources** can mutate state, while **Dependents** can only read.
+
+* **Sources (Mutators):**
+  - `createSignal()` - Creates state that can be written to
+  - `createAction()` - Receives writable signal references, can mutate via `.value =`
+  - Explicitly invoked by user interactions, not automatically triggered
+
+* **Dependents (Observers):**
+  - `createComputed()` - Receives read-only signal references, re-executes when dependencies change
+  - `createComponent()` - Receives read-only signal references, re-renders when dependencies change
+  - Automatically triggered by signal updates, cannot mutate
+
+This architectural separation makes circular dependencies impossible by design. Computed logic and components can never trigger themselves—only actions (which are imperative) can cause mutations.
+
+### IV. Explicit Over Implicit (No Magic)
 
 We reject "Automatic Closure Capture." Logic must be explicitly bound.
 
@@ -112,7 +129,7 @@ We reject "Automatic Closure Capture." Logic must be explicitly bound.
 - Create signals in global constants or generate actions inside `map()` loops
 - Result: Total architectural freedom and elimination of the most common reactive programming bugs
 
-### IV. State is Stream Context
+### V. State is Stream Context
 
 State is not a "place" in a database or a global store. State is the **accumulated context** of the stream itself.
 
@@ -134,12 +151,12 @@ We stripped out the "Automatic Transmission" of VDOM and Hydration to give archi
 
 ### Layer 1: Isomorphic Stream Orchestration
 
-The core engine is the **Stream Weaver**, powered by the `DelegateStream` primitive. It functions identically on Server and Client, providing ordered consumption of parallel production.
+The core engine is the **Stream Weaver**. It functions identically on Server and Client, transforming inputs into addressable operations.
 
-* **Server:** `Request -> Logic Stream -> HTML Stream -> Browser Parser`
-* **Client:** `Event -> Logic Stream -> DOM Patch Stream -> DOM Patcher`
+* **Server:** Request → Execute Components → Stream HTML + Signal Definitions
+* **Client:** DOM Event → Execute Action → Update Signals → Re-execute Dependents
 
-The Client Weaver is effectively the Server Weaver running inside the browser, accepting **Events** as its input source instead of HTTP Requests.
+The Client Weaver is the Server Weaver running in the browser, accepting **Events** as input instead of HTTP Requests.
 
 ### Layer 2: The Server Weaver (HTML Production)
 
@@ -152,12 +169,13 @@ The server orchestrates the initial render.
 
 ### Layer 3: The Client Weaver (Interaction Processing)
 
-The client runtime is a living stream instance that continues where the server left off. It uses the **ChainExplode** operation to expand simple events into complex updates.
+The client runtime continues where the server left off, processing user interactions through the same stream architecture.
 
-1. **Interaction Delegate:** An infinite stream that listens for DOM events (e.g., `click`).
-2. **ChainExplode:** When an event occurs, it matches an Action ID and "explodes" a new **Action Stream** into the pipeline.
-3. **State Conductor:** The Action Stream yields signal update messages. These update the stream's internal Context (Registry) and trigger derived computations.
-4. **Binding Conductor:** Computed values flow into Component functions, which yield binding update messages containing new DOM structures.
+1. **Event Listening:** Captures DOM events (e.g., `click`) and matches them to Action IDs
+2. **Action Execution:** Loads and executes the action logic with its signal dependencies
+3. **Signal Updates:** Actions mutate signals, triggering reactive updates
+4. **Dependent Re-execution:** Computed signals and components that depend on changed signals re-execute automatically
+5. **DOM Updates:** New output is sent to the Binding Sink for surgical DOM replacement
 
 ### Layer 4: The Binding Sink
 
