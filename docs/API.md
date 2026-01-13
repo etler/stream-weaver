@@ -56,6 +56,10 @@ interface ActionSignal extends Signal {
   kind: 'action';
 }
 
+interface HandlerSignal extends ActionSignal {
+  kind: 'handler';
+}
+
 interface ComponentSignal extends Signal {
   logic: Logic;
   props: Record<string, Signal | string | number | boolean | null>;
@@ -87,6 +91,7 @@ type AnySignal =
   | StateSignal
   | ComputedSignal
   | ActionSignal
+  | HandlerSignal
   | ComponentSignal;
 ```
 
@@ -426,28 +431,53 @@ Actions are the **only** addressable entities that can mutate signals. This desi
 - Therefore, no automatic reactivity loop can form
 
 **Invocation**:
-Actions are invoked through event handlers in the DOM:
-
-```typescript
-const handleClick = createAction(clickHandlerSrc, [count]);
-return <button onClick={handleClick}>Click</button>;
-```
-
-Server renders as:
-```html
-<button data-w-action="a1">Click</button>
-<script>weaver.push({ kind: 'action', id: 'a1', logic: {...}, deps: ['s1'] })</script>
-```
-
-Client runtime:
-1. Event delegation captures click
-2. Looks up action `a1` in registry
-3. Loads logic module if not cached
-4. Executes function with signal objects
-5. Signal mutations trigger reactivity
+Actions can be invoked programmatically or through the DOM. For DOM events that need access to event data, use `createHandler` instead (see Section 4.2.1).
 
 **Side Effects**:
 Actions are the appropriate place for side effects (network requests, localStorage, etc.) since they are explicitly invoked rather than automatically executed.
+
+### 4.2.1 createHandler()
+
+Creates an event handler, which is an action that receives DOM events as its first parameter.
+
+**Type Signature**:
+```typescript
+function createHandler(
+  logic: Logic,
+  deps: Signal[]
+): HandlerSignal
+```
+
+**Parameters**:
+- `logic`: Reference to a module containing the handler function
+- `deps`: Array of signal dependencies passed as arguments to the function
+
+**Returns**:
+A handler signal that can be attached to DOM event attributes (onClick, onSubmit, etc.).
+
+**Handler Function Signature**:
+Handler functions receive the DOM event as the first parameter, followed by signal dependencies:
+
+```typescript
+// actions/handleClick.ts
+export default (
+  event: MouseEvent,
+  count: StateSignal<number>
+) => {
+  console.log('Clicked at', event.clientX, event.clientY);
+  count.value++;
+}
+```
+
+**Usage**:
+```typescript
+const count = createSignal(0);
+const handleClick = createHandler(clickSrc, [count]);
+
+<button onClick={handleClick}>Click</button>
+```
+
+Handlers extend actions with event-specific behavior. Use `createAction` for pure state mutations, and `createHandler` when you need access to DOM event data.
 
 ### 4.3 createComponent()
 
@@ -487,7 +517,7 @@ export default (props: Props) => {
   const displayName = props.name.value.toUpperCase();
 
   // Can pass signals to child components
-  const increment = createAction(incSrc, [props.count]);
+  const increment = createHandler(incSrc, [props.count]);
 
   return (
     <div>
@@ -1098,6 +1128,7 @@ type AnySignal =
   | StateSignal
   | ComputedSignal
   | ActionSignal
+  | HandlerSignal
   | ComponentSignal;
 ```
 
@@ -1342,7 +1373,7 @@ After replacing `c1`, the Sink rescans and discovers the `s1` markers, adding th
 
 ### 8.5 Event Handling
 
-User interactions trigger actions that can mutate signals.
+User interactions trigger handlers that can mutate signals.
 
 **Event Delegation**:
 Global event listeners are attached to the document for common events (click, submit, input). When an event fires:
@@ -1350,13 +1381,13 @@ Global event listeners are attached to the document for common events (click, su
 - If found, extract the action ID
 - Pass the action ID and event to the Weaver for execution
 
-**Action Execution**:
-When the Weaver executes an action:
-- Looks up the action definition in the registry's addressables map by ID
-- Loads the action logic module from the `logic.src` URL
+**Handler Execution**:
+When the Weaver executes a handler:
+- Looks up the handler definition in the registry's addressables map by ID
+- Loads the handler logic module from the `logic.src` URL
 - Retrieves the signal objects (not values) for all dependencies from the addressables map
-- Executes the action function with signal objects as spread arguments, plus the event
-- The action function mutates signal `.value` properties directly
+- Executes the handler function with event first, then signal objects as spread arguments
+- The handler function mutates signal `.value` properties directly
 - Signal mutations trigger reactivity automatically through the signal change detection mechanism
 
 **Example Flow**:
@@ -1364,7 +1395,7 @@ When the Weaver executes an action:
 Server renders:
 ```tsx
 const count = createSignal(0);
-const increment = createAction(incrementSrc, [count]);
+const increment = createHandler(incrementSrc, [count]);
 
 <button onClick={increment}>+1</button>
 ```
@@ -1372,13 +1403,13 @@ const increment = createAction(incrementSrc, [count]);
 HTML output:
 ```html
 <script>weaver.push({kind:'signal-definition',signal:{id:'s1',kind:'state',value:0}})</script>
-<script>weaver.push({kind:'signal-definition',signal:{id:'a1',kind:'action',logic:{src:'/assets/increment.js'},deps:['s1']}})</script>
+<script>weaver.push({kind:'signal-definition',signal:{id:'h1',kind:'handler',logic:{src:'/assets/increment.js'},deps:['s1']}})</script>
 <button data-w-action="a1">+1</button>
 ```
 
-Action module (`increment.js`):
+Handler module (`increment.js`):
 ```typescript
-export default (count: StateSignal<number>) => {
+export default (event: MouseEvent, count: StateSignal<number>) => {
   count.value++;  // Triggers reactivity
 };
 ```
@@ -1386,9 +1417,9 @@ export default (count: StateSignal<number>) => {
 User clicks:
 1. Global click listener catches event
 2. Finds `data-w-action="a1"`
-3. Loads action logic from registry
+3. Loads handler action logic from registry
 4. Imports `/assets/increment.js`
-5. Executes with `countSignal` object
+5. Executes with `event` and `countSignal` object
 6. `count.value++` triggers setter
 7. Weaver detects update, triggers dependents
 8. Sync messages emitted
@@ -1758,7 +1789,7 @@ import { count } from '../state/counter';
 import source incrementSrc from '../actions/increment';
 
 const Counter = () => {
-  const increment = createAction(incrementSrc, [count]);
+  const increment = createHandler(incrementSrc, [count]);
 
   return (
     <div>
@@ -1782,7 +1813,7 @@ const Counter = () => {
 1. User clicks button
 2. Event delegation catches click
 3. Finds `data-w-action="a1"`
-4. Loads and executes action
+4. Loads and executes handler action
 5. `count.value++` triggers reactivity
 6. Sync message updates bind point
 7. DOM shows new count
@@ -1821,7 +1852,7 @@ const ContactForm = () => {
   const email = createSignal('');
   const status = createSignal('idle');
 
-  const handleSubmit = createAction(submitFormSrc, [name, email, status]);
+  const handleSubmit = createHandler(submitFormSrc, [name, email, status]);
 
   return (
     <form onSubmit={handleSubmit}>
