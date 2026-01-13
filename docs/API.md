@@ -32,6 +32,9 @@ Signals are reactive state containers with universal addressability. Unlike hook
 - **Lazy Registration**: Signals register with the Weaver only when bound to the DOM, not at creation time
 - **Serializable**: Signal definitions can be serialized and reconstructed across execution contexts
 
+**Signal Objects vs Registry State**:
+The type definitions below describe **signal definition objects**—lightweight handles that reference reactive entities. These objects contain metadata (ID, logic references, dependencies) but do not store live state. Actual signal values, computed results, and cached component output live in the **Weaver's registry**. When you read or write a signal (e.g., `count.value`), you're accessing the registry through a getter/setter on the definition object.
+
 **Type Definition**:
 ```typescript
 interface Signal {
@@ -40,7 +43,7 @@ interface Signal {
 }
 
 interface StateSignal<T = unknown> extends Signal {
-  value: T;             // Current value
+  init: T;              // Initial value
   kind: 'state';
 }
 
@@ -106,7 +109,7 @@ When a signal appears in a binding position (e.g., `<div>{countSignal}</div>`), 
 
 If a signal is created but never bound, it never enters the stream and remains a simple JavaScript object.
 
-For computed signals, registration is also when initial execution occurs - the computed function runs at registration time to produce its first value.
+For computed signals, registration is also when initial execution occurs - the computed function runs at registration time to populate its initial value in the registry.
 
 ### 2.2 Logic
 
@@ -346,7 +349,7 @@ function createSignal<T>(initialValue: T): StateSignal<T> {
 ```
 
 **Serialization**:
-Signal values must be JSON-serializable for transmission between server and client. Complex objects, functions, or circular references cannot be stored directly in signals.
+Signal definitions must be JSON-serializable for transmission between server and client. Complex objects are only allowed through computed signal values in the registry.
 
 ## 4. Composition API
 
@@ -367,7 +370,7 @@ function createComputed(
 - `deps`: Array of signal dependencies passed as arguments to the function
 
 **Returns**:
-A signal object whose value is the result of executing the logic with current dependency values.
+A computed signal definition. Access its value via the registry (e.g., `doubled.value` uses a getter).
 
 **Execution Model**:
 The logic function receives **ReadOnly signal objects** as positional arguments via spread. The readonly constraint prevents mutation and eliminates circular dependency issues:
@@ -408,7 +411,7 @@ const vm = createComputed(viewModelSrc, [userSignal, settingsSignal]);
 When any dependency signal updates:
 1. Weaver detects the change
 2. Re-executes the logic function with new values
-3. Updates the computed signal's value
+3. Updates the registry with the new result
 4. Triggers downstream dependents (other computeds, components)
 
 **Lazy Execution**:
@@ -616,7 +619,7 @@ Components behave like computed signals in that:
 - They re-execute when those dependencies change
 - They produce output (streamed tokens/events)
 
-However, unlike computed signals which cache a result value, components are stream producers that generate fresh output on each execution.
+However, unlike computed signals which cache results in the registry, components are stream producers that push DOM updates to the stream.
 
 **As DelegateStream**:
 Components are also streams because:
@@ -636,7 +639,7 @@ Components are also streams because:
 
 ### 5.1 Components as Signals
 
-Components are specialized computed signals. They have dependencies (props), execute logic when those dependencies change, and produce a value (rendered output).
+Components are reactive entities like computed signals. They have dependencies (props), execute logic when those dependencies change, and produce rendered output to the stream.
 
 **Value Semantics**:
 Unlike regular signals (which hold data) or computed signals (which cache results), component signals are execution records. They mark locations where components render and track dependencies, but don't store the rendered output as a "value." The component's output streams as events/tokens during rendering.
@@ -998,7 +1001,7 @@ When `signal-definition` event flows through, it contains any addressable defini
   signal: {
     id: 's1',
     kind: 'state',
-    value: 0
+    init: 0
   }
 }
 ```
@@ -1066,9 +1069,9 @@ The serializer transforms stream events into HTML that can be sent to the browse
 All addressables serialize to `signal-definition` with the complete definition:
 
 ```typescript
-{ kind: 'signal-definition', signal: { id: 's1', kind: 'state', value: 0 } }
+{ kind: 'signal-definition', signal: { id: 's1', kind: 'state', init: 0 } }
 ↓
-<script>weaver.push({kind:'signal-definition',signal:{id:'s1',kind:'state',value:0}})</script>
+<script>weaver.push({kind:'signal-definition',signal:{id:'s1',kind:'state',init:0}})</script>
 ```
 
 ```typescript
@@ -1120,7 +1123,7 @@ const App = () => (
 
 Server output:
 ```html
-<script>weaver.push({kind:'signal-definition',signal:{id:'s1',kind:'state',value:5}})</script>
+<script>weaver.push({kind:'signal-definition',signal:{id:'s1',kind:'state',init:5}})</script>
 <script>weaver.push({kind:'signal-definition',signal:{id:'c1',kind:'computed',logic:{src:'/assets/double.js'},deps:['s1']}})</script>
 <div>
   <p>Count: <!--^s1-->5<!--/s1--></p>
@@ -1210,7 +1213,7 @@ The client reconstructs the Weaver state from the inline scripts in the HTML str
 As the browser parses HTML, it encounters and executes inline scripts:
 
 ```html
-<script>weaver.push({kind:'signal-definition',signal:{id:'s1',value:0,kind:'state'}})</script>
+<script>weaver.push({kind:'signal-definition',signal:{id:'s1',init:0,kind:'state'}})</script>
 ```
 
 This immediately calls `window.weaver.push()` with the registration message.
@@ -1298,7 +1301,7 @@ The Weaver looks up all dependents of the changed signal in its dependency graph
 - Load the logic module from the registered `src` URL
 - Gather current values of all dependency signals
 - Execute the logic function with dependency values as spread arguments
-- Update the computed signal's value with the result
+- Update the registry with the new result
 - Emit sync message to Sink with computed signal ID and serialized value
 - Any dependents of this computed signal are then triggered
 
@@ -1429,7 +1432,7 @@ const increment = createHandler(incrementSrc, [count]);
 
 HTML output:
 ```html
-<script>weaver.push({kind:'signal-definition',signal:{id:'s1',kind:'state',value:0}})</script>
+<script>weaver.push({kind:'signal-definition',signal:{id:'s1',kind:'state',init:0}})</script>
 <script>weaver.push({kind:'signal-definition',signal:{id:'a1',kind:'handler',logic:{src:'/assets/increment.js'},deps:['s1']}})</script>
 <button data-w-action="a1">+1</button>
 ```
@@ -1829,7 +1832,7 @@ const Counter = () => {
 
 **Server Output**:
 ```html
-<script>weaver.push({kind:'signal-definition',signal:{id:'s1',value:0}})</script>
+<script>weaver.push({kind:'signal-definition',signal:{id:'s1',init:0}})</script>
 <div>
   <p>Count: <!--^s1-->0<!--/s1--></p>
   <button data-w-action="a1">+1</button>
