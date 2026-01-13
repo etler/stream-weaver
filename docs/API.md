@@ -336,8 +336,7 @@ An action object that can be invoked by user interactions or other imperative co
 
 **Type Definition**:
 ```typescript
-interface Action {
-  id: string;            // Globally unique identifier (e.g., 'a1')
+interface ActionDefinition extends SignalDefinition<void> {
   logic: Logic;          // Reference to action module
   deps: string[];        // Dependency signal IDs
   kind: 'action';        // Discriminator
@@ -1098,8 +1097,6 @@ The registry builds up incrementally as inline scripts execute:
 ```html
 <script>weaver.push({kind:'register-signal',signal:{...}})</script>
 <!-- Registry now contains s1 -->
-<script>weaver.push({kind:'register-logic',logic:{...}})</script>
-<!-- Registry now contains a1 -->
 ```
 
 By page load, the registry is fully populated.
@@ -1664,7 +1661,6 @@ const Counter = () => {
 **Server Output**:
 ```html
 <script>weaver.push({kind:'register-signal',signal:{id:'s1',value:0}})</script>
-<script>weaver.push({kind:'register-logic',logic:{id:'a1',src:'/assets/increment.js',deps:['s1']}})</script>
 <div>
   <p>Count: <!--^s1-->0<!--/s1--></p>
   <button data-w-action="a1">+1</button>
