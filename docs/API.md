@@ -34,10 +34,32 @@ Signals are reactive state containers with universal addressability. Unlike hook
 
 **Type Definition**:
 ```typescript
-interface SignalDefinition<T = unknown> {
+interface Signal {
   id: string;           // Globally unique identifier (e.g., 's1', 's2')
+  kind: string;         // Discriminator for signal type
+}
+
+interface StateSignal<T = unknown> extends Signal {
   value: T;             // Current value
-  kind: 'signal';       // Discriminator for signal type
+  kind: 'state';
+}
+
+interface ComputedSignal extends Signal {
+  logic: Logic;
+  deps: string[];
+  kind: 'computed';
+}
+
+interface ActionSignal extends Signal {
+  logic: Logic;
+  deps: string[];
+  kind: 'action';
+}
+
+interface ComponentSignal extends Signal {
+  logic: Logic;
+  props: Record<string, any>;
+  kind: 'component';
 }
 
 // ReadOnly wrapper for signal mutation control
@@ -49,11 +71,11 @@ Stream Weaver prevents circular dependencies through a **Sources vs Dependents**
 
 - **Sources** (can mutate signals):
   - `createSignal()` - Creates writable signals
-  - `createAction()` - Receives `SignalDefinition<T>` objects with writable `.value`
+  - `createAction()` - Receives `StateSignal<T>` objects with writable `.value`
 
 - **Dependents** (read-only access):
-  - `createComputed()` - Receives `ReadOnly<SignalDefinition<T>>` objects, cannot mutate
-  - `createComponent()` - Receives `ReadOnly<SignalDefinition<T>>` in props, cannot mutate
+  - `createComputed()` - Receives `ReadOnly<StateSignal<T>>` objects, cannot mutate
+  - `createComponent()` - Receives `ReadOnly<StateSignal<T>>` in props, cannot mutate
 
 This design prevents loops by ensuring computed signals and components can never mutate the signals they depend on. Only actions (which are explicitly invoked, not automatically triggered) can cause mutations. The readonly constraint is enforced at compile-time via TypeScript - at runtime, signal objects are identical, but TypeScript prevents writes in computed/component contexts.
 
@@ -61,11 +83,11 @@ This design prevents loops by ensuring computed signals and components can never
 All reactive entities (signals, computed values, actions, components) are addressable definitions that get registered with the Weaver. The complete set of addressable types forms a union:
 
 ```typescript
-type AddressableDefinition =
-  | SignalDefinition
-  | ComputedDefinition
-  | ActionDefinition
-  | ComponentDefinition;
+type AnySignal =
+  | StateSignal
+  | ComputedSignal
+  | ActionSignal
+  | ComponentSignal;
 ```
 
 **Creation**:
@@ -181,8 +203,8 @@ The Weaver implementation is identical on server and client, but operates in dif
 **Registry Structure**:
 ```typescript
 interface WeaverRegistry {
-  addressables: Map<string, AddressableDefinition>;  // All addressable entities by ID
-  dependencies: Map<string, Set<string>>;             // signal ID → dependent IDs
+  definitions: Map<string, AnySignal>;    // All defined entities by ID
+  dependencies: Map<string, Set<string>>; // signal ID → dependent IDs
 }
 ```
 
@@ -203,14 +225,14 @@ Creates a new reactive signal with a globally unique ID and initial value.
 
 **Type Signature**:
 ```typescript
-function createSignal<T>(initialValue: T): Signal<T>
+function createSignal<T>(initialValue: T): StateSignal<T>
 ```
 
 **Returns**:
 A signal object containing:
 - `id`: Globally unique identifier
 - `value`: Current value (can be read/written)
-- `kind`: Type discriminator (`'signal'`)
+- `kind`: Type discriminator (`'state'`)
 
 **ID Allocation**:
 `createSignal` manages global ID generation to ensure uniqueness across the entire application. The allocation strategy is an implementation detail, but IDs are:
@@ -274,13 +296,13 @@ This stream-based architecture maintains the continuous flow principle - everyth
 
 ```typescript
 // createSignal implementation concept
-function createSignal<T>(initialValue: T) {
+function createSignal<T>(initialValue: T): StateSignal<T> {
   const id = allocateId();
   let _value = initialValue;
 
   return {
     id,
-    kind: 'signal' as const,
+    kind: 'state' as const,
     get value() { return _value; },
     set value(newValue: T) {
       _value = newValue;
@@ -302,10 +324,10 @@ Creates a computed signal that derives its value from other signals through exec
 
 **Type Signature**:
 ```typescript
-function createComputed<T>(
+function createComputed(
   logic: Logic,
-  deps: Signal<any>[]
-): Signal<T>
+  deps: Signal[]
+): ComputedSignal
 ```
 
 **Parameters**:
@@ -315,21 +337,12 @@ function createComputed<T>(
 **Returns**:
 A signal object whose value is the result of executing the logic with current dependency values.
 
-**Type Definition**:
-```typescript
-interface ComputedDefinition<T> extends SignalDefinition<T> {
-  logic: Logic;          // Reference to computation module
-  deps: string[];        // Dependency signal IDs
-  kind: 'computed';      // Overrides base 'signal' kind
-}
-```
-
 **Execution Model**:
 The logic function receives **ReadOnly signal objects** as positional arguments via spread. The readonly constraint prevents mutation and eliminates circular dependency issues:
 
 ```typescript
 // logic/double.ts
-export default (count: ReadOnly<SignalDefinition<number>>) => {
+export default (count: ReadOnly<StateSignal<number>>) => {
   return count.value * 2;  // Can read, cannot mutate
 };
 
@@ -345,8 +358,8 @@ Computed functions can return objects containing signal references, enabling com
 ```typescript
 // logic/viewModel.ts
 export default (
-  user: ReadOnly<SignalDefinition<User>>,
-  settings: ReadOnly<SignalDefinition<Settings>>
+  user: ReadOnly<StateSignal<User>>,
+  settings: ReadOnly<StateSignal<Settings>>
 ) => {
   return {
     user: user,              // Pass signal reference through
@@ -382,8 +395,8 @@ Creates an action that can execute logic with access to signals for mutation. Un
 ```typescript
 function createAction(
   logic: Logic,
-  deps: Signal<any>[]
-): Action
+  deps: Signal[]
+): ActionSignal
 ```
 
 **Parameters**:
@@ -393,21 +406,12 @@ function createAction(
 **Returns**:
 An action object that can be invoked by user interactions or other imperative code.
 
-**Type Definition**:
-```typescript
-interface ActionDefinition extends SignalDefinition<void> {
-  logic: Logic;          // Reference to action module
-  deps: string[];        // Dependency signal IDs
-  kind: 'action';        // Discriminator
-}
-```
-
 **Execution Model**:
-Unlike computed signals which receive readonly signals, action functions receive **writable signal objects** (`SignalDefinition<T>`) and can mutate them:
+Unlike computed signals which receive readonly signals, action functions receive **writable signal objects** (`StateSignal<T>`) and can mutate them:
 
 ```typescript
 // actions/increment.ts
-export default (count: SignalDefinition<number>) => {
+export default (count: StateSignal<number>) => {
   count.value++;  // Mutates the signal, triggers reactivity
 };
 
@@ -454,7 +458,7 @@ Creates a component, which is a special kind of computed signal that also acts a
 function createComponent<Props>(
   logic: Logic,
   props: Props
-): ComponentDefinition
+): ComponentSignal
 ```
 
 **Parameters**:
@@ -464,15 +468,6 @@ function createComponent<Props>(
 **Returns**:
 A component signal that represents both a reactive value and a rendering stream.
 
-**Type Definition**:
-```typescript
-interface ComponentDefinition extends SignalDefinition<void> {
-  logic: Logic;                    // Reference to component module
-  props: Record<string, any>;      // Props object (may contain signal IDs)
-  kind: 'component';               // Discriminator
-}
-```
-
 **Note on Value**: Unlike regular signals which hold data, or computed signals which cache results, component signals don't store a meaningful "value." They are execution records that mark where components should render. The component's output is streamed as events/tokens rather than stored.
 
 **Component Functions**:
@@ -481,8 +476,8 @@ Component functions receive props containing **ReadOnly signal objects** and ret
 ```typescript
 // components/UserCard.tsx
 interface Props {
-  name: ReadOnly<SignalDefinition<string>>;
-  count: ReadOnly<SignalDefinition<number>>;
+  name: ReadOnly<StateSignal<string>>;
+  count: ReadOnly<StateSignal<number>>;
 }
 
 export default (props: Props) => {
@@ -508,7 +503,7 @@ export default (props: Props) => {
 <UserCard name={nameSignal} count={countSignal} />
 
 // At execution - receive ReadOnly signals (prevents mutation)
-export default (props: { name: ReadOnly<SignalDefinition<string>> }) => {
+export default (props: { name: ReadOnly<StateSignal<string>> }) => {
   props.name.value = 'changed';  // ❌ TypeScript error - readonly
   return <div>{props.name.value}</div>;  // ✅ Can read
 };
@@ -553,15 +548,6 @@ Components are also streams because:
 ### 5.1 Components as Signals
 
 Components are specialized computed signals. They have dependencies (props), execute logic when those dependencies change, and produce a value (rendered output).
-
-**Component Signal Properties**:
-```typescript
-interface ComponentDefinition extends SignalDefinition<void> {
-  logic: Logic;                    // Component function reference
-  props: Record<string, any>;      // May contain signal IDs or literal values
-  kind: 'component';
-}
-```
 
 **Value Semantics**:
 Unlike regular signals (which hold data) or computed signals (which cache results), component signals are execution records. They mark locations where components render and track dependencies, but don't store the rendered output as a "value." The component's output streams as events/tokens during rendering.
@@ -722,7 +708,7 @@ jsx(UserCard, { name: "Alice", count: countSignal })
 // jsx() function calls:
 createComponent(UserCardLogic, { name: "Alice", count: countSignal })
 
-// Creates ComponentDefinition c1 with:
+// Creates ComponentSignal c1 with:
 // - logic reference to UserCard module
 // - props containing literal "Alice" and signal reference
 ```
@@ -786,7 +772,7 @@ The ComponentDelegate emits several types of events during rendering:
 ```typescript
 // Server-side rendering events
 type StreamEvent =
-  | { kind: 'signal-definition', signal: AddressableDefinition }
+  | { kind: 'signal-definition', signal: AnySignal }
   | { kind: 'signal-update', id: string, value: unknown }
   | { kind: 'bind-open', signalId: string }
   | { kind: 'bind-close', signalId: string }
@@ -816,7 +802,7 @@ Standard HTML structure:
 
 **Component Processing**:
 When a ComponentDelegate encounters a component element (from JSX):
-1. Creates a ComponentDefinition with unique ID (e.g., `c1`)
+1. Creates a ComponentSignal with unique ID (e.g., `c1`)
 2. Emits `signal-definition` event with the component definition
 3. Emits `bind-open` event with component signal ID
 4. Creates a new ComponentDelegate for the child
@@ -907,7 +893,7 @@ The Weaver maintains a registry of all signals and logic encountered during rend
 **Registry Structure**:
 ```typescript
 interface WeaverRegistry {
-  signals: Map<string, SignalDefinition>;
+  signals: Map<string, StateSignal>;
   logic: Map<string, LogicDefinition>;
   dependencies: Map<string, Set<string>>;
 }
@@ -922,7 +908,7 @@ When `signal-definition` event flows through, it contains any addressable defini
   kind: 'signal-definition',
   signal: {
     id: 's1',
-    kind: 'signal',
+    kind: 'state',
     value: 0
   }
 }
@@ -991,9 +977,9 @@ The serializer transforms stream events into HTML that can be sent to the browse
 All addressables serialize to `signal-definition` with the complete definition:
 
 ```typescript
-{ kind: 'signal-definition', signal: { id: 's1', kind: 'signal', value: 0 } }
+{ kind: 'signal-definition', signal: { id: 's1', kind: 'state', value: 0 } }
 ↓
-<script>weaver.push({kind:'signal-definition',signal:{id:'s1',kind:'signal',value:0}})</script>
+<script>weaver.push({kind:'signal-definition',signal:{id:'s1',kind:'state',value:0}})</script>
 ```
 
 ```typescript
@@ -1045,7 +1031,7 @@ const App = () => (
 
 Server output:
 ```html
-<script>weaver.push({kind:'signal-definition',signal:{id:'s1',kind:'signal',value:5}})</script>
+<script>weaver.push({kind:'signal-definition',signal:{id:'s1',kind:'state',value:5}})</script>
 <script>weaver.push({kind:'signal-definition',signal:{id:'c1',kind:'computed',logic:{src:'/assets/double.js'},deps:['s1']}})</script>
 <div>
   <p>Count: <!--^s1-->5<!--/s1--></p>
@@ -1073,18 +1059,18 @@ All addressable entities use a single registration message type:
 ```typescript
 interface RegisterSignalMessage {
   kind: 'signal-definition';
-  signal: AddressableDefinition;
+  signal: AnySignal;
 }
 
-type AddressableDefinition =
-  | SignalDefinition
-  | ComputedDefinition
-  | ActionDefinition
-  | ComponentDefinition;
+type AnySignal =
+  | StateSignal
+  | ComputedSignal
+  | ActionSignal
+  | ComponentSignal;
 ```
 
 The `signal.kind` discriminator determines which type of addressable is being registered:
-- `'signal'` - plain reactive state
+- `'state'` - plain reactive state
 - `'computed'` - derived reactive value with logic
 - `'action'` - imperative logic with signal dependencies
 - `'component'` - UI component with props
@@ -1134,7 +1120,7 @@ The client reconstructs the Weaver state from the inline scripts in the HTML str
 As the browser parses HTML, it encounters and executes inline scripts:
 
 ```html
-<script>weaver.push({kind:'signal-definition',signal:{id:'s1',value:0,kind:'signal'}})</script>
+<script>weaver.push({kind:'signal-definition',signal:{id:'s1',value:0,kind:'state'}})</script>
 ```
 
 This immediately calls `window.weaver.push()` with the registration message.
@@ -1353,14 +1339,14 @@ const increment = createAction(incrementSrc, [count]);
 
 HTML output:
 ```html
-<script>weaver.push({kind:'signal-definition',signal:{id:'s1',kind:'signal',value:0}})</script>
+<script>weaver.push({kind:'signal-definition',signal:{id:'s1',kind:'state',value:0}})</script>
 <script>weaver.push({kind:'signal-definition',signal:{id:'a1',kind:'action',logic:{src:'/assets/increment.js'},deps:['s1']}})</script>
 <button data-w-action="a1">+1</button>
 ```
 
 Action module (`increment.js`):
 ```typescript
-export default (count: Signal<number>) => {
+export default (count: StateSignal<number>) => {
   count.value++;  // Triggers reactivity
 };
 ```
@@ -1488,8 +1474,8 @@ Client: weaver.push({ kind: 'signal-definition', signal: { id: 'c1', kind: 'comp
 **Client-Side Import**:
 When the client needs to execute logic:
 ```typescript
-const addressable = registry.addressables.get('a1');
-const module = await import(addressable.logic.src);  // Fetches /assets/increment-789xyz.js
+const definition = registry.definitions.get('a1');
+const module = await import(definition.logic.src);  // Fetches /assets/increment-789xyz.js
 ```
 
 **Code Splitting**:
@@ -1606,22 +1592,22 @@ export const total = createComputed(totalLogic, [subtotal, tax]);
 **Logic Modules**:
 ```typescript
 // logic/subtotal.ts
-export default (items: ReadOnly<SignalDefinition<CartItem[]>>) => {
+export default (items: ReadOnly<StateSignal<CartItem[]>>) => {
   return items.value.reduce((sum, item) => sum + item.price * item.qty, 0);
 };
 
 // logic/tax.ts
 export default (
-  subtotal: ReadOnly<SignalDefinition<number>>,
-  rate: ReadOnly<SignalDefinition<number>>
+  subtotal: ReadOnly<StateSignal<number>>,
+  rate: ReadOnly<StateSignal<number>>
 ) => {
   return subtotal.value * rate.value;
 };
 
 // logic/total.ts
 export default (
-  subtotal: ReadOnly<SignalDefinition<number>>,
-  tax: ReadOnly<SignalDefinition<number>>
+  subtotal: ReadOnly<StateSignal<number>>,
+  tax: ReadOnly<StateSignal<number>>
 ) => {
   return subtotal.value + tax.value;
 };
@@ -1670,7 +1656,7 @@ A higher-order component that returns different components based on signals:
 import source LoginView from './LoginView';
 import source DashboardView from './DashboardView';
 
-export default (props: { isLoggedIn: ReadOnly<SignalDefinition<boolean>> }) => {
+export default (props: { isLoggedIn: ReadOnly<StateSignal<boolean>> }) => {
   return props.isLoggedIn.value
     ? <DashboardView />
     : <LoginView />;
@@ -1729,7 +1715,7 @@ Actions mutate signals in response to user interactions.
 
 ```typescript
 // actions/increment.ts
-export default (count: SignalDefinition<number>) => {
+export default (count: StateSignal<number>) => {
   count.value++;  // ✅ Actions receive writable signals
 };
 ```
@@ -1774,9 +1760,9 @@ const Counter = () => {
 ```typescript
 // actions/submitForm.ts
 export default async (
-  name: SignalDefinition<string>,
-  email: SignalDefinition<string>,
-  status: SignalDefinition<string>
+  name: StateSignal<string>,
+  email: StateSignal<string>,
+  status: StateSignal<string>
 ) => {
   status.value = 'submitting';
 
@@ -1823,8 +1809,8 @@ Actions can trigger component changes by updating resolver signals:
 ```typescript
 // actions/login.ts
 export default async (
-  isLoggedIn: SignalDefinition<boolean>,
-  user: SignalDefinition<User | null>
+  isLoggedIn: StateSignal<boolean>,
+  user: StateSignal<User | null>
 ) => {
   const result = await fetch('/api/login', { ... });
   const userData = await result.json();
