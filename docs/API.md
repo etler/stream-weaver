@@ -58,7 +58,7 @@ interface ActionSignal extends Signal {
 
 interface ComponentSignal extends Signal {
   logic: Logic;
-  props: Record<string, any>;
+  props: Record<string, Signal | string | number | boolean | null>;
   kind: 'component';
 }
 
@@ -463,7 +463,9 @@ function createComponent<Props>(
 
 **Parameters**:
 - `logic`: Reference to a module containing the component function
-- `props`: Object containing props, which may include signal references or literal values
+- `props`: Object containing props. Props can be:
+  - **Primitives** (string, number, boolean, null) - passed directly as values
+  - **Everything else** (objects, arrays, etc.) - must be passed as signals
 
 **Returns**:
 A component signal that represents both a reactive value and a rendering stream.
@@ -507,6 +509,36 @@ export default (props: { name: ReadOnly<StateSignal<string>> }) => {
   props.name.value = 'changed';  // ❌ TypeScript error - readonly
   return <div>{props.name.value}</div>;  // ✅ Can read
 };
+```
+
+**Props Serialization**:
+Primitives can be passed directly, while complex values must be signals:
+
+```tsx
+// ✅ Primitives passed directly
+<Card title="Welcome" count={5} enabled={true} />
+
+interface CardProps {
+  title: string;
+  count: number;
+  enabled: boolean;
+}
+
+// ✅ Mixed primitives and signals
+<UserProfile name={nameSignal} role="admin" age={25} />
+
+interface UserProfileProps {
+  name: ReadOnly<StateSignal<string>>;  // Object must be signal
+  role: string;                          // Primitive can be direct
+  age: number;                           // Primitive can be direct
+}
+
+// ❌ Objects/arrays must be signals
+<DataTable rows={[{id: 1}, {id: 2}]} />  // Wrong - array not wrapped
+
+// ✅ Correct - wrap in signal
+const rows = createSignal([{id: 1}, {id: 2}]);
+<DataTable rows={rows} />
 ```
 
 **JSX Integration**:
