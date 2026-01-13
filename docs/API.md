@@ -1848,22 +1848,30 @@ export default async (
 
 ```tsx
 import source submitFormSrc from '../actions/submitForm';
+import source updateInputSrc from '../actions/updateInput';
 
 const ContactForm = () => {
   const name = createSignal('');
   const email = createSignal('');
   const status = createSignal('idle');
 
+  const handleNameInput = createHandler(updateInputSrc, [name]);
+  const handleEmailInput = createHandler(updateInputSrc, [email]);
   const handleSubmit = createHandler(submitFormSrc, [name, email, status]);
 
   return (
     <form onSubmit={handleSubmit}>
-      <input value={name} />
-      <input value={email} />
+      <input value={name} onInput={handleNameInput} />
+      <input value={email} onInput={handleEmailInput} />
       <button type="submit">Submit</button>
       <p>Status: {status}</p>
     </form>
   );
+};
+
+// actions/updateInput.ts
+export default (event: InputEvent, signal: StateSignal<string>) => {
+  signal.value = (event.target as HTMLInputElement).value;
 };
 ```
 
