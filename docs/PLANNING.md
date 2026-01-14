@@ -20,46 +20,62 @@ The POC includes:
 
 ## Milestone 1: Signal System Foundation
 
-**Goal**: Implement the basic signal primitive with registry storage.
+**Goal**: Implement basic signal definitions and registry for value storage.
 
 **Implementation Tasks**:
-- Create `Signal` interface and `StateSignal<T>` type
-- Implement `createSignal<T>(init: T): StateSignal<T>`
-- Implement counter-based ID allocation (`s1`, `s2`, ...)
-- Create `WeaverRegistry` class with `Map<string, any>` for storing values
-- Implement `.value` getter/setter that reads/writes to registry
+- Create `Signal` interface and `StateSignal<T>` type (definition objects)
+- Implement `createSignal<T>(init: T): StateSignal<T>` - returns inert metadata object
+- Implement ID allocation (counter-based: `s1`, `s2`, ... or hash-based)
+- Create `WeaverRegistry` class with internal Maps for:
+  - Signal definitions: `Map<string, Signal>`
+  - Signal values: `Map<string, unknown>`
+- Implement registry methods:
+  - `registerSignal(signal: Signal): void` - stores definition + initial value
+  - `getValue(id: string): unknown` - reads value
+  - `setValue(id: string, value: unknown): void` - writes value (no events yet)
+  - `getSignal(id: string): Signal` - retrieves definition
 
 **Test Criteria**:
 ```typescript
-test('signal creation and value access', () => {
+test('signal creation produces definition object', () => {
   const count = createSignal(0);
   expect(count.id).toBe('s1');
+  expect(count.kind).toBe('state');
   expect(count.init).toBe(0);
-  expect(count.value).toBe(0); // Reads from registry
-
-  count.value = 5; // Writes to registry
-  expect(count.value).toBe(5);
+  expect(count).not.toHaveProperty('value'); // No .value on definitions
 });
 
 test('multiple signals have unique IDs', () => {
   const s1 = createSignal(1);
   const s2 = createSignal(2);
-  expect(s1.id).toBe('s1');
-  expect(s2.id).toBe('s2');
+  expect(s1.id).toBe('s2'); // Continues from previous test
+  expect(s2.id).toBe('s3');
 });
 
 test('registry stores signal values', () => {
   const count = createSignal(10);
-  const registry = getGlobalRegistry();
+  const registry = new WeaverRegistry();
 
-  expect(registry.get('s1')).toBe(10);
+  registry.registerSignal(count);
+  expect(registry.getValue('s4')).toBe(10); // Initial value stored
 
-  count.value = 20;
-  expect(registry.get('s1')).toBe(20);
+  registry.setValue('s4', 20);
+  expect(registry.getValue('s4')).toBe(20);
+});
+
+test('registry stores signal definitions', () => {
+  const count = createSignal(5);
+  const registry = new WeaverRegistry();
+
+  registry.registerSignal(count);
+  const retrieved = registry.getSignal('s5');
+
+  expect(retrieved).toBe(count); // Same definition object
+  expect(retrieved.init).toBe(5);
 });
 ```
 
-**Deliverable**: Basic signal objects that store values in a registry.
+**Deliverable**: Signal definition objects and WeaverRegistry for value storage.
 
 ---
 
@@ -68,159 +84,393 @@ test('registry stores signal values', () => {
 **Goal**: Track dependencies between signals without execution.
 
 **Implementation Tasks**:
-- Add `ComputedSignal`, `ActionSignal`, `HandlerSignal` interfaces (just metadata, no logic execution yet)
-- Implement content-addressable ID hashing (hash signature → ID)
-- Implement `createComputedDef(deps: Signal[]): ComputedSignal` (registers dependency metadata only)
-- Implement `createActionDef(deps: Signal[]): ActionSignal`
-- Implement `createHandlerDef(deps: Signal[]): HandlerSignal`
-- Build dependency graph: `dependencies: Map<string, Set<string>>`
-- Track which signals are dependencies of which computeds/actions
+- Implement `ComputedSignal`, `ActionSignal`, `HandlerSignal` interfaces per API.md (metadata only)
+- Implement content-addressable ID hashing (hash logic + deps → ID)
+- Implement `createComputed(logic, deps)` - uses dummy logic objects for testing
+- Implement `createAction(logic, deps)`
+- Implement `createHandler(logic, deps)`
+- Add dependency graph to WeaverRegistry: `Map<string, Set<string>>`
+- Implement `registry.getDependents(id)` - returns Set of dependent signal IDs
+- Implement `registry.getDependencies(id)` - returns array of dependency signal IDs
+- Track bidirectional relationships when signals are registered
 
 **Test Criteria**:
 ```typescript
 test('computed definition registers dependencies', () => {
   const count = createSignal(5);
-  const doubled = createComputedDef([count]); // No logic yet
+  const doubled = createComputed({ src: 'double.js' }, [count]);
 
-  const registry = getGlobalRegistry();
-  const dependents = registry.getDependents('s1');
+  const registry = new WeaverRegistry();
+  registry.registerSignal(count);
+  registry.registerSignal(doubled);
 
+  const dependents = registry.getDependents(count.id);
   expect(dependents).toContain(doubled.id);
 });
 
-test('same deps produce same ID', () => {
+test('registry tracks dependencies bidirectionally', () => {
   const count = createSignal(5);
-  const c1 = createComputedDef([count]);
-  const c2 = createComputedDef([count]);
+  const doubled = createComputed({ src: 'double.js' }, [count]);
+
+  const registry = new WeaverRegistry();
+  registry.registerSignal(count);
+  registry.registerSignal(doubled);
+
+  expect(registry.getDependents(count.id)).toContain(doubled.id);
+  expect(registry.getDependencies(doubled.id)).toEqual([count.id]);
+});
+
+test('same logic and deps produce same ID (content-addressable)', () => {
+  const count = createSignal(5);
+  const c1 = createComputed({ src: 'double.js' }, [count]);
+  const c2 = createComputed({ src: 'double.js' }, [count]);
 
   expect(c1.id).toBe(c2.id);
 });
 
 test('dependency graph tracks multiple levels', () => {
   const s1 = createSignal(1);
-  const c1 = createComputedDef([s1]);
-  const c2 = createComputedDef([c1]);
+  const c1 = createComputed({ src: 'double.js' }, [s1]);
+  const c2 = createComputed({ src: 'quadruple.js' }, [c1]);
 
-  const registry = getGlobalRegistry();
-  expect(registry.getDependents('s1')).toContain(c1.id);
+  const registry = new WeaverRegistry();
+  registry.registerSignal(s1);
+  registry.registerSignal(c1);
+  registry.registerSignal(c2);
+
+  expect(registry.getDependents(s1.id)).toContain(c1.id);
   expect(registry.getDependents(c1.id)).toContain(c2.id);
+});
+
+test('action and handler definitions work similarly', () => {
+  const count = createSignal(0);
+  const increment = createAction({ src: 'increment.js' }, [count]);
+  const handleClick = createHandler({ src: 'click.js' }, [count]);
+
+  const registry = new WeaverRegistry();
+  registry.registerSignal(count);
+  registry.registerSignal(increment);
+  registry.registerSignal(handleClick);
+
+  expect(registry.getDependents(count.id)).toContain(increment.id);
+  expect(registry.getDependents(count.id)).toContain(handleClick.id);
 });
 ```
 
-**Deliverable**: Dependency graph infrastructure without execution.
+**Deliverable**: Dependency graph infrastructure with bidirectional tracking, no logic execution.
 
 ---
 
-## Milestone 3: Reactivity Propagation
+## Milestone 3: Logic System & Signal Interfaces
 
-**Goal**: Make signal updates traverse the dependency graph and emit update events.
+**Goal**: Load logic modules and execute them with signal interface wrappers.
 
 **Implementation Tasks**:
-- Implement signal setter that emits `signal-update` event
-- Implement `propagateUpdate(signalId: string)` that traverses dependency graph
-- Emit update events for all dependents (recursively)
-- Add event listener system for observing propagation
-- No actual execution yet - just event emission
+- Implement `loadLogic(logic: Logic)` using `await import(logic.src)`
+- Create signal interface wrappers that provide `.value` getter/setter accessing registry
+- Implement `createReadOnlySignalInterface(registry, id)` - wrapper with readonly `.value`
+- Implement `createWritableSignalInterface(registry, id)` - wrapper with writable `.value`
+- Implement `executeComputed(registry, id)` - loads logic, wraps deps as readonly, executes, caches result
+- Implement `executeAction(registry, id)` - loads logic, wraps deps as writable, executes
+- Implement `executeHandler(registry, id, event)` - loads logic, passes event + writable deps, executes
+- Store computed results in registry
+- Defer reactivity propagation to M4 (manual execution only for now)
 
 **Test Criteria**:
 ```typescript
-test('signal update propagates to dependents', () => {
-  const count = createSignal(5);
-  const doubled = createComputedDef([count]);
+test('logic module can be loaded', async () => {
+  // tests/fixtures/double.ts: export default (count) => count.value * 2
+  const logic = { src: './tests/fixtures/double.js' };
+  const fn = await loadLogic(logic);
 
-  const events = [];
-  registry.on('update', (id) => events.push(id));
-
-  count.value = 10; // Triggers propagation
-
-  expect(events).toContain('s1'); // Signal itself
-  expect(events).toContain(doubled.id); // Dependent notified
+  expect(typeof fn).toBe('function');
 });
 
-test('cascading updates propagate through graph', () => {
-  const count = createSignal(2);
-  const doubled = createComputedDef([count]);
-  const quadrupled = createComputedDef([doubled]);
+test('computed executes logic and caches result', async () => {
+  const count = createSignal(5);
+  const doubled = createComputed({ src: './tests/fixtures/double.js' }, [count]);
 
-  const events = [];
-  registry.on('update', (id) => events.push(id));
+  const registry = new WeaverRegistry();
+  registry.registerSignal(count);
+  registry.registerSignal(doubled);
+  registry.setValue(count.id, 5);
 
-  count.value = 3;
+  await executeComputed(registry, doubled.id);
 
-  expect(events).toEqual(['s1', doubled.id, quadrupled.id]);
+  expect(registry.getValue(doubled.id)).toBe(10);
 });
 
-test('multiple dependents all notified', () => {
+test('signal interface provides .value that accesses registry', () => {
   const count = createSignal(5);
-  const doubled = createComputedDef([count]);
-  const tripled = createComputedDef([count]);
+  const registry = new WeaverRegistry();
+  registry.registerSignal(count);
+  registry.setValue(count.id, 5);
 
-  const events = [];
-  registry.on('update', (id) => events.push(id));
+  const countInterface = createWritableSignalInterface(registry, count.id);
 
-  count.value = 10;
+  expect(countInterface.value).toBe(5);
+  countInterface.value = 10;
+  expect(registry.getValue(count.id)).toBe(10);
+});
 
-  expect(events).toContain(doubled.id);
-  expect(events).toContain(tripled.id);
+test('action can mutate signals via writable interface', async () => {
+  // tests/fixtures/increment.ts: export default (count) => { count.value++ }
+  const count = createSignal(0);
+  const increment = createAction({ src: './tests/fixtures/increment.js' }, [count]);
+
+  const registry = new WeaverRegistry();
+  registry.registerSignal(count);
+  registry.registerSignal(increment);
+  registry.setValue(count.id, 0);
+
+  await executeAction(registry, increment.id);
+
+  expect(registry.getValue(count.id)).toBe(1);
+});
+
+test('handler receives event and writable signal interfaces', async () => {
+  // tests/fixtures/handleClick.ts: export default (event, count) => { count.value++ }
+  const count = createSignal(0);
+  const handler = createHandler({ src: './tests/fixtures/handleClick.js' }, [count]);
+
+  const registry = new WeaverRegistry();
+  registry.registerSignal(count);
+  registry.registerSignal(handler);
+  registry.setValue(count.id, 0);
+
+  const mockEvent = new MouseEvent('click');
+  await executeHandler(registry, handler.id, mockEvent);
+
+  expect(registry.getValue(count.id)).toBe(1);
+});
+
+test('multiple signals can be passed to logic', async () => {
+  // tests/fixtures/sum.ts: export default (a, b) => a.value + b.value
+  const a = createSignal(5);
+  const b = createSignal(10);
+  const sum = createComputed({ src: './tests/fixtures/sum.js' }, [a, b]);
+
+  const registry = new WeaverRegistry();
+  registry.registerSignal(a);
+  registry.registerSignal(b);
+  registry.registerSignal(sum);
+  registry.setValue(a.id, 5);
+  registry.setValue(b.id, 10);
+
+  await executeComputed(registry, sum.id);
+
+  expect(registry.getValue(sum.id)).toBe(15);
 });
 ```
 
-**Deliverable**: Event-based reactivity propagation without execution.
+**Deliverable**: Logic loading and execution with signal interface wrappers that provide `.value` access.
 
 ---
 
-## Milestone 4: Server Bind Markers
+## Milestone 4: Reactivity Propagation (ChainExplode)
 
-**Goal**: Serialize signals and bindings to HTML without logic execution.
+**Goal**: Implement SignalDelegate to propagate updates and trigger logic execution recursively.
+
+**Implementation Tasks**:
+- Create `SignalDelegate` extending `DelegateStream<SignalEvent, Token>`
+- Implement transform that receives signal-update events
+- Query registry for dependents when update event received
+- Use `chain()` to spawn logic execution for each dependent
+- Execute computed logic when its dependencies update
+- Emit new signal-update events after execution completes
+- Support cascading updates through multiple levels
+- Maintain parallel execution with sequential output ordering
+
+**Test Criteria**:
+```typescript
+test('signal update triggers dependent computed execution', async () => {
+  const count = createSignal(5);
+  const doubled = createComputed({ src: './tests/fixtures/double.js' }, [count]);
+
+  const registry = new WeaverRegistry();
+  registry.registerSignal(count);
+  registry.registerSignal(doubled);
+  registry.setValue(count.id, 5);
+
+  await executeComputed(registry, doubled.id); // Initial execution
+  expect(registry.getValue(doubled.id)).toBe(10);
+
+  const delegate = new SignalDelegate(registry);
+  const writer = delegate.writable.getWriter();
+
+  // Collect output tokens
+  const tokens = [];
+  (async () => {
+    for await (const token of delegate.readable) {
+      tokens.push(token);
+    }
+  })();
+
+  // Trigger update
+  await writer.write({ kind: 'signal-update', id: count.id, value: 7 });
+  await writer.close();
+
+  // Computed should have re-executed
+  expect(registry.getValue(doubled.id)).toBe(14);
+});
+
+test('cascading updates propagate through multiple levels', async () => {
+  const count = createSignal(2);
+  const doubled = createComputed({ src: './tests/fixtures/double.js' }, [count]);
+  const quadrupled = createComputed({ src: './tests/fixtures/double.js' }, [doubled]);
+
+  const registry = new WeaverRegistry();
+  registry.registerSignal(count);
+  registry.registerSignal(doubled);
+  registry.registerSignal(quadrupled);
+  registry.setValue(count.id, 2);
+
+  await executeComputed(registry, doubled.id);
+  await executeComputed(registry, quadrupled.id);
+
+  expect(registry.getValue(doubled.id)).toBe(4);
+  expect(registry.getValue(quadrupled.id)).toBe(8);
+
+  const delegate = new SignalDelegate(registry);
+  const writer = delegate.writable.getWriter();
+
+  const events = [];
+  (async () => {
+    for await (const event of delegate.readable) {
+      if (event.kind === 'signal-update') {
+        events.push(event.id);
+      }
+    }
+  })();
+
+  await writer.write({ kind: 'signal-update', id: count.id, value: 3 });
+  await writer.close();
+
+  // All levels updated
+  expect(registry.getValue(count.id)).toBe(3);
+  expect(registry.getValue(doubled.id)).toBe(6);
+  expect(registry.getValue(quadrupled.id)).toBe(12);
+  expect(events).toEqual([count.id, doubled.id, quadrupled.id]);
+});
+
+test('multiple dependents execute in parallel', async () => {
+  const count = createSignal(5);
+  const doubled = createComputed({ src: './tests/fixtures/double.js' }, [count]);
+  const tripled = createComputed({ src: './tests/fixtures/triple.js' }, [count]);
+
+  const registry = new WeaverRegistry();
+  registry.registerSignal(count);
+  registry.registerSignal(doubled);
+  registry.registerSignal(tripled);
+  registry.setValue(count.id, 5);
+
+  await executeComputed(registry, doubled.id);
+  await executeComputed(registry, tripled.id);
+
+  const delegate = new SignalDelegate(registry);
+  const writer = delegate.writable.getWriter();
+
+  (async () => {
+    for await (const token of delegate.readable) {
+      // Consume stream
+    }
+  })();
+
+  const startTime = Date.now();
+  await writer.write({ kind: 'signal-update', id: count.id, value: 10 });
+  await writer.close();
+  const elapsed = Date.now() - startTime;
+
+  expect(registry.getValue(doubled.id)).toBe(20);
+  expect(registry.getValue(tripled.id)).toBe(30);
+  // Should execute in parallel, not sequentially
+  expect(elapsed).toBeLessThan(100); // Reasonable threshold
+});
+```
+
+**Deliverable**: Full reactive propagation using ChainExplode pattern with cascading updates.
+
+---
+
+## Milestone 5: Server Bind Markers
+
+**Goal**: Serialize signals and bindings to HTML with bind markers and metadata scripts.
 
 **Implementation Tasks**:
 - Implement bind marker generation (`<!--^s1-->`, `<!--/s1-->`)
-- Implement `signal-definition` event emission in ComponentDelegate
+- Implement `signal-definition` token emission in ComponentDelegate when signal bound
 - Create inline script serialization (`<script>weaver.push(...)</script>`)
 - Implement attribute binding serialization (`data-w-classname="s1"`)
 - Implement event handler serialization (`data-w-onclick="h1"`)
-- Update ComponentSerializer to handle bindings in token-open events
+- Update ComponentSerializer to handle bind markers and definition scripts
+- Serialize Logic references with both `src` and `key` fields
 
 **Test Criteria**:
 ```typescript
-test('signal serializes with bind markers', async () => {
+test('signal serializes with bind markers and definition script', async () => {
   const count = createSignal(5);
-  const html = await renderToString(<div>{count}</div>);
+  const registry = new WeaverRegistry();
+  registry.registerSignal(count);
+  registry.setValue(count.id, 5);
 
-  expect(html).toContain('<!--^s1-->5<!--/s1-->');
-  expect(html).toContain('<script>weaver.push({kind:"signal-definition",signal:{id:"s1",kind:"state",init:5}})</script>');
+  const weaver = new StreamWeaver({ root: <div>{count}</div>, registry });
+  const html = (await Array.fromAsync(weaver.readable)).join('');
+
+  expect(html).toContain('<!--^' + count.id + '-->5<!--/' + count.id + '-->');
+  expect(html).toContain('<script>weaver.push({kind:"signal-definition",signal:{id:"' + count.id + '",kind:"state",init:5}})</script>');
 });
 
 test('attribute bindings serialize with data attributes', async () => {
   const theme = createSignal('dark');
-  const html = await renderToString(<div className={theme}>Content</div>);
+  const registry = new WeaverRegistry();
+  registry.registerSignal(theme);
+  registry.setValue(theme.id, 'dark');
+
+  const weaver = new StreamWeaver({ root: <div className={theme}>Content</div>, registry });
+  const html = (await Array.fromAsync(weaver.readable)).join('');
 
   expect(html).toContain('class="dark"');
-  expect(html).toContain('data-w-classname="s1"');
+  expect(html).toContain('data-w-classname="' + theme.id + '"');
 });
 
-test('handler bindings serialize with data attributes', async () => {
-  const handler = createHandlerDef([]);
-  const html = await renderToString(<button onClick={handler}>Click</button>);
+test('handler bindings serialize with data attributes and logic', async () => {
+  const count = createSignal(0);
+  const handler = createHandler({ src: './fixtures/click.js' }, [count]);
 
-  expect(html).toContain('data-w-onclick="h1"');
-  expect(html).toContain('<script>weaver.push({kind:"signal-definition",signal:{id:"h1",kind:"handler",deps:[]}})');
+  const registry = new WeaverRegistry();
+  registry.registerSignal(count);
+  registry.registerSignal(handler);
+
+  const weaver = new StreamWeaver({ root: <button onClick={handler}>Click</button>, registry });
+  const html = (await Array.fromAsync(weaver.readable)).join('');
+
+  expect(html).toContain('data-w-onclick="' + handler.id + '"');
+  expect(html).toContain('<script>weaver.push({kind:"signal-definition",signal:{id:"' + handler.id + '",kind:"handler",logic:{src:"./fixtures/click.js"},deps:["' + count.id + '"]}})</script>');
 });
 
-test('computed definition serializes', async () => {
+test('computed definition serializes with logic reference', async () => {
   const count = createSignal(5);
-  const doubled = createComputedDef([count]);
-  const html = await renderToString(<div>{doubled}</div>);
+  const doubled = createComputed({ src: './fixtures/double.js' }, [count]);
 
-  expect(html).toContain('<script>weaver.push({kind:"signal-definition",signal:{id:"c1",kind:"computed",deps:["s1"]}})</script>');
+  const registry = new WeaverRegistry();
+  registry.registerSignal(count);
+  registry.registerSignal(doubled);
+  registry.setValue(count.id, 5);
+
+  await executeComputed(registry, doubled.id);
+
+  const weaver = new StreamWeaver({ root: <div>{doubled}</div>, registry });
+  const html = (await Array.fromAsync(weaver.readable)).join('');
+
+  expect(html).toContain('<script>weaver.push({kind:"signal-definition",signal:{id:"' + doubled.id + '",kind:"computed",logic:{src:"./fixtures/double.js"},deps:["' + count.id + '"]}})</script>');
 });
 ```
 
-**Deliverable**: Complete server-side HTML serialization with bind markers and metadata.
+**Deliverable**: Complete server-side HTML serialization with bind markers, data attributes, and signal definitions.
 
 ---
 
-## Milestone 5: Client Sink
+## Milestone 6: Client Sink
 
 **Goal**: Implement the client-side DOM update sink.
 
@@ -288,304 +538,181 @@ test('sink rescans after update for nested markers', () => {
 
 ---
 
-## Milestone 6: Event Delegation Infrastructure
+## Milestone 7: Event Delegation Infrastructure
 
-**Goal**: Wire up event listeners and handler lookup without execution.
+**Goal**: Wire up event listeners and route to SignalDelegate for handler execution.
 
 **Implementation Tasks**:
-- Implement global event listeners (click, submit, input, etc.)
-- Implement event delegation via `data-w-{eventname}` lookup
-- Implement handler registry lookup by ID
-- Emit "handler-triggered" event when handler is found (but don't execute yet)
-- Track which handler IDs are triggered
+- Implement global event listeners (click, submit, input, etc.) on document root
+- Implement event delegation via `data-w-{eventname}` attribute lookup
+- Find handler ID from data attribute when event fires
+- Route to SignalDelegate by emitting handler-execute event to stream
+- Integrate with M4's SignalDelegate for actual execution
+- Support event bubbling through DOM hierarchy
 
 **Test Criteria**:
 ```typescript
-test('event delegation finds handler ID', () => {
-  document.body.innerHTML = '<button data-w-onclick="h1">Click</button>';
+test('event delegation finds handler ID and triggers execution', async () => {
+  const count = createSignal(0);
+  const handler = createHandler({ src: './fixtures/click.js' }, [count]);
 
-  const events = [];
-  registry.on('handler-triggered', (id, event) => events.push(id));
+  const registry = new WeaverRegistry();
+  registry.registerSignal(count);
+  registry.registerSignal(handler);
+  registry.setValue(count.id, 0);
 
-  const button = document.querySelector('button');
-  button.click();
+  document.body.innerHTML = '<button data-w-onclick="' + handler.id + '">Click</button>';
 
-  expect(events).toContain('h1');
-});
-
-test('multiple event types work', () => {
-  document.body.innerHTML = `
-    <button data-w-onclick="h1">Click</button>
-    <form data-w-onsubmit="h2"><button type="submit">Submit</button></form>
-    <input data-w-oninput="h3" />
-  `;
-
-  const events = [];
-  registry.on('handler-triggered', (id) => events.push(id));
+  const delegate = new SignalDelegate(registry);
+  setupEventDelegation(delegate); // Wire up events to delegate
 
   document.querySelector('button').click();
-  expect(events).toContain('h1');
+  await waitFor(() => registry.getValue(count.id) === 1);
+
+  expect(registry.getValue(count.id)).toBe(1);
+});
+
+test('multiple event types work', async () => {
+  const count1 = createSignal(0);
+  const count2 = createSignal(0);
+  const clickHandler = createHandler({ src: './fixtures/increment.js' }, [count1]);
+  const inputHandler = createHandler({ src: './fixtures/increment.js' }, [count2]);
+
+  const registry = new WeaverRegistry();
+  registry.registerSignal(count1);
+  registry.registerSignal(count2);
+  registry.registerSignal(clickHandler);
+  registry.registerSignal(inputHandler);
+
+  document.body.innerHTML = `
+    <button data-w-onclick="${clickHandler.id}">Click</button>
+    <input data-w-oninput="${inputHandler.id}" />
+  `;
+
+  const delegate = new SignalDelegate(registry);
+  setupEventDelegation(delegate);
+
+  document.querySelector('button').click();
+  await waitFor(() => registry.getValue(count1.id) === 1);
 
   document.querySelector('input').dispatchEvent(new Event('input'));
-  expect(events).toContain('h3');
+  await waitFor(() => registry.getValue(count2.id) === 1);
+
+  expect(registry.getValue(count1.id)).toBe(1);
+  expect(registry.getValue(count2.id)).toBe(1);
 });
 
-test('event delegation bubbles to parent', () => {
-  document.body.innerHTML = '<div data-w-onclick="h1"><button>Nested</button></div>';
+test('event delegation bubbles to parent', async () => {
+  const count = createSignal(0);
+  const handler = createHandler({ src: './fixtures/increment.js' }, [count]);
 
-  const events = [];
-  registry.on('handler-triggered', (id) => events.push(id));
+  const registry = new WeaverRegistry();
+  registry.registerSignal(count);
+  registry.registerSignal(handler);
+  registry.setValue(count.id, 0);
+
+  document.body.innerHTML = '<div data-w-onclick="' + handler.id + '"><button>Nested</button></div>';
+
+  const delegate = new SignalDelegate(registry);
+  setupEventDelegation(delegate);
 
   document.querySelector('button').click();
-  expect(events).toContain('h1'); // Parent handler triggered
+  await waitFor(() => registry.getValue(count.id) === 1);
+
+  expect(registry.getValue(count.id)).toBe(1); // Parent handler executed
 });
 ```
 
-**Deliverable**: Event delegation infrastructure that identifies handlers without executing them.
+**Deliverable**: Event delegation infrastructure that routes events to SignalDelegate for execution.
 
 ---
 
-## Milestone 7: Logic System & Source Phase Imports
-
-**Goal**: Implement module references and dynamic loading.
-
-**Implementation Tasks**:
-- Create `Logic` interface (`{ url: string, key?: string }`)
-- Implement source phase import polyfill (transform to `{ url: string }`)
-- Create Vite plugin for `import source` → `import ... from '...?url'`
-- Implement dynamic `import(logic.url)` loader
-- Implement module execution helper that loads and calls function
-- Test with direct function references first, then migrate to module URLs
-
-**Test Criteria**:
-```typescript
-test('logic module can be loaded', async () => {
-  const logic: Logic = { url: '/test/double.js' };
-  const module = await loadLogic(logic);
-
-  expect(typeof module.default).toBe('function');
-});
-
-test('source phase import polyfill', () => {
-  // In source:
-  // import source doubleSrc from './logic/double';
-
-  // After transform:
-  // import doubleUrl from './logic/double?url';
-  // const doubleSrc = { url: doubleUrl };
-
-  const doubleSrc = { url: '/assets/double-abc123.js' };
-  expect(doubleSrc.url).toMatch(/\.js$/);
-});
-
-test('logic execution with signal arguments', async () => {
-  const count = createSignal(5);
-  const logic: Logic = { url: '/test/double.js' };
-
-  const result = await executeLogic(logic, [count]);
-  expect(result).toBe(10);
-});
-```
-
-**Deliverable**: Module loading system with source phase import support.
-
----
-
-## Milestone 8: Computed Signals with Execution
-
-**Goal**: Add logic execution to computed signals.
-
-**Implementation Tasks**:
-- Update `createComputed(logic: Logic, deps: Signal[]): ComputedSignal`
-- Implement computed execution: load module, call with ReadOnly signals, cache result
-- Connect execution to reactivity propagation (when update event fires, execute)
-- Implement `ReadOnly<T>` wrapper (TypeScript-only, runtime same object)
-- Update registry to cache computed results
-
-**Test Criteria**:
-```typescript
-test('computed executes logic and caches result', async () => {
-  const count = createSignal(5);
-  const doubled = createComputed(doubleSrc, [count]);
-
-  // Initially undefined until executed
-  await weaver.executeComputed(doubled.id);
-  expect(doubled.value).toBe(10);
-});
-
-test('computed automatically re-executes on dependency change', async () => {
-  const count = createSignal(5);
-  const doubled = createComputed(doubleSrc, [count]);
-
-  await weaver.executeComputed(doubled.id);
-  expect(doubled.value).toBe(10);
-
-  count.value = 7;
-  await waitForExecution();
-  expect(doubled.value).toBe(14);
-});
-
-test('computed receives readonly signals', async () => {
-  const logic = (count: ReadOnly<StateSignal<number>>) => {
-    // TypeScript compile check:
-    // count.value = 10; // ❌ Error
-    return count.value * 2; // ✅ OK
-  };
-
-  const count = createSignal(5);
-  const doubled = createComputed(logic, [count]);
-
-  await weaver.executeComputed(doubled.id);
-  expect(doubled.value).toBe(10);
-});
-
-test('cascading computed updates', async () => {
-  const count = createSignal(2);
-  const doubled = createComputed(doubleSrc, [count]);
-  const quadrupled = createComputed(doubleSrc, [doubled]);
-
-  await weaver.executeComputed(doubled.id);
-  await weaver.executeComputed(quadrupled.id);
-
-  count.value = 3;
-  await waitForExecution();
-
-  expect(doubled.value).toBe(6);
-  expect(quadrupled.value).toBe(12);
-});
-```
-
-**Deliverable**: Computed signals with full logic execution and reactivity.
-
----
-
-## Milestone 9: Actions and Handlers with Execution
-
-**Goal**: Execute actions and handlers with mutation capability.
-
-**Implementation Tasks**:
-- Update `createAction(logic: Logic, deps: Signal[]): ActionSignal`
-- Update `createHandler(logic: Logic, deps: Signal[]): HandlerSignal`
-- Implement action execution: load module, call with writable signals
-- Implement handler execution: load module, call with event + writable signals
-- Connect handlers to event delegation (execute when triggered)
-- Ensure actions receive writable `StateSignal<T>` objects
-
-**Test Criteria**:
-```typescript
-test('action can mutate signals', async () => {
-  const count = createSignal(0);
-  const increment = createAction(incrementSrc, [count]);
-
-  await weaver.executeAction(increment.id);
-  expect(count.value).toBe(1);
-});
-
-test('handler receives event and signals', async () => {
-  const count = createSignal(0);
-  const handler = createHandler(incrementSrc, [count]);
-
-  const mockEvent = new MouseEvent('click');
-  await weaver.executeHandler(handler.id, mockEvent);
-
-  expect(count.value).toBe(1);
-});
-
-test('action execution triggers reactivity', async () => {
-  const count = createSignal(0);
-  const doubled = createComputed(doubleSrc, [count]);
-  const increment = createAction(incrementSrc, [count]);
-
-  await weaver.executeComputed(doubled.id);
-  expect(doubled.value).toBe(0);
-
-  await weaver.executeAction(increment.id);
-  await waitForExecution();
-
-  expect(count.value).toBe(1);
-  expect(doubled.value).toBe(2);
-});
-
-test('handler execution via click event', async () => {
-  document.body.innerHTML = `
-    <script>
-      weaver.push({kind:'signal-definition',signal:{id:'s1',init:0}});
-      weaver.push({kind:'signal-definition',signal:{id:'h1',kind:'handler',logic:{url:'/increment.js'},deps:['s1']}});
-    </script>
-    <div><!--^s1-->0<!--/s1--></div>
-    <button data-w-onclick="h1">+1</button>
-  `;
-
-  const clientWeaver = new ClientWeaver();
-
-  document.querySelector('button').click();
-  await waitForExecution();
-
-  expect(document.querySelector('div').textContent.trim()).toBe('1');
-});
-```
-
-**Deliverable**: Full action and handler execution with mutations and event handling.
-
----
-
-## Milestone 10: Components as Signals
+## Milestone 8: Components as Signals
 
 **Goal**: Integrate components into the reactive signal system.
 
 **Implementation Tasks**:
-- Create `ComponentSignal` interface with props
+- Implement `ComponentSignal` interface per API.md
 - Implement `createComponent(logic: Logic, props: Props): ComponentSignal`
 - Implement content-addressable ID for components (hash logic + serialized props)
 - Extract signal dependencies from props (signal objects → IDs)
-- Register components in dependency graph
-- Emit `signal-definition` events for components in ComponentDelegate
-- Implement component re-rendering when prop signals change
+- Register components in dependency graph when bound
+- Update JSX factory to call `createComponent` for function components
+- Emit `signal-definition` tokens for components in ComponentDelegate
+- Implement component re-rendering when prop signals change via SignalDelegate
 
 **Test Criteria**:
 ```typescript
-test('component registers as signal', () => {
+test('component definition is created with signal props', () => {
   const name = createSignal('Alice');
-  const card = createComponent(CardSrc, { name, title: 'User' });
+  const Card = () => <div>{name}</div>;
+  const card = createComponent({ src: './fixtures/Card.js' }, { name, title: 'User' });
 
   expect(card.kind).toBe('component');
   expect(card.id).toMatch(/^c/);
-  expect(weaver.registry.definitions.has(card.id)).toBe(true);
+  expect(card.props.name).toBe(name);
+  expect(card.props.title).toBe('User');
 });
 
 test('component dependencies extracted from props', () => {
   const name = createSignal('Alice');
   const age = createSignal(30);
-  const card = createComponent(CardSrc, { name, age, role: 'Admin' });
+  const card = createComponent({ src: './fixtures/Card.js' }, { name, age, role: 'Admin' });
 
-  const deps = weaver.registry.getDependents('s1'); // name signal
-  expect(deps).toContain(card.id);
+  const registry = new WeaverRegistry();
+  registry.registerSignal(name);
+  registry.registerSignal(age);
+  registry.registerSignal(card);
 
-  const deps2 = weaver.registry.getDependents('s2'); // age signal
-  expect(deps2).toContain(card.id);
+  expect(registry.getDependents(name.id)).toContain(card.id);
+  expect(registry.getDependents(age.id)).toContain(card.id);
+});
+
+test('component serialization includes props and logic', async () => {
+  const name = createSignal('Alice');
+  const Card = (props: { name: StateSignal<string>, title: string }) => <div>{props.name} - {props.title}</div>;
+  const card = createComponent({ src: './fixtures/Card.js' }, { name, title: 'User' });
+
+  const registry = new WeaverRegistry();
+  registry.registerSignal(name);
+  registry.registerSignal(card);
+  registry.setValue(name.id, 'Alice');
+
+  const weaver = new StreamWeaver({ root: card, registry });
+  const html = (await Array.fromAsync(weaver.readable)).join('');
+
+  expect(html).toContain('<script>weaver.push({kind:"signal-definition",signal:{id:"' + card.id + '",kind:"component",logic:{src:"./fixtures/Card.js"},props:{name:"' + name.id + '",title:"User"}}})</script>');
 });
 
 test('component re-renders when prop signal changes', async () => {
   const name = createSignal('Alice');
-  const card = createComponent(CardSrc, { name });
+  const Card = (props: { name: StateSignal<string> }) => <div>{props.name}</div>;
+  const card = createComponent({ src: './fixtures/Card.js' }, { name });
 
-  const html1 = await renderToString(<div>{card}</div>);
-  expect(html1).toContain('Alice');
+  const registry = new WeaverRegistry();
+  registry.registerSignal(name);
+  registry.registerSignal(card);
+  registry.setValue(name.id, 'Alice');
 
-  name.value = 'Bob';
-  await waitForExecution();
+  // Initial render
+  await executeComputed(registry, card.id);
+  expect(registry.getValue(card.id)).toContain('Alice');
 
-  const html2 = await renderToString(<div>{card}</div>);
-  expect(html2).toContain('Bob');
-});
+  // Update signal
+  const delegate = new SignalDelegate(registry);
+  const writer = delegate.writable.getWriter();
 
-test('component serialization includes props', async () => {
-  const name = createSignal('Alice');
-  const card = createComponent(CardSrc, { name, title: 'User' });
+  (async () => {
+    for await (const token of delegate.readable) {
+      // Consume stream
+    }
+  })();
 
-  const html = await renderToString(<div>{card}</div>);
+  await writer.write({ kind: 'signal-update', id: name.id, value: 'Bob' });
+  await writer.close();
 
-  expect(html).toContain('<script>weaver.push({kind:"signal-definition",signal:{id:"c1",kind:"component",logic:{url:"/Card.js"},props:{name:"s1",title:"User"}}})</script>');
+  // Component should re-execute
+  expect(registry.getValue(card.id)).toContain('Bob');
 });
 ```
 
@@ -593,18 +720,18 @@ test('component serialization includes props', async () => {
 
 ---
 
-## Milestone 11: Full Stack Integration
+## Milestone 9: Full Stack Integration
 
 **Goal**: End-to-end SSR to interactive client with all features working.
 
 **Implementation Tasks**:
 - Create `ClientWeaver` class that initializes from HTML
-- Implement registry restoration from inline scripts
-- Implement `weaver.push()` for registration messages
-- Connect signal updates → computed re-execution → sink updates
-- Connect event delegation → handler execution → signal updates → reactivity
-- Create example app demonstrating full workflow
-- Implement module manifest for production builds
+- Implement registry restoration from inline `<script>weaver.push()</script>` tags
+- Parse and register signal definitions from server HTML
+- Initialize Sink and scan for bind markers
+- Initialize SignalDelegate and connect to event delegation
+- Wire up full reactive flow: events → handlers → updates → computed → DOM
+- Create working example demonstrating full SSR→client hydration
 
 **Test Criteria**:
 ```typescript
@@ -613,7 +740,7 @@ test('client initializes from server HTML', () => {
     <script>
       window.weaver = new ClientWeaver();
       weaver.push({kind:'signal-definition',signal:{id:'s1',kind:'state',init:5}});
-      weaver.push({kind:'signal-definition',signal:{id:'c1',kind:'computed',logic:{url:'/double.js'},deps:['s1']}});
+      weaver.push({kind:'signal-definition',signal:{id:'c1',kind:'computed',logic:{src:'/double.js'},deps:['s1']}});
     </script>
     <div>
       <p>Count: <!--^s1-->5<!--/s1--></p>
@@ -624,51 +751,62 @@ test('client initializes from server HTML', () => {
   document.body.innerHTML = serverHtml;
   const clientWeaver = new ClientWeaver();
 
-  expect(clientWeaver.registry.definitions.size).toBe(2);
-  expect(clientWeaver.sink.bindPoints.size).toBe(2);
+  // Registry has both signals
+  expect(clientWeaver.registry.getSignal('s1')).toBeDefined();
+  expect(clientWeaver.registry.getSignal('c1')).toBeDefined();
+
+  // Sink discovered bind points
+  expect(clientWeaver.sink.hasBindPoint('s1')).toBe(true);
+  expect(clientWeaver.sink.hasBindPoint('c1')).toBe(true);
 });
 
-test('full reactive cycle: event → action → computed → DOM', async () => {
-  const serverHtml = await renderCounterApp();
-  document.body.innerHTML = serverHtml;
+test('full reactive cycle: event → handler → computed → DOM', async () => {
+  // Server-side rendering
+  const count = createSignal(0);
+  const doubled = createComputed({ src: './fixtures/double.js' }, [count]);
+  const increment = createHandler({ src: './fixtures/increment.js' }, [count]);
 
+  const registry = new WeaverRegistry();
+  registry.registerSignal(count);
+  registry.registerSignal(doubled);
+  registry.registerSignal(increment);
+  registry.setValue(count.id, 0);
+
+  await executeComputed(registry, doubled.id);
+
+  const App = () => (
+    <div>
+      <p class="count"><!--^{count.id}-->0<!--/{count.id}--></p>
+      <p class="doubled"><!--^{doubled.id}-->0<!--/{doubled.id}--></p>
+      <button class="increment" data-w-onclick={increment.id}>+1</button>
+    </div>
+  );
+
+  const weaver = new StreamWeaver({ root: <App />, registry });
+  const serverHtml = (await Array.fromAsync(weaver.readable)).join('');
+
+  // Client-side hydration
+  document.body.innerHTML = serverHtml;
   const clientWeaver = new ClientWeaver();
 
   // Initial state
-  expect(document.querySelector('.count').textContent).toBe('0');
-  expect(document.querySelector('.doubled').textContent).toBe('0');
+  expect(document.querySelector('.count').textContent.trim()).toBe('0');
+  expect(document.querySelector('.doubled').textContent.trim()).toBe('0');
 
   // Click increment button
   document.querySelector('.increment').click();
-  await waitForExecution();
+  await waitFor(() => document.querySelector('.count').textContent.trim() === '1');
 
-  // State updated
-  expect(document.querySelector('.count').textContent).toBe('1');
-  expect(document.querySelector('.doubled').textContent).toBe('2');
+  // State updated reactively
+  expect(document.querySelector('.count').textContent.trim()).toBe('1');
+  expect(document.querySelector('.doubled').textContent.trim()).toBe('2');
 
   // Click again
   document.querySelector('.increment').click();
-  await waitForExecution();
+  await waitFor(() => document.querySelector('.count').textContent.trim() === '2');
 
-  expect(document.querySelector('.count').textContent).toBe('2');
-  expect(document.querySelector('.doubled').textContent).toBe('4');
-});
-
-test('component reactivity works end-to-end', async () => {
-  const serverHtml = await renderCardListApp();
-  document.body.innerHTML = serverHtml;
-
-  const clientWeaver = new ClientWeaver();
-
-  // Update user name
-  const input = document.querySelector('input[name="username"]');
-  input.value = 'Bob';
-  input.dispatchEvent(new Event('input'));
-
-  await waitForExecution();
-
-  // Component re-rendered with new name
-  expect(document.querySelector('.card .name').textContent).toBe('Bob');
+  expect(document.querySelector('.count').textContent.trim()).toBe('2');
+  expect(document.querySelector('.doubled').textContent.trim()).toBe('4');
 });
 ```
 
@@ -704,19 +842,17 @@ M1 (Signals)
   ↓
 M2 (Dependency Graph)
   ↓
-M3 (Reactivity Propagation)
+M3 (Logic System & Signal Interfaces)
   ↓
-M4 (Server Bind Markers) ──→ M5 (Client Sink)
+M4 (Reactivity Propagation / ChainExplode)
+  ↓
+M5 (Server Bind Markers) ──→ M6 (Client Sink)
   ↓                            ↓
-M6 (Event Delegation) ────────┘
+M7 (Event Delegation) ────────┘
   ↓
-M7 (Logic System)
+M8 (Components as Signals)
   ↓
-M8 (Computed) ──→ M9 (Actions/Handlers)
-  ↓                  ↓
-M10 (Components) ←──┘
-  ↓
-M11 (Full Stack Integration)
+M9 (Full Stack Integration)
 ```
 
 ### Estimated Complexity
@@ -725,15 +861,13 @@ M11 (Full Stack Integration)
 |-----------|-----------|------|-------|
 | M1 | Low | Low | Basic infrastructure |
 | M2 | Medium | Medium | Content-addressable IDs, graph building |
-| M3 | Medium | High | Reactivity propagation correctness |
-| M4 | Medium | Medium | Serialization of all binding types |
-| M5 | Medium | Low | Standard DOM Range manipulation |
-| M6 | Low | Low | Event delegation patterns |
-| M7 | High | High | Module loading, source phase imports |
-| M8 | Medium | Medium | Logic execution, ReadOnly enforcement |
-| M9 | Medium | Medium | Mutation handling, event integration |
-| M10 | Medium | Medium | Component integration with existing POC |
-| M11 | High | High | Full client/server parity |
+| M3 | High | High | Module loading, signal interfaces with .value |
+| M4 | High | High | ChainExplode reactivity, cascading updates |
+| M5 | Medium | Medium | Serialization of all binding types |
+| M6 | Medium | Low | Standard DOM Range manipulation |
+| M7 | Low | Low | Event delegation patterns |
+| M8 | Medium | Medium | Component integration with existing POC |
+| M9 | High | High | Full client/server parity |
 
 ### Review Points
 
@@ -742,6 +876,7 @@ After each milestone, review:
 - ✅ Implementation matches API.md interfaces
 - ✅ No regressions in previous milestones
 - ✅ Code is clear and maintainable
-- ✅ Infrastructure is testable without execution (M1-M6)
+- ✅ M1-M2: Pure infrastructure (no execution)
+- ✅ M3+: Logic execution and integration
 
 The agent should stop and request review before proceeding to the next milestone.
