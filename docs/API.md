@@ -48,13 +48,13 @@ interface StateSignal<T = unknown> extends Signal {
 }
 
 interface ComputedSignal extends Signal {
-  logic: Logic;
+  logic: LogicRef;
   deps: string[];
   kind: 'computed';
 }
 
 interface ActionSignal extends Signal {
-  logic: Logic;
+  logic: LogicRef;
   deps: string[];
   kind: 'action';
 }
@@ -63,10 +63,18 @@ interface HandlerSignal extends ActionSignal {
   kind: 'handler';
 }
 
-interface ComponentSignal extends Signal {
-  logic: Logic;
-  props: Record<string, Signal | string | number | boolean | null>;
+interface ComponentSignal<T = any> extends Signal {
+  id: string;
   kind: 'component';
+  logic: LogicRef;
+  _type?: T;  // Phantom type for TypeScript inference
+}
+
+interface NodeSignal extends Signal {
+  id: string;
+  kind: 'node';
+  logic: LogicRef;
+  props: Record<string, Signal | string | number | boolean | null>;
 }
 
 // ReadOnly wrapper for signal mutation control
@@ -82,12 +90,12 @@ Stream Weaver prevents circular dependencies through a **Sources vs Dependents**
 
 - **Dependents** (read-only access):
   - `createComputed()` - Receives `ReadOnly<StateSignal<T>>` objects, cannot mutate
-  - `createComponent()` - Receives `ReadOnly<StateSignal<T>>` in props, cannot mutate
+  - `createNode()` - Receive `ReadOnly<StateSignal<T>>` in props, cannot mutate (`createNode` gets automatically called within `jsx()`)
 
-This design prevents loops by ensuring computed signals and components can never mutate the signals they depend on. Only actions (which are explicitly invoked, not automatically triggered) can cause mutations. The readonly constraint is enforced at compile-time via TypeScript - at runtime, signal objects are identical, but TypeScript prevents writes in computed/component contexts.
+This design prevents loops by ensuring computed signals and component nodes can never mutate the signals they depend on. Only actions (which are explicitly invoked, not automatically triggered) can cause mutations. The readonly constraint is enforced at compile-time via TypeScript - at runtime, signal objects are identical, but TypeScript prevents writes in computed/node contexts.
 
 **Addressable Entities**:
-All reactive entities (signals, computed values, actions, components) are addressable definitions that get registered with the Weaver. The complete set of addressable types forms a union:
+All reactive entities (signals, computed values, actions, component definitions, nodes) are addressable definitions that get registered with the Weaver. The complete set of addressable types forms a union:
 
 ```typescript
 type AnySignal =
@@ -95,7 +103,8 @@ type AnySignal =
   | ComputedSignal
   | ActionSignal
   | HandlerSignal
-  | ComponentSignal;
+  | ComponentSignal
+  | NodeSignal;
 ```
 
 **Creation**:
@@ -117,22 +126,46 @@ Logic represents addressable references to executable code. Rather than serializ
 
 **Key Properties**:
 - **Addressable**: Logic is a pointer to code, not the code itself
+- **Type-Safe**: Uses `import("...")` as a type anchor for compile-time validation
+- **Serializable**: Only IDs and paths are serialized, not code
 - **Isomorphic**: The same module reference resolves to executable code on server and client
 - **Lazy**: Code is loaded only when needed via dynamic imports
-- **Source Phase Imports**: Leverages ECMAScript Source Phase Imports (Stage 3) for module addressing
 
 **Type Definition**:
 ```typescript
-interface LogicDefinition {
-  src: string;          // Module URL (e.g., '/assets/increment-abc123.js')
-  key?: string;         // Export name (defaults to 'default')
+interface LogicRef {
+  id: string;               // Stable identifier (build-time assigned)
+  src: string;              // Module URL for runtime import
+  _importPromise?: Promise<any>;  // Non-serializable, TypeScript type anchor only
 }
 ```
 
-**Module Resolution**:
-- **Server**: Logic references use source file paths during rendering
-- **Build**: Module bundler generates public URLs for client access
-- **Client**: Logic references contain public URLs that can be dynamically imported
+**Authoring Model**:
+Developers use standard TypeScript dynamic imports directly in graph APIs:
+```typescript
+const doubled = createComputed(import("./double"), [count]);
+```
+
+The `import("...")` expression serves as a **type anchor** - TypeScript infers the module's export signature and validates that dependencies match the function parameters at compile time.
+
+**Build-Time Transformation**:
+A bundler plugin recognizes these patterns and rewrites them:
+```typescript
+// Before (authored code)
+createComputed(import("./double"), [count])
+
+// After (transformed by build plugin)
+createComputed({ id: "double_abc", src: "/assets/double-abc.js" }, [count])
+```
+
+The plugin assigns stable IDs, resolves public URLs, and ensures modules are included in the build.
+
+**Runtime Execution**:
+At runtime, logic is executed by dynamically importing the module:
+```typescript
+const module = await import(logic.src);  // Fetch and execute module
+const result = module.default(count);     // Call exported function
+```
 
 **Execution Context**:
 Logic modules are pure functions that receive explicit arguments. They have no access to framework internals, global state, or closure variables. This purity enables:
@@ -318,7 +351,147 @@ const items = data.map(item => ({
 
 **Not hooks**: Signals can be created conditionally, in loops, or outside components—they are not bound by React's "rules of hooks."
 
-### 3.2 Signals as Values
+### 3.2 Addressable Logic
+
+Addressable logic is the mechanism that enables Stream Weaver to serialize references to executable code. Instead of serializing functions or closures, the framework serializes stable identifiers that can be resolved to modules at runtime.
+
+**Core Concept**:
+Logic modules are pure functions that can be referenced, serialized, and executed in any JavaScript context. The framework provides a type-safe authoring model using standard TypeScript dynamic imports.
+
+**Authoring with Type Safety**:
+Use `import("...")` directly in graph APIs to create addressable logic:
+
+```typescript
+// Computed signal
+const count = createSignal(5);
+const doubled = createComputed(import("./double"), [count]);
+```
+
+```typescript
+// double.ts - The logic module
+export default (count: Signal<number>) => count.value * 2;
+```
+
+TypeScript automatically infers the function signature from the import and validates that the dependencies match at compile time. If the dependency array doesn't match the function's parameters, TypeScript will error.
+
+**Build-Time Transformation**:
+A bundler plugin recognizes `import("...")` expressions in addressable logic positions and transforms them:
+
+```typescript
+// What you write (authoring)
+const doubled = createComputed(import("./double"), [count]);
+
+// What the build generates (runtime)
+const doubled = createComputed(
+  { id: "double_a1b2c3", src: "/assets/double-a1b2c3.js" },
+  [count]
+);
+```
+
+The plugin:
+1. Assigns a stable, deterministic ID for the module
+2. Resolves the public URL for client-side imports
+3. Ensures the module is included in the build output
+4. Replaces the import expression with a serializable object
+
+**Runtime Execution**:
+At runtime, the framework loads and executes logic modules on demand:
+
+```typescript
+// When a computed signal needs to execute
+const module = await import(logic.src);
+const fn = module.default;
+const result = fn(...deps);
+```
+
+Logic is loaded lazily - only when needed for execution.
+
+**The createLogic() Primitive**:
+While most APIs accept `import("...")` directly for convenience, you can explicitly create a logic reference:
+
+```typescript
+function createLogic<M>(mod: Promise<M>): LogicRef & { _type?: M }
+```
+
+**Usage:**
+```typescript
+// Explicit logic definition
+const doubleLogic = createLogic(import("./double"));
+const doubled = createComputed(doubleLogic, [count]);
+
+// Or inline (common pattern)
+const doubled = createComputed(import("./double"), [count]);
+```
+
+Both forms are equivalent - the inline form calls `createLogic()` internally.
+
+**Type Inference**:
+The `_type` phantom property preserves TypeScript's inference of the module exports:
+
+```typescript
+// TypeScript knows the signature
+const incrementLogic = createLogic(import("./increment"));
+// incrementLogic has type info about the default export
+
+// When used in createAction, deps are validated
+const incrementAction = createAction(incrementLogic, [count]);
+// TypeScript ensures [count] matches the function signature
+```
+
+**Convenience Pattern**:
+Most addressable APIs accept either a `LogicRef` or a `Promise<M>` for flexibility:
+
+```typescript
+type LogicInput<M> = LogicRef | Promise<M>;
+
+// Both of these work:
+createComputed(import("./double"), [count]);           // Promise<M>
+createComputed(doubleLogic, [count]);                  // LogicRef
+```
+
+If a `Promise<M>` is provided, `createLogic()` is called automatically under the hood.
+
+**Serialization**:
+When logic references are serialized (server → client), only the ID and source URL are transmitted:
+
+```json
+{
+  "id": "double_a1b2c3",
+  "src": "/assets/double-a1b2c3.js"
+}
+```
+
+The `_importPromise` property is never serialized - it exists only for TypeScript type inference at compile time.
+
+**Module Requirements**:
+Logic modules must:
+- Export a default function (or named export specified by `key`)
+- Be pure (no side effects in the module scope)
+- Accept all inputs as explicit parameters
+- Return serializable values (for computed signals)
+
+**Example Flow**:
+```typescript
+// 1. Author with type safety
+const doubled = createComputed(import("./double"), [count]);
+
+// 2. Build transforms
+// → { id: "double_abc", src: "/assets/double-abc.js" }
+
+// 3. Server renders and serializes
+// → <script>weaver.push({ signal: { logic: { id: "double_abc", src: "/assets/double-abc.js" } } })</script>
+
+// 4. Client receives and registers
+// → Registry stores logic reference
+
+// 5. When count changes, client executes
+// → const module = await import("/assets/double-abc.js")
+// → const result = module.default(count)
+```
+
+This system provides type safety at authoring time, efficient serialization, and lazy execution at runtime.
+
+### 3.3 Signals as Values
 
 Signals are plain JavaScript objects that can be read and written directly.
 
@@ -375,15 +548,20 @@ Creates a computed signal that derives its value from other signals through exec
 
 **Type Signature**:
 ```typescript
-function createComputed(
-  logic: Logic,
-  deps: Signal[]
+function createComputed<M, F = DefaultExport<M>>(
+  logic: LogicRef | Promise<M>,
+  deps: ArgsOf<F>
 ): ComputedSignal
+
+type DefaultExport<M> = M extends { default: infer D } ? D : never;
+type ArgsOf<F> = F extends (...args: infer A) => any ? A : never;
 ```
 
 **Parameters**:
-- `logic`: Reference to a module containing the computation function
-- `deps`: Array of signal dependencies passed as arguments to the function
+- `logic`: Either a `LogicRef` or a dynamic import promise `import("...")`
+  - If `Promise<M>` is provided, `createLogic()` is called internally
+  - TypeScript infers the function signature from the module
+- `deps`: Array of signal dependencies, validated against function parameters at compile time
 
 **Returns**:
 A computed signal definition. Access its value via the registry (e.g., `doubled.value` uses a getter).
@@ -397,10 +575,35 @@ export default (count: ReadOnly<StateSignal<number>>) => {
   return count.value * 2;  // Can read, cannot mutate
 };
 
-// Usage
+// Usage - inline import (common pattern)
 const count = createSignal(5);
-const doubled = createComputed(doubleSrc, [count]);
+const doubled = createComputed(import("./double"), [count]);
+// TypeScript validates [count] matches function signature
 // doubled.value === 10
+
+// Alternative - explicit logic reference
+const doubleLogic = createLogic(import("./double"));
+const doubled = createComputed(doubleLogic, [count]);
+```
+
+**Type Safety**:
+TypeScript validates dependencies at the call site:
+
+```typescript
+// double.ts expects (count: Signal<number>)
+export default (count: ReadOnly<StateSignal<number>>) => count.value * 2;
+
+const count = createSignal(5);
+const name = createSignal("Alice");
+
+// ✓ Correct
+const doubled = createComputed(import("./double"), [count]);
+
+// ✗ TypeScript error - wrong type
+const doubled = createComputed(import("./double"), [name]);
+
+// ✗ TypeScript error - wrong arity
+const doubled = createComputed(import("./double"), [count, name]);
 ```
 
 **Advanced Pattern - Signal Pass-Through**:
@@ -420,7 +623,7 @@ export default (
 };
 
 // The returned object contains ReadOnly signals that can be passed to components
-const vm = createComputed(viewModelSrc, [userSignal, settingsSignal]);
+const vm = createComputed(import("./viewModel"), [userSignal, settingsSignal]);
 ```
 
 **Reactivity**:
@@ -444,15 +647,19 @@ Creates an action that can execute logic with access to signals for mutation. Un
 
 **Type Signature**:
 ```typescript
-function createAction(
-  logic: Logic,
-  deps: Signal[]
+function createAction<M, F = DefaultExport<M>>(
+  logic: LogicRef | Promise<M>,
+  deps: WritableArgsOf<F>
 ): ActionSignal
+
+type WritableArgsOf<F> = F extends (...args: infer A) => any ? A : never;
 ```
 
 **Parameters**:
-- `logic`: Reference to a module containing the action function
-- `deps`: Array of signal dependencies passed as arguments to the function
+- `logic`: Either a `LogicRef` or a dynamic import promise `import("...")`
+  - If `Promise<M>` is provided, `createLogic()` is called internally
+  - TypeScript infers the function signature from the module
+- `deps`: Array of signal dependencies, validated against function parameters at compile time
 
 **Returns**:
 An action object that can be invoked by user interactions or other imperative code.
@@ -466,9 +673,14 @@ export default (count: StateSignal<number>) => {
   count.value++;  // Mutates the signal, triggers reactivity
 };
 
-// Usage
+// Usage - inline import (common pattern)
 const count = createSignal(0);
-const increment = createAction(incrementSrc, [count]);
+const increment = createAction(import("./increment"), [count]);
+// TypeScript validates [count] matches function signature
+
+// Alternative - explicit logic reference
+const incrementLogic = createLogic(import("./increment"));
+const increment = createAction(incrementLogic, [count]);
 ```
 
 Actions are the **only** addressable entities that can mutate signals. This design prevents circular dependencies because:
@@ -488,15 +700,20 @@ Creates an event handler, which is an action that receives DOM events as its fir
 
 **Type Signature**:
 ```typescript
-function createHandler(
-  logic: Logic,
-  deps: Signal[]
+function createHandler<M, F = DefaultExport<M>>(
+  logic: LogicRef | Promise<M>,
+  deps: WritableArgsOf<F>
 ): HandlerSignal
+
+// Handler functions receive (event, ...signals)
+type HandlerFn = (event: Event, ...signals: StateSignal[]) => void | Promise<void>;
 ```
 
 **Parameters**:
-- `logic`: Reference to a module containing the handler function
-- `deps`: Array of signal dependencies passed as arguments to the function
+- `logic`: Either a `LogicRef` or a dynamic import promise `import("...")`
+  - If `Promise<M>` is provided, `createLogic()` is called internally
+  - TypeScript infers the function signature from the module
+- `deps`: Array of signal dependencies, validated against function parameters at compile time
 
 **Returns**:
 A handler signal that can be attached to DOM event attributes (onClick, onSubmit, etc.).
@@ -517,45 +734,99 @@ export default (
 
 **Usage**:
 ```typescript
+// Inline import (common pattern)
 const count = createSignal(0);
-const handleClick = createHandler(clickSrc, [count]);
+const handleClick = createHandler(import("./handleClick"), [count]);
 
 <button onClick={handleClick}>Click</button>
+
+// Alternative - explicit logic reference
+const clickLogic = createLogic(import("./handleClick"));
+const handleClick = createHandler(clickLogic, [count]);
 ```
 
 Handlers extend actions with event-specific behavior. Use `createAction` for pure state mutations, and `createHandler` when you need access to DOM event data.
 
 ### 4.3 createComponent()
 
-Creates a component, which is a special kind of computed signal that also acts as a DelegateStream. Components combine reactive logic with stream-based rendering.
+Creates a component definition - a reusable template that can be instantiated with different props. Component definitions are addressable logic references that can be bound to props multiple times.
 
 **Type Signature**:
 ```typescript
-function createComponent<Props>(
-  logic: Logic,
-  props: Props
-): ComponentSignal
+function createComponent<M>(
+  logic: LogicRef | Promise<M>
+): ComponentSignal<M>
+
+interface ComponentSignal<T = any> extends Signal {
+  id: string;
+  kind: 'component';
+  logic: LogicRef;
+  _type?: T;  // Phantom type for TypeScript inference
+}
 ```
 
 **Parameters**:
-- `logic`: Reference to a module containing the component function
-- `props`: Object containing props. Props can be:
-  - **Primitives** (string, number, boolean, null) - passed directly as values
-  - **Everything else** (objects, arrays, etc.) - must be passed as signals
+- `logic`: Either a `LogicRef` or a dynamic import promise `import("...")`
+  - If `Promise<M>` is provided, `createLogic()` is called internally
+  - TypeScript infers the component's prop types from the module export
 
 **Returns**:
-A component signal that represents both a reactive value and a rendering stream.
+A component definition object that can be used in JSX. This is a template, not a bound instance.
 
-**Note on Value**: Unlike regular signals which hold data, or computed signals which cache results, component signals don't store a meaningful "value." They are execution records that mark where components should render. The component's output is streamed as events/tokens rather than stored.
+**Concept**:
+`createComponent()` creates an addressable component template without binding it to specific props. It's similar to how `createLogic()` creates an addressable logic reference. The actual instantiation (binding to props) happens via `createNode()` (see Section 4.4).
+
+**Usage Pattern**:
+```typescript
+// 1. Create component definition (once)
+const UserCard = createComponent(import("./UserCard"));
+
+// 2. Use in JSX with different props (many times)
+<UserCard name={aliceSignal} age={25} />
+<UserCard name={bobSignal} age={30} />
+```
+
+**Type Inference**:
+TypeScript infers prop types from the component module:
+
+```typescript
+// components/UserCard.tsx
+interface Props {
+  name: ReadOnly<StateSignal<string>>;
+  age: number;
+}
+
+export default (props: Props) => {
+  return (
+    <div>
+      <h1>{props.name.value}</h1>
+      <p>Age: {props.age}</p>
+    </div>
+  );
+};
+
+// Usage - TypeScript validates props
+const UserCard = createComponent(import("./UserCard"));
+
+// ✓ Correct
+<UserCard name={nameSignal} age={25} />
+
+// ✗ TypeScript error - missing age
+<UserCard name={nameSignal} />
+
+// ✗ TypeScript error - wrong type for name
+<UserCard name="Alice" age={25} />
+```
 
 **Component Functions**:
-Component functions receive props containing **ReadOnly signal objects** and return JSX (Node). Signal props are passed as objects at instantiation (setting up dependencies) but received as readonly references at execution:
+Component functions receive props containing **ReadOnly signal objects** for reactive props and primitive values for static props:
 
 ```typescript
 // components/UserCard.tsx
 interface Props {
   name: ReadOnly<StateSignal<string>>;
   count: ReadOnly<StateSignal<number>>;
+  role: string;  // Static prop
 }
 
 export default (props: Props) => {
@@ -563,11 +834,12 @@ export default (props: Props) => {
   const displayName = props.name.value.toUpperCase();
 
   // Can pass signals to child components
-  const increment = createHandler(incSrc, [props.count]);
+  const increment = createHandler(import("./increment"), [props.count]);
 
   return (
     <div>
-      <h1>{props.name.value}</h1>
+      <h1>{displayName}</h1>
+      <p>Role: {props.role}</p>
       <p>Count: {props.count.value}</p>
       <button onClick={increment}>Increment</button>
     </div>
@@ -575,42 +847,137 @@ export default (props: Props) => {
 };
 ```
 
-**Instantiation vs Execution**:
-```tsx
-// At instantiation - pass signal objects (sets up dependencies)
-<UserCard name={nameSignal} count={countSignal} />
+**Reusability**:
+Component definitions are templates that can be reused:
 
-// At execution - receive ReadOnly signals (prevents mutation)
-export default (props: { name: ReadOnly<StateSignal<string>> }) => {
-  props.name.value = 'changed';  // ❌ TypeScript error - readonly
-  return <div>{props.name.value}</div>;  // ✅ Can read
-};
+```typescript
+const Card = createComponent(import("./Card"));
+
+// Same definition, different instances
+const cards = items.map(item =>
+  <Card title={item.title} data={item.signal} />
+);
 ```
 
-**Props Serialization**:
-Primitives can be passed directly, while complex values must be signals:
+Each JSX instantiation creates a separate node (via `createNode()`) with its own ID and dependencies.
 
-```tsx
-// ✅ Primitives passed directly
+**Definition vs Node**:
+- **Component Definition** (created by `createComponent`):
+  - Kind: `'component'`
+  - Contains: logic reference only
+  - Purpose: Reusable template
+  - Created: Once, typically at module level
+
+- **Node** (created by `createNode` via JSX):
+  - Kind: `'node'`
+  - Contains: logic reference + props + dependencies
+  - Purpose: Specific instance bound to props
+  - Created: Every time component is used in JSX
+
+See Section 4.4 for details on `createNode()`.
+
+### 4.4 createNode()
+
+Creates a node - a component instance bound to specific props. Nodes are the reactive entities that re-render when their prop signals change.
+
+**Type Signature**:
+```typescript
+function createNode<Props>(
+  component: ComponentSignal,
+  props: Props
+): NodeSignal
+
+interface NodeSignal extends Signal {
+  id: string;
+  kind: 'node';
+  logic: LogicRef;
+  props: Record<string, Signal | Primitive>;
+}
+
+type Primitive = string | number | boolean | null | undefined;
+```
+
+**Parameters**:
+- `component`: A component definition created by `createComponent()`
+- `props`: Object containing props
+  - **Signals**: Passed as references (creates reactive dependencies)
+  - **Primitives**: Passed as values (static, no reactivity)
+  - **Objects/Arrays**: Must be wrapped in signals
+
+**Returns**:
+A node signal representing a specific component instance bound to the provided props.
+
+**Content-Addressable IDs**:
+Node IDs are deterministic, based on the component logic and props:
+
+```typescript
+// Hash includes:
+// - Component logic ID
+// - Prop keys and signal IDs (or values for primitives)
+id = hash(component.logic.id + stringifyProps(props))
+```
+
+This creates automatic identity stability:
+
+```typescript
+const Card = createComponent(import("./Card"));
+const nameSignal = createSignal("Alice");
+
+// Same component + same props = same ID
+const node1 = createNode(Card, { name: nameSignal, age: 25 });
+const node2 = createNode(Card, { name: nameSignal, age: 25 });
+// node1.id === node2.id
+
+// Different props = different ID
+const node3 = createNode(Card, { name: nameSignal, age: 30 });
+// node3.id !== node1.id
+```
+
+**Dependency Tracking**:
+When props contain signals, the node becomes dependent on those signals:
+
+```typescript
+const nameSignal = createSignal("Alice");
+const ageSignal = createSignal(25);
+
+const node = createNode(Card, {
+  name: nameSignal,  // Node depends on nameSignal
+  age: ageSignal,    // Node depends on ageSignal
+  role: "Admin"      // Static prop, no dependency
+});
+
+// When nameSignal or ageSignal changes, node re-renders
+```
+
+**Props Handling**:
+
+**Primitives (static):**
+```typescript
 <Card title="Welcome" count={5} enabled={true} />
+// Props: { title: "Welcome", count: 5, enabled: true }
+// No reactive dependencies
+```
 
-interface CardProps {
-  title: string;
-  count: number;
-  enabled: boolean;
-}
+**Signals (reactive):**
+```typescript
+const name = createSignal("Alice");
+<Card name={name} />
+// Props: { name: <signal reference> }
+// Node depends on name signal
+```
 
-// ✅ Mixed primitives and signals
-<UserProfile name={nameSignal} role="admin" age={25} />
+**Mixed:**
+```typescript
+const name = createSignal("Alice");
+<Card name={name} role="Admin" age={25} />
+// Props: { name: <signal>, role: "Admin", age: 25 }
+// Node depends only on name signal
+```
 
-interface UserProfileProps {
-  name: ReadOnly<StateSignal<string>>;  // Object must be signal
-  role: string;                          // Primitive can be direct
-  age: number;                           // Primitive can be direct
-}
-
-// ❌ Objects/arrays must be signals
-<DataTable rows={[{id: 1}, {id: 2}]} />  // Wrong - array not wrapped
+**Complex Values (must be signals):**
+```typescript
+// ❌ Wrong - arrays/objects must be wrapped
+<DataTable rows={[{id: 1}, {id: 2}]} />
 
 // ✅ Correct - wrap in signal
 const rows = createSignal([{id: 1}, {id: 2}]);
@@ -618,79 +985,124 @@ const rows = createSignal([{id: 1}, {id: 2}]);
 ```
 
 **JSX Integration**:
-Typically, components are not created manually with `createComponent`. Instead, the JSX factory function detects component usage and creates them automatically:
+Typically, `createNode()` is not called directly. The JSX factory detects component definitions and calls `createNode()` automatically:
 
 ```typescript
 // You write:
-<UserCard name={nameSignal} count={countSignal} />
+const Card = createComponent(import("./Card"));
+<Card name={nameSignal} age={25} />
 
-// JSX factory internally calls:
-jsx(UserCard, { name: nameSignal, count: countSignal })
-// Which creates: createComponent(UserCardSrc, { name: nameSignal, count: countSignal })
+// JSX compiles to:
+jsx(Card, { name: nameSignal, age: 25 })
+
+// jsx() function detects ComponentSignal and calls:
+createNode(Card, { name: nameSignal, age: 25 })
 ```
 
-**As Computed-Like Signal**:
-Components behave like computed signals in that:
-- They have dependencies (props that are signals)
-- They re-execute when those dependencies change
-- They produce output (streamed tokens/events)
+**Reactivity**:
+Nodes are reactive entities that re-execute when their prop signals change:
 
-However, unlike computed signals which cache results in the registry, components are stream producers that push DOM updates to the stream.
+1. User updates a signal: `nameSignal.value = "Bob"`
+2. Weaver detects the node depends on `nameSignal`
+3. Weaver re-executes the component function with new props
+4. Component returns new JSX tree
+5. Output is serialized to HTML
+6. Sync message sent to Sink with node ID
+7. Sink replaces all bind point regions for that node
 
-**As DelegateStream**:
-Components are also streams because:
-- They spawn as independent DelegateStreams during rendering
-- They can emit multiple event types (bind markers, tokens, registrations)
+**As Streams**:
+Nodes act as DelegateStreams during rendering:
+- They spawn as independent streams
+- They can emit tokens, bind markers, and registration events
 - They chain into parent streams maintaining sequential output
 - They enable recursive parallel component spawning
 
 **Lifecycle**:
-1. **Creation**: JSX instantiation creates component signal
-2. **Execution**: Component function runs, returns JSX tree
-3. **Stream Spawning**: New ComponentDelegate processes returned tree
-4. **Registration**: Component signal registered with bind markers
-5. **Updates**: When props change, component re-executes and emits new output
+1. **Creation**: JSX instantiation calls `createNode()`
+2. **Registration**: Node registered with Weaver, dependencies tracked
+3. **Execution**: Component function runs with props, returns JSX
+4. **Stream Spawning**: ComponentDelegate processes returned tree
+5. **Output**: Bind markers and HTML streamed to output
+6. **Updates**: When prop signals change, node re-executes (steps 3-5 repeat)
+
+**Example**:
+```typescript
+// Define component once
+const UserCard = createComponent(import("./UserCard"));
+
+// Use with different props - each creates a unique node
+const alice = createSignal({ name: "Alice", age: 30 });
+const bob = createSignal({ name: "Bob", age: 25 });
+
+const App = () => (
+  <div>
+    <UserCard user={alice} role="Admin" />  {/* Node 1 */}
+    <UserCard user={bob} role="User" />     {/* Node 2 */}
+  </div>
+);
+
+// When alice signal changes, only Node 1 re-renders
+// When bob signal changes, only Node 2 re-renders
+```
 
 ## 5. Component Model
 
 ### 5.1 Components as Signals
 
-Components are reactive entities like computed signals. They have dependencies (props), execute logic when those dependencies change, and produce rendered output to the stream.
+The component system in Stream Weaver uses two distinct signal types:
+
+**Component Definitions** (`kind: 'component'`):
+- Templates created by `createComponent()`
+- Contain only a logic reference
+- Reusable across multiple instantiations
+- Not reactive (no dependencies)
+
+**Nodes** (`kind: 'node'`):
+- Instances created by `createNode()` (typically via JSX)
+- Contain logic reference + props
+- Reactive entities with dependencies
+- Re-execute when prop signals change
+
+**Nodes as Reactive Entities**:
+Nodes are reactive like computed signals. They have dependencies (prop signals), execute logic when those dependencies change, and produce rendered output to the stream.
 
 **Value Semantics**:
-Unlike regular signals (which hold data) or computed signals (which cache results), component signals are execution records. They mark locations where components render and track dependencies, but don't store the rendered output as a "value." The component's output streams as events/tokens during rendering.
+Unlike regular signals (which hold data) or computed signals (which cache results), nodes are execution records. They mark locations where components render and track dependencies, but don't store the rendered output as a "value." The component's output streams as events/tokens during rendering.
 
-On the client, when a component re-renders due to prop changes, the new output is generated and streamed to the Sink as a sync message, but this is not stored as a persistent value on the component signal itself.
+On the client, when a node re-renders due to prop changes, the new output is generated and streamed to the Sink as a sync message, but this is not stored as a persistent value on the node signal itself.
 
 **Dependency Tracking**:
-When props contain signals, the component becomes dependent on those signals:
+When props contain signals, the node becomes dependent on those signals:
 
 ```tsx
+const Card = createComponent(import("./UserCard"));
 const nameSignal = createSignal('Alice');
 const countSignal = createSignal(0);
 
-<UserCard name={nameSignal} count={countSignal} />
-// Component c1 depends on signals: ['s1', 's2']
+<Card name={nameSignal} count={countSignal} />
+// Node n1 depends on signals: [nameSignal.id, countSignal.id]
 ```
 
 **Reactive Updates**:
 When a prop signal updates:
 1. Weaver detects `nameSignal` changed
-2. Finds dependent component `c1`
+2. Finds dependent node `n1`
 3. Re-executes component function with new prop values
 4. Generates new rendered output
-5. Emits sync message: `{ id: 'c1', html: '...' }`
-6. Sink replaces all `<!--^c1-->...<!--/c1-->` regions with new HTML
+5. Emits sync message: `{ id: 'n1', html: '...' }`
+6. Sink replaces all `<!--^n1-->...<!--/n1-->` regions with new HTML
 
-**Component Instance Identity**:
-Each JSX component instantiation creates a stable component signal based on the signal signature:
+**Node Instance Identity**:
+Each JSX instantiation creates a stable node based on content-addressable hashing:
 
 ```tsx
-<UserCard name={alice} />  // Creates c1
-<UserCard name={bob} />    // Creates c2 (separate instance)
+const Card = createComponent(import("./Card"));
+
+<Card name={alice} />  // Creates node n1 (hash of Card logic + alice.id)
+<Card name={bob} />    // Creates node n2 (hash of Card logic + bob.id)
 ```
 
-Both are independent signals that update independently when their respective props change.
+Both are independent nodes that update independently when their respective props change. If you use the same component definition with the same signal props multiple times, you get the same node ID (automatic deduplication).
 
 ### 5.2 Components as Streams
 
@@ -769,15 +1181,17 @@ function jsx(type, props): Element {
     return { type, props, children: [...] };
   }
 
-  // Component (function)
-  if (typeof type === 'function') {
-    return createComponent(type, props);
+  // Component definition - create node
+  if (type?.kind === 'component') {
+    return createNode(type, props);
   }
 
   // Fragment
   if (type === Fragment) {
     return { type: Fragment, props: undefined, children: [...] };
   }
+
+  throw new Error('Invalid JSX type');
 }
 ```
 
@@ -804,60 +1218,80 @@ When the tokenizer encounters a signal object in the JSX tree, it:
 4. Emits bind marker close event
 
 **Component Instantiation**:
-JSX component syntax automatically creates component signals:
+JSX component syntax automatically creates nodes from component definitions:
 
 ```tsx
-// You write:
-<UserCard name="Alice" count={countSignal} />
+// 1. Define component
+const UserCard = createComponent(import("./UserCard"));
+
+// 2. Use in JSX
+<UserCard name={nameSignal} role="Admin" />
 
 // Compiles to:
-jsx(UserCard, { name: "Alice", count: countSignal })
+jsx(UserCard, { name: nameSignal, role: "Admin" })
 
-// jsx() function calls:
-createComponent(UserCardLogic, { name: "Alice", count: countSignal })
+// jsx() detects UserCard.kind === 'component' and calls:
+createNode(UserCard, { name: nameSignal, role: "Admin" })
 
-// Creates ComponentSignal c1 with:
-// - logic reference to UserCard module
-// - props containing literal "Alice" and signal reference
+// Creates NodeSignal n1 with:
+// - logic reference from UserCard
+// - props containing signal reference and literal
+// - dependencies extracted from props
 ```
 
-**Components as Bindings**:
-Since components are signals, component instantiation creates a binding in the output:
+**Nodes as Bindings**:
+Since nodes are signals, component instantiation creates a binding in the output:
 
 ```tsx
+const UserCard = createComponent(import("./UserCard"));
+const nameSignal = createSignal("Alice");
+
 <div>
-  <UserCard name="Alice" />
+  <UserCard name={nameSignal} />
 </div>
 ```
 
 Server output:
 ```html
-<script>weaver.push({kind:'signal-definition',signal:{id:'c1',kind:'component',logic:{...},props:{...}}})</script>
+<script>weaver.push({kind:'signal-definition',signal:{id:'comp1',kind:'component',logic:{id:'UserCard_abc',src:'/assets/UserCard.js'}}})</script>
+<script>weaver.push({kind:'signal-definition',signal:{id:'n1',kind:'node',logic:{id:'UserCard_abc',src:'/assets/UserCard.js'},props:{name:'s1'}}})</script>
 <div>
-  <!--^c1-->
+  <!--^n1-->
     <div class="user-card">
       <h2>Alice</h2>
     </div>
-  <!--/c1-->
+  <!--/n1-->
 </div>
 ```
 
-When the component's props update, the entire region between `<!--^c1-->` and `<!--/c1-->` is replaced with the component's new output.
+When the node's prop signals update, the entire region between `<!--^n1-->` and `<!--/n1-->` is replaced with the component's new output.
 
 **Props Handling**:
 Props can contain a mix of literal values and signal references:
 
 ```typescript
+const Card = createComponent(import("./Card"));
+
 // Literal values are passed directly
 <Card title="Hello" />
 
 // Signals are passed as objects (not unwrapped)
 <Card count={countSignal} />
 
-// Inside component:
-const Card = (props) => {
+// Mixed
+<Card title="Hello" count={countSignal} enabled={true} />
+
+// Inside component module (Card.tsx):
+interface Props {
+  title: string;
+  count: ReadOnly<StateSignal<number>>;
+  enabled: boolean;
+}
+
+export default (props: Props) => {
   // props.title === "Hello" (literal)
-  // props.count === Signal object (can be bound)
+  // props.count === Signal object (can be bound or read via .value)
+  // props.enabled === true (literal)
   return <div>{props.count}</div>;
 };
 ```
@@ -1029,7 +1463,7 @@ When `signal-definition` event flows through, it contains any addressable defini
   signal: {
     id: 'c1',
     kind: 'computed',
-    logic: { src: '/assets/double.js', key: 'default' },
+    logic: { id: 'double_abc', src: '/assets/double-abc.js' },
     deps: ['s1']
   }
 }
@@ -1042,21 +1476,33 @@ When `signal-definition` event flows through, it contains any addressable defini
   signal: {
     id: 'a1',
     kind: 'action',
-    logic: { src: '/assets/increment.js', key: 'default' },
+    logic: { id: 'increment_def', src: '/assets/increment-def.js' },
     deps: ['s1']
   }
 }
 ```
 
-**Component**:
+**Component Definition**:
 ```typescript
 {
   kind: 'signal-definition',
   signal: {
     id: 'comp1',
     kind: 'component',
-    logic: { src: '/assets/UserCard.js', key: 'default' },
-    props: { name: 's1', count: 's2' }
+    logic: { id: 'UserCard_xyz', src: '/assets/UserCard-xyz.js' }
+  }
+}
+```
+
+**Node (Component Instance)**:
+```typescript
+{
+  kind: 'signal-definition',
+  signal: {
+    id: 'n1',
+    kind: 'node',
+    logic: { id: 'UserCard_xyz', src: '/assets/UserCard-xyz.js' },
+    props: { name: 's1', role: 'Admin', count: 's2' }
   }
 }
 ```
@@ -1131,7 +1577,7 @@ Hello
 Given this component:
 ```tsx
 const count = createSignal(5);
-const doubled = createComputed(doubleSrc, [count]);
+const doubled = createComputed(import("./double"), [count]);
 
 const App = () => (
   <div>
@@ -1144,7 +1590,7 @@ const App = () => (
 Server output:
 ```html
 <script>weaver.push({kind:'signal-definition',signal:{id:'s1',kind:'state',init:5}})</script>
-<script>weaver.push({kind:'signal-definition',signal:{id:'c1',kind:'computed',logic:{src:'/assets/double.js'},deps:['s1']}})</script>
+<script>weaver.push({kind:'signal-definition',signal:{id:'c1',kind:'computed',logic:{id:'double_abc',src:'/assets/double-abc.js'},deps:['s1']}})</script>
 <div>
   <p>Count: <!--^s1-->5<!--/s1--></p>
   <p>Doubled: <!--^c1-->10<!--/c1--></p>
@@ -1477,156 +1923,272 @@ User clicks:
 
 ## 9. Build Integration
 
-### 9.1 Source Phase Imports
+### 9.1 Addressable Logic System
 
-Stream Weaver leverages ECMAScript Source Phase Imports (Stage 3) to treat modules as addressable data rather than immediately executable code.
+Stream Weaver uses a build-time transformation system to convert standard TypeScript dynamic imports into addressable logic references. This provides type safety at authoring time, efficient serialization, and lazy execution at runtime.
 
-**Source Phase Import Syntax**:
+**Core Concept**:
+Developers write standard TypeScript code using `import("...")` expressions. A bundler plugin recognizes these patterns, assigns stable IDs, and transforms them into serializable references.
+
+**Developer Experience**:
 ```typescript
-import source CardModule from './components/Card';
-import source incrementLogic from './actions/increment';
+// What you write (standard TypeScript)
+const doubled = createComputed(import("./double"), [count]);
 
-// CardModule is a module source reference, not the executed module
-const card = createComponent(CardModule, props);
+// TypeScript infers types from the import
+// Build plugin transforms to:
+const doubled = createComputed(
+  { id: "double_abc123", src: "/assets/double-abc123.js" },
+  [count]
+);
+
+// At runtime, only the ID and src are present
+// The import promise is not serialized
 ```
 
-**Module as Data**:
-Source phase imports return a module source object that can be:
-- Passed around as data
-- Serialized to a URL string
-- Dynamically imported later: `import(source.url)`
+**Type Safety**:
+The `import("...")` expression provides full TypeScript inference:
 
-**Server Execution Context**:
-On the server during SSR:
-- Components import logic modules via `import source`
-- The build system provides source paths that resolve to actual modules
-- During rendering, the server can execute these modules
+```typescript
+// double.ts
+export default (count: Signal<number>) => count.value * 2;
 
-**Client URL Resolution**:
-The build system generates a manifest mapping source paths to public URLs:
+// Usage
+const count = createSignal(5);
+const doubled = createComputed(import("./double"), [count]);
 
-```json
-{
-  "/src/components/Card.tsx": "/assets/Card-abc123.js",
-  "/src/actions/increment.ts": "/assets/increment-def456.js"
+// ✓ TypeScript validates [count] matches function signature
+// ✗ TypeScript errors if deps don't match
+```
+
+**Build-Time Transformation**:
+The bundler plugin recognizes addressable logic patterns and performs transformations:
+
+**Recognized Patterns**:
+- `createComputed(import("..."), deps)`
+- `createAction(import("..."), deps)`
+- `createHandler(import("..."), deps)`
+- `createComponent(import("..."))`
+- `createLogic(import("..."))`
+
+**Transformation Strategy**:
+1. **Primary (Inline Rewrite)**: Replace import expression with LogicRef object
+   ```typescript
+   // Before
+   createComputed(import("./double"), [count])
+
+   // After
+   createComputed({ id: "double_abc", src: "/assets/double-abc.js" }, [count])
+   ```
+
+2. **Fallback (Metadata Attachment)**: For code that stores imports in variables
+   ```typescript
+   // Before
+   const doubleFn = import("./double");
+   const doubled = createComputed(doubleFn, [count]);
+
+   // After
+   const doubleFn = Object.assign(import("./double"), { __logicId: "double_abc" });
+   const doubled = createComputed(doubleFn, [count]);
+   ```
+
+   The serializer checks for `__logicId` and extracts it if present.
+
+### 9.2 Build Plugin Responsibilities
+
+A bundler plugin (typically for Vite, Webpack, or Rollup) must implement the following:
+
+**1. Pattern Recognition**:
+Identify `import("...")` expressions in addressable logic positions:
+- Look for string literal specifiers (e.g., `"./double"`)
+- Track call sites of createComputed, createAction, createHandler, createComponent, createLogic
+- Use AST traversal to find these patterns
+
+**2. ID Assignment**:
+Generate stable, deterministic identifiers for each module:
+```typescript
+// Options:
+// - Hash the resolved module path
+// - Use normalized relative path
+// - Combine module path with export name
+
+id = hash(resolvedPath) // e.g., "double_a1b2c3"
+```
+
+The ID must be:
+- Stable across builds (same input → same ID)
+- Unique per module
+- Serializable (string, no special characters)
+
+**3. Call Site Rewriting**:
+Transform recognized patterns by replacing import expressions:
+```typescript
+// AST transformation
+CallExpression {
+  callee: Identifier("createComputed"),
+  arguments: [
+    ImportExpression("./double"),  // ← Replace this
+    ArrayExpression([...])
+  ]
+}
+
+// Becomes
+CallExpression {
+  callee: Identifier("createComputed"),
+  arguments: [
+    ObjectExpression({
+      id: "double_abc",
+      src: "/assets/double-abc.js"
+    }),
+    ArrayExpression([...])
+  ]
 }
 ```
 
-When serializing to HTML, the server looks up the public URL for each module source and emits that in the registration script.
+**4. Module Emission**:
+Ensure referenced modules are included in the build:
+- Add modules to the bundle graph as dynamic imports
+- Generate separate chunks for code splitting
+- Apply normal tree-shaking and optimization
 
-**Vite Plugin Integration**:
-A Vite plugin handles:
-- Intercepting source phase imports
-- Generating the module mapping manifest
-- Providing server-side resolution
-- Ensuring client bundles are split appropriately
-
-**Polyfill Strategy**:
-Until source phase imports are widely supported, a build-time transformation converts:
-```typescript
-import source Card from './Card';
+**5. Manifest Generation**:
+Create a mapping of logic IDs to public URLs:
+```json
+{
+  "double_abc": {
+    "id": "double_abc",
+    "src": "/assets/double-abc123.js",
+    "imports": []
+  },
+  "increment_def": {
+    "id": "increment_def",
+    "src": "/assets/increment-def456.js",
+    "imports": ["double_abc"]
+  }
+}
 ```
 
-To:
-```typescript
-import CardUrl from './Card?url';
-const Card = { url: CardUrl };
-```
+The manifest enables:
+- Server-side URL resolution during SSR
+- Client-side module loading
+- Preloading and optimization
 
-Vite's `?url` import provides the module URL as a string.
-
-### 9.2 Module Mapping
+### 9.3 Module Mapping
 
 The build system generates a mapping between source file paths and public bundle URLs.
 
 **Build Process**:
 
 1. **Development Mode**:
-   - Vite serves modules directly: `/src/components/Card.tsx`
-   - No bundling, instant transforms
-   - Module URLs are source paths
+   - Plugin detects `import("...")` patterns during transform
+   - Generates stable IDs from source paths
+   - Keeps source paths for development URLs
+   - No bundling, instant module loading
 
 2. **Production Build**:
-   - Vite bundles and hashes modules: `/assets/Card-abc123.js`
-   - Generates manifest: `.vite/manifest.json`
-   - Maps original paths → hashed bundles
+   - Plugin runs during bundle phase
+   - Generates hashed output filenames
+   - Creates manifest mapping IDs → public URLs
+   - Optimizes and code-splits as normal
 
 **Manifest Structure**:
 ```json
 {
-  "src/components/Card.tsx": {
-    "file": "assets/Card-abc123.js",
-    "src": "src/components/Card.tsx",
-    "isEntry": false,
-    "imports": ["assets/jsx-runtime-def456.js"]
+  "double_abc": {
+    "id": "double_abc",
+    "src": "/assets/double-abc123.js",
+    "original": "src/logic/double.ts"
   },
-  "src/actions/increment.ts": {
-    "file": "assets/increment-789xyz.js",
-    "src": "src/actions/increment.ts",
-    "isEntry": false
+  "UserCard_xyz": {
+    "id": "UserCard_xyz",
+    "src": "/assets/UserCard-xyz789.js",
+    "original": "src/components/UserCard.tsx",
+    "imports": ["jsx-runtime"]
   }
 }
 ```
 
-**Server-Side Path Resolution**:
-During SSR, the server reads the manifest and resolves module sources:
+**Server-Side URL Resolution**:
+During SSR, the server uses the manifest to resolve public URLs:
 
-**Serialization Example**:
-When the server serializes an addressable with logic (computed, action, or component):
-- Look up the module's source path in the manifest
-- Replace source path with public URL from manifest
-- Emit as `signal-definition` message with complete definition
+```typescript
+// Server has module path from build-time transform
+const logic = { id: "double_abc", src: "/src/logic/double.ts" };
 
-Example: Computed signal uses server source path during SSR, but gets serialized with public client URL:
-```
-Server: { id: 'c1', kind: 'computed', logic: { src: '/src/logic/double.ts' }, deps: ['s1'] }
-↓
-Client: weaver.push({ kind: 'signal-definition', signal: { id: 'c1', kind: 'computed', logic: { src: '/assets/double-abc123.js' }, deps: ['s1'] } })
+// Look up in manifest
+const manifestEntry = manifest["double_abc"];
+const publicUrl = manifestEntry.src; // "/assets/double-abc123.js"
+
+// Serialize with public URL
+<script>weaver.push({
+  kind: 'signal-definition',
+  signal: {
+    id: 'c1',
+    kind: 'computed',
+    logic: { id: 'double_abc', src: '/assets/double-abc123.js' },
+    deps: ['s1']
+  }
+})</script>
 ```
 
 **Client-Side Import**:
 When the client needs to execute logic:
 ```typescript
-const definition = registry.definitions.get('a1');
-const module = await import(definition.logic.src);  // Fetches /assets/increment-789xyz.js
+const signal = registry.getSignal('c1');
+const logic = signal.logic;  // { id: 'double_abc', src: '/assets/double-abc123.js' }
+
+// Dynamic import using public URL
+const module = await import(logic.src);
+const fn = module.default;
+const result = fn(...deps);
 ```
 
-**Code Splitting**:
-Each logic module is a separate bundle entry, enabling:
-- Lazy loading (only fetch what's needed)
-- Parallel downloads (multiple modules at once)
-- Optimal caching (hash-based URLs)
+**Code Splitting Benefits**:
+Each logic module is a separate bundle, enabling:
+- **Lazy loading**: Only fetch modules when needed for execution
+- **Parallel downloads**: Multiple modules can load simultaneously
+- **Optimal caching**: Hash-based URLs cache forever
+- **Fine-grained updates**: Only changed modules invalidate cache
 
-**Development Experience**:
+**Complete Flow Example**:
 ```typescript
-// You write:
-import source increment from './actions/increment';
+// 1. Authoring (developer writes)
+const doubled = createComputed(import("./double"), [count]);
 
-// Build provides:
-// - Dev: increment.url === '/src/actions/increment.ts'
-// - Prod: increment.url === '/assets/increment-789xyz.js'
+// 2. Build transforms (plugin)
+const doubled = createComputed(
+  { id: "double_abc", src: "/assets/double-abc.js" },
+  [count]
+);
 
-// Server renders:
+// 3. Server renders (SSR)
 <script>weaver.push({
   kind: 'signal-definition',
   signal: {
-    id: 'a1',
-    kind: 'action',
-    logic: { src: '/assets/increment-789xyz.js' },
+    id: 'c1',
+    kind: 'computed',
+    logic: { id: 'double_abc', src: '/assets/double-abc123.js' },
     deps: ['s1']
   }
 })</script>
 
-// Client imports:
-await import('/assets/increment-789xyz.js');  // Fetches bundle
+// 4. Client receives and registers
+window.weaver.push(...); // Stores in registry
+
+// 5. Client executes when needed
+const module = await import('/assets/double-abc123.js');
+const result = module.default(count);
 ```
 
 **No Manual Configuration**:
 Developers don't manage the mapping manually. The build system:
-- Detects `import source` statements
+- Detects `import("...")` patterns automatically
+- Assigns stable IDs
 - Bundles referenced modules
 - Generates manifest automatically
 - Server loads manifest at startup
+
+This provides a seamless developer experience with standard TypeScript syntax while enabling efficient, type-safe addressable logic.
 
 ## 10. Patterns & Examples
 
@@ -1691,15 +2253,13 @@ Computed signals derive state from other signals through pure logic.
 
 ```typescript
 // state/cart.ts
-import source calculateTotal from '../logic/calculateTotal';
-
 export const items = createSignal([]);
 export const taxRate = createSignal(0.08);
 
 // Computed total price
-export const subtotal = createComputed(subtotalLogic, [items]);
-export const tax = createComputed(taxLogic, [subtotal, taxRate]);
-export const total = createComputed(totalLogic, [subtotal, tax]);
+export const subtotal = createComputed(import("../logic/subtotal"), [items]);
+export const tax = createComputed(import("../logic/tax"), [subtotal, taxRate]);
+export const total = createComputed(import("../logic/total"), [subtotal, tax]);
 ```
 
 **Logic Modules**:
@@ -1751,7 +2311,7 @@ When `items` changes:
 Computed signals can depend on any number of signals:
 ```typescript
 const displayPrice = createComputed(
-  formatPriceSrc,
+  import("./formatPrice"),
   [price, currency, locale, showDecimals]
 );
 ```
@@ -1766,8 +2326,8 @@ A higher-order component that returns different components based on signals:
 
 ```typescript
 // components/ViewResolver.tsx
-import source LoginView from './LoginView';
-import source DashboardView from './DashboardView';
+const LoginView = createComponent(import("./LoginView"));
+const DashboardView = createComponent(import("./DashboardView"));
 
 export default (props: { isLoggedIn: ReadOnly<StateSignal<boolean>> }) => {
   return props.isLoggedIn.value
@@ -1780,7 +2340,8 @@ export default (props: { isLoggedIn: ReadOnly<StateSignal<boolean>> }) => {
 ```tsx
 // App.tsx
 import { isLoggedIn } from '../state/auth';
-import source ViewResolver from './components/ViewResolver';
+
+const ViewResolver = createComponent(import("./components/ViewResolver"));
 
 const App = () => (
   <div>
@@ -1836,10 +2397,9 @@ export default (count: StateSignal<number>) => {
 ```tsx
 // Component
 import { count } from '../state/counter';
-import source incrementSrc from '../actions/increment';
 
 const Counter = () => {
-  const increment = createHandler(incrementSrc, [count]);
+  const increment = createHandler(import("../actions/increment"), [count]);
 
   return (
     <div>
@@ -1895,17 +2455,14 @@ export default async (
 ```
 
 ```tsx
-import source submitFormSrc from '../actions/submitForm';
-import source updateInputSrc from '../actions/updateInput';
-
 const ContactForm = () => {
   const name = createSignal('');
   const email = createSignal('');
   const status = createSignal('idle');
 
-  const handleNameInput = createHandler(updateInputSrc, [name]);
-  const handleEmailInput = createHandler(updateInputSrc, [email]);
-  const handleSubmit = createHandler(submitFormSrc, [name, email, status]);
+  const handleNameInput = createHandler(import("../actions/updateInput"), [name]);
+  const handleEmailInput = createHandler(import("../actions/updateInput"), [email]);
+  const handleSubmit = createHandler(import("../actions/submitForm"), [name, email, status]);
 
   return (
     <form onSubmit={handleSubmit}>
