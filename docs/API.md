@@ -683,7 +683,7 @@ When a prop signal updates:
 6. Sink replaces all `<!--^c1-->...<!--/c1-->` regions with new HTML
 
 **Component Instance Identity**:
-Each JSX component instantiation creates a **new** component signal:
+Each JSX component instantiation creates a stable component signal based on the signal signature:
 
 ```tsx
 <UserCard name={alice} />  // Creates c1
