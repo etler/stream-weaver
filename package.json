@@ -4,11 +4,16 @@
   "repository": "github:etler/stream-weaver",
   "type": "module",
   "module": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "./dist/index.cjs",
+  "types": "./dist/index.d.cts",
   "exports": {
+    "require": {
+      "types": "./dist/index.d.cts",
+      "default": "./dist/index.cjs"
+    },
     "import": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "default": "./dist/index.js"
     }
   },
   "files": [
