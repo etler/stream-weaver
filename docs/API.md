@@ -47,14 +47,20 @@ interface StateSignal<T = unknown> extends Signal {
   kind: 'state';
 }
 
+interface LogicSignal extends Signal {
+  src: string;          // Module URL for runtime import
+  kind: 'logic';
+  _importPromise?: Promise<any>;  // Non-serializable, TypeScript type anchor only
+}
+
 interface ComputedSignal extends Signal {
-  logic: LogicRef;
+  logic: string;        // LogicSignal ID reference
   deps: string[];
   kind: 'computed';
 }
 
 interface ActionSignal extends Signal {
-  logic: LogicRef;
+  logic: string;        // LogicSignal ID reference
   deps: string[];
   kind: 'action';
 }
@@ -66,14 +72,14 @@ interface HandlerSignal extends ActionSignal {
 interface ComponentSignal<T = any> extends Signal {
   id: string;
   kind: 'component';
-  logic: LogicRef;
+  logic: string;        // LogicSignal ID reference
   _type?: T;  // Phantom type for TypeScript inference
 }
 
 interface NodeSignal extends Signal {
   id: string;
   kind: 'node';
-  logic: LogicRef;
+  logic: string;        // LogicSignal ID reference
   props: Record<string, Signal | string | number | boolean | null>;
 }
 
@@ -84,9 +90,10 @@ type ReadOnly<T> = { readonly [K in keyof T]: T[K] };
 **Signal Mutation Model**:
 Stream Weaver prevents circular dependencies through a **Sources vs Dependents** architecture:
 
-- **Sources** (can mutate signals):
+- **Sources** (can mutate signals or define immutable references):
   - `createSignal()` - Creates writable signals
   - `createAction()` - Receives `StateSignal<T>` objects with writable `.value`
+  - `createLogic()` - Creates immutable logic references (const signal)
 
 - **Dependents** (read-only access):
   - `createComputed()` - Receives `ReadOnly<StateSignal<T>>` objects, cannot mutate
@@ -95,11 +102,12 @@ Stream Weaver prevents circular dependencies through a **Sources vs Dependents**
 This design prevents loops by ensuring computed signals and component nodes can never mutate the signals they depend on. Only actions (which are explicitly invoked, not automatically triggered) can cause mutations. The readonly constraint is enforced at compile-time via TypeScript - at runtime, signal objects are identical, but TypeScript prevents writes in computed/node contexts.
 
 **Addressable Entities**:
-All reactive entities (signals, computed values, actions, component definitions, nodes) are addressable definitions that get registered with the Weaver. The complete set of addressable types forms a union:
+All reactive entities (signals, computed values, actions, logic references, component definitions, nodes) are addressable definitions that get registered with the Weaver. The complete set of addressable types forms a union:
 
 ```typescript
 type AnySignal =
   | StateSignal
+  | LogicSignal
   | ComputedSignal
   | ActionSignal
   | HandlerSignal
@@ -122,20 +130,23 @@ For computed signals, registration is also when initial execution occurs - the c
 
 ### 2.2 Logic
 
-Logic represents addressable references to executable code. Rather than serializing closures or function implementations, Stream Weaver serializes references to modules that can be dynamically loaded and executed in any context.
+Logic represents addressable, immutable references to executable code. Logic signals are const signals—they don't change once created, but they're addressable entities that other signals can reference by ID.
 
 **Key Properties**:
-- **Addressable**: Logic is a pointer to code, not the code itself
+- **Signal Type**: Logic is a signal (kind: 'logic') like other addressable entities
+- **Immutable**: Once created, logic signals never change (const signal)
+- **Reusable**: Created once, referenced by ID from many dependent signals
 - **Type-Safe**: Uses `import("...")` as a type anchor for compile-time validation
-- **Serializable**: Only IDs and paths are serialized, not code
+- **Serializable**: Logic signals register once; dependents reference by ID
 - **Isomorphic**: The same module reference resolves to executable code on server and client
 - **Lazy**: Code is loaded only when needed via dynamic imports
 
 **Type Definition**:
 ```typescript
-interface LogicRef {
+interface LogicSignal extends Signal {
   id: string;               // Stable identifier (build-time assigned)
   src: string;              // Module URL for runtime import
+  kind: 'logic';
   _importPromise?: Promise<any>;  // Non-serializable, TypeScript type anchor only
 }
 ```
@@ -149,16 +160,23 @@ const doubled = createComputed(import("./double"), [count]);
 The `import("...")` expression serves as a **type anchor** - TypeScript infers the module's export signature and validates that dependencies match the function parameters at compile time.
 
 **Build-Time Transformation**:
-A bundler plugin recognizes these patterns and rewrites them:
+A bundler plugin recognizes these patterns and transforms them to use logic signal IDs:
 ```typescript
 // Before (authored code)
-createComputed(import("./double"), [count])
+const doubled = createComputed(import("./double"), [count]);
 
 // After (transformed by build plugin)
-createComputed({ id: "double_abc", src: "/assets/double-abc.js" }, [count])
+const doubleLogic = createLogic({ id: "logic1", src: "/assets/double-abc.js" });
+const doubled = createComputed(doubleLogic, [count]);
+// Or more efficiently, passing the logic signal ID directly:
+// const doubled = createComputed("logic1", [count]);
 ```
 
-The plugin assigns stable IDs, resolves public URLs, and ensures modules are included in the build.
+The plugin:
+- Recognizes `import("...")` patterns
+- Creates or references logic signals for each unique module
+- Replaces import expressions with logic signal references (by ID)
+- Ensures modules are included in the build
 
 **Runtime Execution**:
 At runtime, logic is executed by dynamically importing the module:
@@ -353,10 +371,10 @@ const items = data.map(item => ({
 
 ### 3.2 Addressable Logic
 
-Addressable logic is the mechanism that enables Stream Weaver to serialize references to executable code. Instead of serializing functions or closures, the framework serializes stable identifiers that can be resolved to modules at runtime.
+Logic signals are immutable, addressable references to executable code modules. They are created once, registered in the weaver, and referenced by ID from dependent signals. This provides efficient serialization and enables logic reuse across multiple dependents.
 
 **Core Concept**:
-Logic modules are pure functions that can be referenced, serialized, and executed in any JavaScript context. The framework provides a type-safe authoring model using standard TypeScript dynamic imports.
+Logic signals (kind: 'logic') are const signals—they never change after creation. They reference pure function modules that can be loaded and executed in any JavaScript context. The framework provides a type-safe authoring model using standard TypeScript dynamic imports.
 
 **Authoring with Type Safety**:
 Use `import("...")` directly in graph APIs to create addressable logic:
@@ -407,23 +425,42 @@ const result = fn(...deps);
 Logic is loaded lazily - only when needed for execution.
 
 **The createLogic() Primitive**:
-While most APIs accept `import("...")` directly for convenience, you can explicitly create a logic reference:
+`createLogic()` creates a logic signal that can be reused across multiple dependents:
 
 ```typescript
-function createLogic<M>(mod: Promise<M>): LogicRef & { _type?: M }
+function createLogic<M>(mod: Promise<M>): LogicSignal & { _type?: M }
 ```
 
 **Usage:**
 ```typescript
-// Explicit logic definition
+// Create logic signal once (registered in weaver)
 const doubleLogic = createLogic(import("./double"));
-const doubled = createComputed(doubleLogic, [count]);
 
-// Or inline (common pattern)
+// Reuse across multiple computeds
+const doubled1 = createComputed(doubleLogic, [count1]);
+const doubled2 = createComputed(doubleLogic, [count2]);
+const doubled3 = createComputed(doubleLogic, [count3]);
+
+// Or inline (common pattern - createLogic called internally)
 const doubled = createComputed(import("./double"), [count]);
 ```
 
-Both forms are equivalent - the inline form calls `createLogic()` internally.
+**Reusability Benefits**:
+When you reuse a logic signal:
+- Logic is registered once in the weaver
+- Dependent signals reference it by ID (string)
+- Serialization is more efficient (logic definition sent once, references are just IDs)
+- Module is loaded once and cached by the browser
+
+```html
+<!-- Logic registered once -->
+<script>weaver.push({kind:'signal-definition',signal:{id:'logic1',kind:'logic',src:'/assets/double.js'}})</script>
+
+<!-- Multiple computeds reference by ID -->
+<script>weaver.push({kind:'signal-definition',signal:{id:'c1',kind:'computed',logic:'logic1',deps:['s1']}})</script>
+<script>weaver.push({kind:'signal-definition',signal:{id:'c2',kind:'computed',logic:'logic1',deps:['s2']}})</script>
+<script>weaver.push({kind:'signal-definition',signal:{id:'c3',kind:'computed',logic:'logic1',deps:['s3']}})</script>
+```
 
 **Type Inference**:
 The `_type` phantom property preserves TypeScript's inference of the module exports:
@@ -439,14 +476,14 @@ const incrementAction = createAction(incrementLogic, [count]);
 ```
 
 **Convenience Pattern**:
-Most addressable APIs accept either a `LogicRef` or a `Promise<M>` for flexibility:
+Most addressable APIs accept either a `LogicSignal` or a `Promise<M>` for flexibility:
 
 ```typescript
-type LogicInput<M> = LogicRef | Promise<M>;
+type LogicInput<M> = LogicSignal | Promise<M>;
 
 // Both of these work:
 createComputed(import("./double"), [count]);           // Promise<M>
-createComputed(doubleLogic, [count]);                  // LogicRef
+createComputed(doubleLogic, [count]);                  // LogicSignal
 ```
 
 If a `Promise<M>` is provided, `createLogic()` is called automatically under the hood.
@@ -549,7 +586,7 @@ Creates a computed signal that derives its value from other signals through exec
 **Type Signature**:
 ```typescript
 function createComputed<M, F = DefaultExport<M>>(
-  logic: LogicRef | Promise<M>,
+  logic: LogicSignal | Promise<M>,
   deps: ArgsOf<F>
 ): ComputedSignal
 
@@ -558,13 +595,14 @@ type ArgsOf<F> = F extends (...args: infer A) => any ? A : never;
 ```
 
 **Parameters**:
-- `logic`: Either a `LogicRef` or a dynamic import promise `import("...")`
-  - If `Promise<M>` is provided, `createLogic()` is called internally
+- `logic`: Either a `LogicSignal` or a dynamic import promise `import("...")`
+  - If `LogicSignal` is provided, its ID is stored as the logic reference
+  - If `Promise<M>` is provided, `createLogic()` is called internally to create a LogicSignal, and the ID is stored
   - TypeScript infers the function signature from the module
 - `deps`: Array of signal dependencies, validated against function parameters at compile time
 
 **Returns**:
-A computed signal definition. Access its value via the registry (e.g., `doubled.value` uses a getter).
+A computed signal definition. The `logic` field contains the LogicSignal ID (string reference). Access computed values via the registry (e.g., `doubled.value` uses a getter).
 
 **Execution Model**:
 The logic function receives **ReadOnly signal objects** as positional arguments via spread. The readonly constraint prevents mutation and eliminates circular dependency issues:
@@ -648,7 +686,7 @@ Creates an action that can execute logic with access to signals for mutation. Un
 **Type Signature**:
 ```typescript
 function createAction<M, F = DefaultExport<M>>(
-  logic: LogicRef | Promise<M>,
+  logic: LogicSignal | Promise<M>,
   deps: WritableArgsOf<F>
 ): ActionSignal
 
@@ -656,13 +694,14 @@ type WritableArgsOf<F> = F extends (...args: infer A) => any ? A : never;
 ```
 
 **Parameters**:
-- `logic`: Either a `LogicRef` or a dynamic import promise `import("...")`
-  - If `Promise<M>` is provided, `createLogic()` is called internally
+- `logic`: Either a `LogicSignal` or a dynamic import promise `import("...")`
+  - If `LogicSignal` is provided, its ID is stored as the logic reference
+  - If `Promise<M>` is provided, `createLogic()` is called internally to create a LogicSignal, and the ID is stored
   - TypeScript infers the function signature from the module
 - `deps`: Array of signal dependencies, validated against function parameters at compile time
 
 **Returns**:
-An action object that can be invoked by user interactions or other imperative code.
+An action signal. The `logic` field contains the LogicSignal ID (string reference). Actions can be invoked by user interactions or other imperative code.
 
 **Execution Model**:
 Unlike computed signals which receive readonly signals, action functions receive **writable signal objects** (`StateSignal<T>`) and can mutate them:
@@ -701,7 +740,7 @@ Creates an event handler, which is an action that receives DOM events as its fir
 **Type Signature**:
 ```typescript
 function createHandler<M, F = DefaultExport<M>>(
-  logic: LogicRef | Promise<M>,
+  logic: LogicSignal | Promise<M>,
   deps: WritableArgsOf<F>
 ): HandlerSignal
 
@@ -710,13 +749,14 @@ type HandlerFn = (event: Event, ...signals: StateSignal[]) => void | Promise<voi
 ```
 
 **Parameters**:
-- `logic`: Either a `LogicRef` or a dynamic import promise `import("...")`
-  - If `Promise<M>` is provided, `createLogic()` is called internally
+- `logic`: Either a `LogicSignal` or a dynamic import promise `import("...")`
+  - If `LogicSignal` is provided, its ID is stored as the logic reference
+  - If `Promise<M>` is provided, `createLogic()` is called internally to create a LogicSignal, and the ID is stored
   - TypeScript infers the function signature from the module
 - `deps`: Array of signal dependencies, validated against function parameters at compile time
 
 **Returns**:
-A handler signal that can be attached to DOM event attributes (onClick, onSubmit, etc.).
+A handler signal. The `logic` field contains the LogicSignal ID (string reference). Handlers can be attached to DOM event attributes (onClick, onSubmit, etc.).
 
 **Handler Function Signature**:
 Handler functions receive the DOM event as the first parameter, followed by signal dependencies:
@@ -754,24 +794,25 @@ Creates a component definition - a reusable template that can be instantiated wi
 **Type Signature**:
 ```typescript
 function createComponent<M>(
-  logic: LogicRef | Promise<M>
+  logic: LogicSignal | Promise<M>
 ): ComponentSignal<M>
 
 interface ComponentSignal<T = any> extends Signal {
   id: string;
   kind: 'component';
-  logic: LogicRef;
+  logic: string;        // LogicSignal ID reference
   _type?: T;  // Phantom type for TypeScript inference
 }
 ```
 
 **Parameters**:
-- `logic`: Either a `LogicRef` or a dynamic import promise `import("...")`
-  - If `Promise<M>` is provided, `createLogic()` is called internally
+- `logic`: Either a `LogicSignal` or a dynamic import promise `import("...")`
+  - If `LogicSignal` is provided, its ID is stored as the logic reference
+  - If `Promise<M>` is provided, `createLogic()` is called internally to create a LogicSignal, and the ID is stored
   - TypeScript infers the component's prop types from the module export
 
 **Returns**:
-A component definition object that can be used in JSX. This is a template, not a bound instance.
+A component signal. The `logic` field contains the LogicSignal ID (string reference). This is a template that can be used in JSX.
 
 **Concept**:
 `createComponent()` creates an addressable component template without binding it to specific props. It's similar to how `createLogic()` creates an addressable logic reference. The actual instantiation (binding to props) happens via `createNode()` (see Section 4.4).
@@ -890,7 +931,7 @@ function createNode<Props>(
 interface NodeSignal extends Signal {
   id: string;
   kind: 'node';
-  logic: LogicRef;
+  logic: string;        // LogicSignal ID reference (copied from component.logic)
   props: Record<string, Signal | Primitive>;
 }
 
@@ -898,14 +939,14 @@ type Primitive = string | number | boolean | null | undefined;
 ```
 
 **Parameters**:
-- `component`: A component definition created by `createComponent()`
+- `component`: A component signal created by `createComponent()`
 - `props`: Object containing props
   - **Signals**: Passed as references (creates reactive dependencies)
   - **Primitives**: Passed as values (static, no reactivity)
   - **Objects/Arrays**: Must be wrapped in signals
 
 **Returns**:
-A node signal representing a specific component instance bound to the provided props.
+A node signal representing a specific component instance bound to the provided props. The `logic` field contains the LogicSignal ID reference (copied from the component).
 
 **Content-Addressable IDs**:
 Node IDs are deterministic, based on the component logic and props:
@@ -1253,8 +1294,10 @@ const nameSignal = createSignal("Alice");
 
 Server output:
 ```html
-<script>weaver.push({kind:'signal-definition',signal:{id:'comp1',kind:'component',logic:{id:'UserCard_abc',src:'/assets/UserCard.js'}}})</script>
-<script>weaver.push({kind:'signal-definition',signal:{id:'n1',kind:'node',logic:{id:'UserCard_abc',src:'/assets/UserCard.js'},props:{name:'s1'}}})</script>
+<script>weaver.push({kind:'signal-definition',signal:{id:'logic1',kind:'logic',src:'/assets/UserCard.js'}})</script>
+<script>weaver.push({kind:'signal-definition',signal:{id:'s1',kind:'state',init:'Alice'}})</script>
+<script>weaver.push({kind:'signal-definition',signal:{id:'comp1',kind:'component',logic:'logic1'}})</script>
+<script>weaver.push({kind:'signal-definition',signal:{id:'n1',kind:'node',logic:'logic1',props:{name:'s1'}}})</script>
 <div>
   <!--^n1-->
     <div class="user-card">
@@ -1456,6 +1499,18 @@ When `signal-definition` event flows through, it contains any addressable defini
 }
 ```
 
+**Logic Signal**:
+```typescript
+{
+  kind: 'signal-definition',
+  signal: {
+    id: 'logic1',
+    kind: 'logic',
+    src: '/assets/double-abc.js'
+  }
+}
+```
+
 **Computed Signal**:
 ```typescript
 {
@@ -1463,7 +1518,7 @@ When `signal-definition` event flows through, it contains any addressable defini
   signal: {
     id: 'c1',
     kind: 'computed',
-    logic: { id: 'double_abc', src: '/assets/double-abc.js' },
+    logic: 'logic1',    // LogicSignal ID reference
     deps: ['s1']
   }
 }
@@ -1476,20 +1531,20 @@ When `signal-definition` event flows through, it contains any addressable defini
   signal: {
     id: 'a1',
     kind: 'action',
-    logic: { id: 'increment_def', src: '/assets/increment-def.js' },
+    logic: 'logic2',    // LogicSignal ID reference
     deps: ['s1']
   }
 }
 ```
 
-**Component Definition**:
+**Component Signal**:
 ```typescript
 {
   kind: 'signal-definition',
   signal: {
     id: 'comp1',
     kind: 'component',
-    logic: { id: 'UserCard_xyz', src: '/assets/UserCard-xyz.js' }
+    logic: 'logic3'     // LogicSignal ID reference
   }
 }
 ```
@@ -1501,7 +1556,7 @@ When `signal-definition` event flows through, it contains any addressable defini
   signal: {
     id: 'n1',
     kind: 'node',
-    logic: { id: 'UserCard_xyz', src: '/assets/UserCard-xyz.js' },
+    logic: 'logic3',    // LogicSignal ID reference (same as component)
     props: { name: 's1', role: 'Admin', count: 's2' }
   }
 }
@@ -1589,8 +1644,9 @@ const App = () => (
 
 Server output:
 ```html
+<script>weaver.push({kind:'signal-definition',signal:{id:'logic1',kind:'logic',src:'/assets/double-abc.js'}})</script>
 <script>weaver.push({kind:'signal-definition',signal:{id:'s1',kind:'state',init:5}})</script>
-<script>weaver.push({kind:'signal-definition',signal:{id:'c1',kind:'computed',logic:{id:'double_abc',src:'/assets/double-abc.js'},deps:['s1']}})</script>
+<script>weaver.push({kind:'signal-definition',signal:{id:'c1',kind:'computed',logic:'logic1',deps:['s1']}})</script>
 <div>
   <p>Count: <!--^s1-->5<!--/s1--></p>
   <p>Doubled: <!--^c1-->10<!--/c1--></p>
@@ -1972,7 +2028,7 @@ The bundler plugin recognizes addressable logic patterns and performs transforma
 - `createLogic(import("..."))`
 
 **Transformation Strategy**:
-1. **Primary (Inline Rewrite)**: Replace import expression with LogicRef object
+1. **Primary (Inline Rewrite)**: Replace import expression with LogicSignal object
    ```typescript
    // Before
    createComputed(import("./double"), [count])
@@ -2155,28 +2211,37 @@ Each logic module is a separate bundle, enabling:
 // 1. Authoring (developer writes)
 const doubled = createComputed(import("./double"), [count]);
 
-// 2. Build transforms (plugin)
-const doubled = createComputed(
-  { id: "double_abc", src: "/assets/double-abc.js" },
-  [count]
-);
+// 2. Build transforms (plugin creates logic signal)
+const doubleLogic = createLogic({ id: "logic1", src: "/assets/double-abc.js" });
+const doubled = createComputed(doubleLogic, [count]);
+// Or more efficiently: const doubled = createComputed("logic1", [count]);
 
-// 3. Server renders (SSR)
+// 3. Server renders (SSR) - logic registered once
+<script>weaver.push({
+  kind: 'signal-definition',
+  signal: {
+    id: 'logic1',
+    kind: 'logic',
+    src: '/assets/double-abc123.js'
+  }
+})</script>
 <script>weaver.push({
   kind: 'signal-definition',
   signal: {
     id: 'c1',
     kind: 'computed',
-    logic: { id: 'double_abc', src: '/assets/double-abc123.js' },
+    logic: 'logic1',    // References logic signal by ID
     deps: ['s1']
   }
 })</script>
 
-// 4. Client receives and registers
-window.weaver.push(...); // Stores in registry
+// 4. Client receives and registers both signals
+window.weaver.push(...); // Stores logic signal in registry
+window.weaver.push(...); // Stores computed signal in registry
 
 // 5. Client executes when needed
-const module = await import('/assets/double-abc123.js');
+const logicSignal = registry.get('logic1');
+const module = await import(logicSignal.src);  // Load from logic signal
 const result = module.default(count);
 ```
 
