@@ -12,7 +12,7 @@ The POC includes:
 
 ## Implementation Strategy
 
-**Infrastructure-First Approach**: Build the signal infrastructure (state storage, dependency tracking, reactivity propagation, serialization) before adding logic execution. This allows testing the reactive system by manually triggering updates, without needing module loading or source phase imports until later milestones.
+**Infrastructure-First Approach**: Build the signal infrastructure (state storage, dependency tracking, reactivity propagation, serialization) before adding logic execution. This allows testing the reactive system by manually triggering updates, without needing module loading or build plugin transformation until later milestones.
 
 ## Implementation Milestones
 
@@ -84,9 +84,10 @@ test('registry stores signal definitions', () => {
 **Goal**: Track dependencies between signals without execution.
 
 **Implementation Tasks**:
-- Implement `ComputedSignal`, `ActionSignal`, `HandlerSignal` interfaces per API.md (metadata only)
-- Implement content-addressable ID hashing (hash logic + deps → ID)
-- Implement `createComputed(logic, deps)` - uses dummy logic objects for testing
+- Implement `LogicSignal`, `ComputedSignal`, `ActionSignal`, `HandlerSignal` interfaces per API.md (metadata only)
+- Implement content-addressable ID hashing (hash logic ID + deps → ID)
+- Implement `createLogic(mod: Promise<M>)` - creates LogicSignal (for testing, use shim that returns mock LogicSignal)
+- Implement `createComputed(logic, deps)` - accepts LogicSignal or Promise<M>, stores logic ID reference
 - Implement `createAction(logic, deps)`
 - Implement `createHandler(logic, deps)`
 - Add dependency graph to WeaverRegistry: `Map<string, Set<string>>`
@@ -96,24 +97,34 @@ test('registry stores signal definitions', () => {
 
 **Test Criteria**:
 ```typescript
+// Test shim for createLogic during M2 (before module loading works)
+function createMockLogic(name: string): LogicSignal {
+  return { id: `logic_${name}`, kind: 'logic', src: `${name}.js` };
+}
+
 test('computed definition registers dependencies', () => {
   const count = createSignal(5);
-  const doubled = createComputed({ src: 'double.js' }, [count]);
+  const doubleLogic = createMockLogic('double');
+  const doubled = createComputed(doubleLogic, [count]);
 
   const registry = new WeaverRegistry();
   registry.registerSignal(count);
+  registry.registerSignal(doubleLogic);
   registry.registerSignal(doubled);
 
   const dependents = registry.getDependents(count.id);
   expect(dependents).toContain(doubled.id);
+  expect(doubled.logic).toBe(doubleLogic.id); // Stores logic ID reference
 });
 
 test('registry tracks dependencies bidirectionally', () => {
   const count = createSignal(5);
-  const doubled = createComputed({ src: 'double.js' }, [count]);
+  const doubleLogic = createMockLogic('double');
+  const doubled = createComputed(doubleLogic, [count]);
 
   const registry = new WeaverRegistry();
   registry.registerSignal(count);
+  registry.registerSignal(doubleLogic);
   registry.registerSignal(doubled);
 
   expect(registry.getDependents(count.id)).toContain(doubled.id);
@@ -122,19 +133,24 @@ test('registry tracks dependencies bidirectionally', () => {
 
 test('same logic and deps produce same ID (content-addressable)', () => {
   const count = createSignal(5);
-  const c1 = createComputed({ src: 'double.js' }, [count]);
-  const c2 = createComputed({ src: 'double.js' }, [count]);
+  const doubleLogic = createMockLogic('double');
+  const c1 = createComputed(doubleLogic, [count]);
+  const c2 = createComputed(doubleLogic, [count]);
 
-  expect(c1.id).toBe(c2.id);
+  expect(c1.id).toBe(c2.id); // Hash based on logic ID + dep IDs
 });
 
 test('dependency graph tracks multiple levels', () => {
   const s1 = createSignal(1);
-  const c1 = createComputed({ src: 'double.js' }, [s1]);
-  const c2 = createComputed({ src: 'quadruple.js' }, [c1]);
+  const doubleLogic = createMockLogic('double');
+  const quadLogic = createMockLogic('quadruple');
+  const c1 = createComputed(doubleLogic, [s1]);
+  const c2 = createComputed(quadLogic, [c1]);
 
   const registry = new WeaverRegistry();
   registry.registerSignal(s1);
+  registry.registerSignal(doubleLogic);
+  registry.registerSignal(quadLogic);
   registry.registerSignal(c1);
   registry.registerSignal(c2);
 
@@ -144,16 +160,22 @@ test('dependency graph tracks multiple levels', () => {
 
 test('action and handler definitions work similarly', () => {
   const count = createSignal(0);
-  const increment = createAction({ src: 'increment.js' }, [count]);
-  const handleClick = createHandler({ src: 'click.js' }, [count]);
+  const incLogic = createMockLogic('increment');
+  const clickLogic = createMockLogic('click');
+  const increment = createAction(incLogic, [count]);
+  const handleClick = createHandler(clickLogic, [count]);
 
   const registry = new WeaverRegistry();
   registry.registerSignal(count);
+  registry.registerSignal(incLogic);
+  registry.registerSignal(clickLogic);
   registry.registerSignal(increment);
   registry.registerSignal(handleClick);
 
   expect(registry.getDependents(count.id)).toContain(increment.id);
   expect(registry.getDependents(count.id)).toContain(handleClick.id);
+  expect(increment.logic).toBe(incLogic.id); // Stores logic ID reference
+  expect(handleClick.logic).toBe(clickLogic.id);
 });
 ```
 
@@ -166,13 +188,13 @@ test('action and handler definitions work similarly', () => {
 **Goal**: Load logic modules and execute them with signal interface wrappers.
 
 **Implementation Tasks**:
-- Implement `loadLogic(logic: Logic)` using `await import(logic.src)`
+- Implement `loadLogic(logicSignal: LogicSignal)` using `await import(logicSignal.src)`
 - Create signal interface wrappers that provide `.value` getter/setter accessing registry
 - Implement `createReadOnlySignalInterface(registry, id)` - wrapper with readonly `.value`
 - Implement `createWritableSignalInterface(registry, id)` - wrapper with writable `.value`
-- Implement `executeComputed(registry, id)` - loads logic, wraps deps as readonly, executes, caches result
-- Implement `executeAction(registry, id)` - loads logic, wraps deps as writable, executes
-- Implement `executeHandler(registry, id, event)` - loads logic, passes event + writable deps, executes
+- Implement `executeComputed(registry, computedId)` - retrieves logic signal from registry via computed.logic ID, loads module, wraps deps as readonly, executes, caches result
+- Implement `executeAction(registry, actionId)` - retrieves logic signal, loads module, wraps deps as writable, executes
+- Implement `executeHandler(registry, handlerId, event)` - retrieves logic signal, loads module, passes event + writable deps, executes
 - Store computed results in registry
 - Defer reactivity propagation to M4 (manual execution only for now)
 
@@ -180,21 +202,32 @@ test('action and handler definitions work similarly', () => {
 ```typescript
 test('logic module can be loaded', async () => {
   // tests/fixtures/double.ts: export default (count) => count.value * 2
-  const logic = { src: './tests/fixtures/double.js' };
-  const fn = await loadLogic(logic);
+  const doubleLogic: LogicSignal = {
+    id: 'logic_double',
+    kind: 'logic',
+    src: './tests/fixtures/double.js'
+  };
+  const fn = await loadLogic(doubleLogic);
 
   expect(typeof fn).toBe('function');
 });
 
 test('computed executes logic and caches result', async () => {
   const count = createSignal(5);
-  const doubled = createComputed({ src: './tests/fixtures/double.js' }, [count]);
+  const doubleLogic: LogicSignal = {
+    id: 'logic_double',
+    kind: 'logic',
+    src: './tests/fixtures/double.js'
+  };
+  const doubled = createComputed(doubleLogic, [count]);
 
   const registry = new WeaverRegistry();
   registry.registerSignal(count);
+  registry.registerSignal(doubleLogic);
   registry.registerSignal(doubled);
   registry.setValue(count.id, 5);
 
+  // executeComputed retrieves logic signal from registry using doubled.logic
   await executeComputed(registry, doubled.id);
 
   expect(registry.getValue(doubled.id)).toBe(10);
@@ -216,10 +249,16 @@ test('signal interface provides .value that accesses registry', () => {
 test('action can mutate signals via writable interface', async () => {
   // tests/fixtures/increment.ts: export default (count) => { count.value++ }
   const count = createSignal(0);
-  const increment = createAction({ src: './tests/fixtures/increment.js' }, [count]);
+  const incLogic: LogicSignal = {
+    id: 'logic_increment',
+    kind: 'logic',
+    src: './tests/fixtures/increment.js'
+  };
+  const increment = createAction(incLogic, [count]);
 
   const registry = new WeaverRegistry();
   registry.registerSignal(count);
+  registry.registerSignal(incLogic);
   registry.registerSignal(increment);
   registry.setValue(count.id, 0);
 
@@ -231,10 +270,16 @@ test('action can mutate signals via writable interface', async () => {
 test('handler receives event and writable signal interfaces', async () => {
   // tests/fixtures/handleClick.ts: export default (event, count) => { count.value++ }
   const count = createSignal(0);
-  const handler = createHandler({ src: './tests/fixtures/handleClick.js' }, [count]);
+  const clickLogic: LogicSignal = {
+    id: 'logic_handleClick',
+    kind: 'logic',
+    src: './tests/fixtures/handleClick.js'
+  };
+  const handler = createHandler(clickLogic, [count]);
 
   const registry = new WeaverRegistry();
   registry.registerSignal(count);
+  registry.registerSignal(clickLogic);
   registry.registerSignal(handler);
   registry.setValue(count.id, 0);
 
@@ -248,11 +293,17 @@ test('multiple signals can be passed to logic', async () => {
   // tests/fixtures/sum.ts: export default (a, b) => a.value + b.value
   const a = createSignal(5);
   const b = createSignal(10);
-  const sum = createComputed({ src: './tests/fixtures/sum.js' }, [a, b]);
+  const sumLogic: LogicSignal = {
+    id: 'logic_sum',
+    kind: 'logic',
+    src: './tests/fixtures/sum.js'
+  };
+  const sum = createComputed(sumLogic, [a, b]);
 
   const registry = new WeaverRegistry();
   registry.registerSignal(a);
   registry.registerSignal(b);
+  registry.registerSignal(sumLogic);
   registry.registerSignal(sum);
   registry.setValue(a.id, 5);
   registry.setValue(b.id, 10);
@@ -403,7 +454,8 @@ test('multiple dependents execute in parallel', async () => {
 - Implement attribute binding serialization (`data-w-classname="s1"`)
 - Implement event handler serialization (`data-w-onclick="h1"`)
 - Update ComponentSerializer to handle bind markers and definition scripts
-- Serialize Logic references with both `src` and `key` fields
+- Serialize LogicSignals separately with their own signal-definition
+- Serialize computed/action/handler/component/node signals with logic ID references (string, not embedded object)
 
 **Test Criteria**:
 ```typescript
@@ -435,25 +487,40 @@ test('attribute bindings serialize with data attributes', async () => {
 
 test('handler bindings serialize with data attributes and logic', async () => {
   const count = createSignal(0);
-  const handler = createHandler({ src: './fixtures/click.js' }, [count]);
+  const clickLogic: LogicSignal = {
+    id: 'logic_click',
+    kind: 'logic',
+    src: './fixtures/click.js'
+  };
+  const handler = createHandler(clickLogic, [count]);
 
   const registry = new WeaverRegistry();
   registry.registerSignal(count);
+  registry.registerSignal(clickLogic);
   registry.registerSignal(handler);
 
   const weaver = new StreamWeaver({ root: <button onClick={handler}>Click</button>, registry });
   const html = (await Array.fromAsync(weaver.readable)).join('');
 
   expect(html).toContain('data-w-onclick="' + handler.id + '"');
-  expect(html).toContain('<script>weaver.push({kind:"signal-definition",signal:{id:"' + handler.id + '",kind:"handler",logic:{src:"./fixtures/click.js"},deps:["' + count.id + '"]}})</script>');
+  // Logic signal serialized separately
+  expect(html).toContain('<script>weaver.push({kind:"signal-definition",signal:{id:"logic_click",kind:"logic",src:"./fixtures/click.js"}})</script>');
+  // Handler references logic by ID
+  expect(html).toContain('<script>weaver.push({kind:"signal-definition",signal:{id:"' + handler.id + '",kind:"handler",logic:"logic_click",deps:["' + count.id + '"]}})</script>');
 });
 
 test('computed definition serializes with logic reference', async () => {
   const count = createSignal(5);
-  const doubled = createComputed({ src: './fixtures/double.js' }, [count]);
+  const doubleLogic: LogicSignal = {
+    id: 'logic_double',
+    kind: 'logic',
+    src: './fixtures/double.js'
+  };
+  const doubled = createComputed(doubleLogic, [count]);
 
   const registry = new WeaverRegistry();
   registry.registerSignal(count);
+  registry.registerSignal(doubleLogic);
   registry.registerSignal(doubled);
   registry.setValue(count.id, 5);
 
@@ -462,7 +529,10 @@ test('computed definition serializes with logic reference', async () => {
   const weaver = new StreamWeaver({ root: <div>{doubled}</div>, registry });
   const html = (await Array.fromAsync(weaver.readable)).join('');
 
-  expect(html).toContain('<script>weaver.push({kind:"signal-definition",signal:{id:"' + doubled.id + '",kind:"computed",logic:{src:"./fixtures/double.js"},deps:["' + count.id + '"]}})</script>');
+  // Logic signal serialized separately
+  expect(html).toContain('<script>weaver.push({kind:"signal-definition",signal:{id:"logic_double",kind:"logic",src:"./fixtures/double.js"}})</script>');
+  // Computed references logic by ID
+  expect(html).toContain('<script>weaver.push({kind:"signal-definition",signal:{id:"' + doubled.id + '",kind:"computed",logic:"logic_double",deps:["' + count.id + '"]}})</script>');
 });
 ```
 
@@ -814,6 +884,112 @@ test('full reactive cycle: event → handler → computed → DOM', async () => 
 
 ---
 
+## Milestone 10: Build Plugin for Logic Transformation
+
+**Goal**: Implement bundler plugin to transform `import("...")` expressions into LogicSignal references at build time.
+
+**Implementation Tasks**:
+- Create Vite/Rollup plugin that recognizes addressable logic patterns
+- Implement AST traversal to find `import("...")` in:
+  - `createComputed(import("..."), deps)`
+  - `createAction(import("..."), deps)`
+  - `createHandler(import("..."), deps)`
+  - `createComponent(import("..."))`
+  - `createLogic(import("..."))`
+- Generate stable, deterministic IDs for each unique module (hash of resolved path)
+- **Primary strategy**: Inline rewrite - replace `import("...")` with LogicSignal object
+- **Fallback strategy**: Metadata attachment - add `__logicId` to import expression for robustness
+- Ensure modules are emitted to build output (add to bundle graph)
+- Generate manifest mapping logic IDs → public URLs
+- Provide manifest to server for SSR URL resolution
+
+**Test Criteria**:
+```typescript
+test('plugin recognizes and transforms createComputed pattern', async () => {
+  const input = `
+    const doubled = createComputed(import("./double"), [count]);
+  `;
+
+  const result = await transformWithPlugin(input);
+
+  expect(result.code).toContain('createLogic');
+  expect(result.code).toContain('id: "logic_');
+  expect(result.code).toContain('src:');
+  // Should create logic signal and pass it to createComputed
+});
+
+test('plugin generates stable IDs for same module', async () => {
+  const input1 = `const c1 = createComputed(import("./double"), [x]);`;
+  const input2 = `const c2 = createComputed(import("./double"), [y]);`;
+
+  const result1 = await transformWithPlugin(input1);
+  const result2 = await transformWithPlugin(input2);
+
+  // Extract logic IDs from both
+  const id1 = extractLogicId(result1.code);
+  const id2 = extractLogicId(result2.code);
+
+  expect(id1).toBe(id2); // Same module → same ID
+});
+
+test('plugin generates manifest mapping IDs to URLs', async () => {
+  const input = `
+    const doubled = createComputed(import("./double"), [count]);
+    const tripled = createComputed(import("./triple"), [count]);
+  `;
+
+  const { manifest } = await buildWithPlugin(input);
+
+  expect(manifest).toHaveProperty('logic_double');
+  expect(manifest).toHaveProperty('logic_triple');
+  expect(manifest.logic_double.src).toMatch(/\/assets\/double-[a-z0-9]+\.js/);
+  expect(manifest.logic_triple.src).toMatch(/\/assets\/triple-[a-z0-9]+\.js/);
+});
+
+test('plugin fallback attaches metadata to imports', async () => {
+  const input = `
+    const doubleFn = import("./double");
+    const doubled = createComputed(doubleFn, [count]);
+  `;
+
+  const result = await transformWithPlugin(input);
+
+  // Should attach __logicId to import expression
+  expect(result.code).toContain('__logicId');
+});
+
+test('plugin works with all addressable APIs', async () => {
+  const input = `
+    const doubled = createComputed(import("./double"), [x]);
+    const inc = createAction(import("./inc"), [x]);
+    const handler = createHandler(import("./click"), [x]);
+    const Card = createComponent(import("./Card"));
+  `;
+
+  const result = await transformWithPlugin(input);
+
+  // All should be transformed
+  expect(result.code.match(/createLogic/g).length).toBe(4);
+});
+
+test('manifest enables server URL resolution', async () => {
+  const { manifest } = await buildWithPlugin(`
+    const doubled = createComputed(import("./double"), [count]);
+  `);
+
+  // Server can resolve logic ID to public URL
+  const logicId = 'logic_double';
+  const publicUrl = manifest[logicId].src;
+
+  expect(publicUrl).toMatch(/^\/assets\//);
+  expect(publicUrl).toMatch(/\.js$/);
+});
+```
+
+**Deliverable**: Build plugin that transforms dynamic imports into LogicSignals with stable IDs and generates manifest for runtime resolution.
+
+---
+
 ## Implementation Strategy
 
 ### Approach for AI Agent
@@ -853,6 +1029,8 @@ M7 (Event Delegation) ────────┘
 M8 (Components as Signals)
   ↓
 M9 (Full Stack Integration)
+  ↓
+M10 (Build Plugin)
 ```
 
 ### Estimated Complexity
@@ -868,6 +1046,7 @@ M9 (Full Stack Integration)
 | M7 | Low | Low | Event delegation patterns |
 | M8 | Medium | Medium | Component integration with existing POC |
 | M9 | High | High | Full client/server parity |
+| M10 | High | High | AST transformation, manifest generation, build system integration |
 
 ### Review Points
 
