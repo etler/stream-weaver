@@ -18,11 +18,27 @@ export function tokenize(node: Node, registry?: WeaverRegistry): (Token | Compon
       registry.registerSignal(node);
     }
 
-    // Get the current value from the registry
-    const value = registry.getValue(node.id);
+    // Get the current value from the registry, or use init value for computed signals
+    let value = registry.getValue(node.id);
+    if (value === undefined && "init" in node) {
+      value = node.init;
+      // Also set the init value in the registry for consistency
+      registry.setValue(node.id, value);
+    }
 
-    // Emit: signal-definition + bind-marker-open + content + bind-marker-close
+    // Collect any logic signal definitions that need to be emitted first
+    const logicDefs: Token[] = [];
+    if ("logicRef" in node && isSignal(node.logicRef)) {
+      // Register and emit the logic signal for computed/handler/action signals
+      if (!registry.getSignal(node.logicRef.id)) {
+        registry.registerSignal(node.logicRef);
+      }
+      logicDefs.push({ kind: "signal-definition", signal: node.logicRef });
+    }
+
+    // Emit: (logic-definition?) + signal-definition + bind-marker-open + content + bind-marker-close
     return [
+      ...logicDefs,
       { kind: "signal-definition", signal: node },
       { kind: "bind-marker-open", id: node.id },
       // eslint-disable-next-line @typescript-eslint/no-base-to-string
@@ -43,6 +59,17 @@ export function tokenize(node: Node, registry?: WeaverRegistry): (Token | Compon
             if (registry && !registry.getSignal(propValue.id)) {
               registry.registerSignal(propValue);
             }
+
+            // If this signal references a logic signal, emit that too
+            if ("logicRef" in propValue && isSignal(propValue.logicRef)) {
+              // Register the logic signal
+              if (registry && !registry.getSignal(propValue.logicRef.id)) {
+                registry.registerSignal(propValue.logicRef);
+              }
+              // Emit logic signal definition before the handler
+              signalDefinitions.push({ kind: "signal-definition", signal: propValue.logicRef });
+            }
+
             signalDefinitions.push({ kind: "signal-definition", signal: propValue });
           }
         }

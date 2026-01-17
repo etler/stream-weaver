@@ -40,8 +40,10 @@ function serializeToken(token: Token): string {
 }
 
 function serializeSignalDefinition(signal: AnySignal): string {
-  // Create a serializable version of the signal
-  const signalData = JSON.stringify({ kind: "signal-definition", signal });
+  // Create a serializable version of the signal, filtering out SSR-only fields
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { logicRef, ...serializableSignal } = signal as AnySignal & { logicRef?: unknown };
+  const signalData = JSON.stringify({ kind: "signal-definition", signal: serializableSignal });
   return `<script>weaver.push(${signalData})</script>`;
 }
 

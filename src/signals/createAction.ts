@@ -21,5 +21,6 @@ export function createAction(logic: LogicSignal, deps: AnySignal[]): ActionSigna
     kind: "action",
     logic: logic.id,
     deps: depIds,
-  };
+    logicRef: logic, // Store reference for SSR tokenization
+  } as ActionSignal;
 }

@@ -21,5 +21,6 @@ export function createHandler(logic: LogicSignal, deps: AnySignal[]): HandlerSig
     kind: "handler",
     logic: logic.id,
     deps: depIds,
-  };
+    logicRef: logic, // Store reference for SSR tokenization
+  } as HandlerSignal;
 }

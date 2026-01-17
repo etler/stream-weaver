@@ -10,9 +10,10 @@ import { allocateDerivedId } from "./idAllocation";
  *
  * @param logic - LogicSignal reference
  * @param deps - Array of signal dependencies
+ * @param init - Optional initial value for SSR (since logic can't execute server-side)
  * @returns ComputedSignal definition object
  */
-export function createComputed(logic: LogicSignal, deps: AnySignal[]): ComputedSignal {
+export function createComputed(logic: LogicSignal, deps: AnySignal[], init?: unknown): ComputedSignal {
   const depIds = deps.map((dep) => dep.id);
   const id = allocateDerivedId(logic.id, depIds);
 
@@ -21,5 +22,7 @@ export function createComputed(logic: LogicSignal, deps: AnySignal[]): ComputedS
     kind: "computed",
     logic: logic.id,
     deps: depIds,
-  };
+    init,
+    logicRef: logic, // Store reference for SSR tokenization
+  } as ComputedSignal;
 }
