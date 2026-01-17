@@ -54,6 +54,24 @@ async function startDevServer() {
             ComputedExample: () => JSX.Element;
           };
           html = await renderExample("Computed Signals", module.ComputedExample);
+        } else if (url === "/async") {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+          const module = (await vite.ssrLoadModule("./examples/03-async-components.tsx")) as {
+            AsyncComponentsExample: () => JSX.Element;
+          };
+          html = await renderExample("Async Components", module.AsyncComponentsExample);
+        } else if (url === "/shared-state") {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+          const module = (await vite.ssrLoadModule("./examples/04-shared-state.tsx")) as {
+            SharedStateExample: () => JSX.Element;
+          };
+          html = await renderExample("Shared State", module.SharedStateExample);
+        } else if (url === "/dynamic-state") {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+          const module = (await vite.ssrLoadModule("./examples/05-dynamic-state.tsx")) as {
+            DynamicStateExample: () => JSX.Element;
+          };
+          html = await renderExample("Dynamic State", module.DynamicStateExample);
         } else {
           res.writeHead(404, { "Content-Type": "text/plain" });
           res.end("Not Found");
@@ -81,6 +99,9 @@ async function startDevServer() {
     console.log(`\nExamples:`);
     console.log(`  http://localhost:${PORT}/counter`);
     console.log(`  http://localhost:${PORT}/computed`);
+    console.log(`  http://localhost:${PORT}/async`);
+    console.log(`  http://localhost:${PORT}/shared-state`);
+    console.log(`  http://localhost:${PORT}/dynamic-state`);
   });
 }
 
@@ -198,6 +219,21 @@ async function indexPage(): Promise<string> {
     <a href="/computed" class="example-card">
       <h2>02. Computed Signals</h2>
       <p>Reactive computed values that update automatically</p>
+    </a>
+
+    <a href="/async" class="example-card">
+      <h2>03. Async Components</h2>
+      <p>Inline await in components - no Suspense, no loading states, just async</p>
+    </a>
+
+    <a href="/shared-state" class="example-card">
+      <h2>04. Shared State</h2>
+      <p>Module-level state shared across components - no Context providers needed</p>
+    </a>
+
+    <a href="/dynamic-state" class="example-card">
+      <h2>05. Dynamic State</h2>
+      <p>State in loops and conditionals - breaking the "Rules of Hooks"</p>
     </a>
   </div>
 </body>

@@ -1,0 +1,157 @@
+/**
+ * Example 4: Module-Level Shared State
+ * Demonstrates state created outside components and shared across the app
+ *
+ * IMPOSSIBLE IN OTHER FRAMEWORKS:
+ * - React: Hooks must be called inside components
+ * - Vue: Composables must be called in setup()
+ * - Solid: createSignal needs reactive scope
+ *
+ * Stream Weaver: Signals are just objects - create them anywhere!
+ * Import them in any component, no providers needed.
+ */
+import { jsx } from "../../src/jsx/jsx";
+
+// Import shared state from a separate module
+// This is the "impossible" part - state defined outside any component!
+import { cartCount, addToCart, clearCart } from "./shared-cart-state";
+
+/**
+ * A product card component that uses the shared cart state
+ * Multiple instances all share the same cart count
+ */
+function ProductCard({ name, price, image }: { name: string; price: string; image: string }): JSX.Element {
+  return jsx("div", {
+    style: "background: white; border-radius: 8px; padding: 1rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1);",
+    children: [
+      jsx("div", {
+        style: `height: 120px; background: ${image}; border-radius: 4px; margin-bottom: 1rem;`,
+      }),
+      jsx("h3", { style: "margin: 0 0 0.5rem 0;", children: name }),
+      jsx("p", { style: "color: #666; margin: 0 0 1rem 0;", children: price }),
+      jsx("button", {
+        onClick: addToCart, // Uses shared handler - increments shared state!
+        style:
+          "width: 100%; padding: 0.5rem; background: #1976d2; color: white; border: none; border-radius: 4px; cursor: pointer;",
+        children: "Add to Cart",
+      }),
+    ],
+  });
+}
+
+/**
+ * A header component that displays the cart count
+ * It imports the same shared state - no prop drilling needed!
+ */
+function Header(): JSX.Element {
+  return jsx("header", {
+    style:
+      "display: flex; justify-content: space-between; align-items: center; padding: 1rem; background: white; border-radius: 8px; margin-bottom: 2rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1);",
+    children: [
+      jsx("h2", { style: "margin: 0; color: #333;", children: "Demo Store" }),
+      jsx("div", {
+        style: "display: flex; align-items: center; gap: 1rem;",
+        children: [
+          jsx("div", {
+            style: "display: flex; align-items: center; gap: 0.5rem;",
+            children: [
+              jsx("span", { children: "Cart:" }),
+              jsx("span", {
+                style:
+                  "background: #1976d2; color: white; padding: 0.25rem 0.75rem; border-radius: 999px; font-weight: bold;",
+                children: cartCount, // Displays the shared state!
+              }),
+            ],
+          }),
+          jsx("button", {
+            onClick: clearCart,
+            style:
+              "padding: 0.5rem 1rem; background: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer;",
+            children: "Clear",
+          }),
+        ],
+      }),
+    ],
+  });
+}
+
+/**
+ * A floating cart indicator - yet another component using the same shared state
+ */
+function FloatingCartBadge(): JSX.Element {
+  return jsx("div", {
+    style:
+      "position: fixed; bottom: 2rem; right: 2rem; background: #1976d2; color: white; padding: 1rem; border-radius: 50%; width: 60px; height: 60px; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 4px 8px rgba(0,0,0,0.2);",
+    children: [
+      jsx("span", { style: "font-size: 1.5rem;", children: cartCount }), // Same shared state!
+      jsx("span", { style: "font-size: 0.7rem;", children: "items" }),
+    ],
+  });
+}
+
+/**
+ * Root component for the demo
+ */
+export function SharedStateExample(): JSX.Element {
+  return jsx("div", {
+    style: "padding: 1rem; max-width: 800px; margin: 0 auto;",
+    children: [
+      jsx("h1", { style: "text-align: center; color: #333;", children: "Shared State Demo" }),
+      jsx("p", {
+        style: "text-align: center; color: #666; max-width: 600px; margin: 0 auto 2rem auto;",
+        children:
+          "All components share the same cart state defined in a separate module. No Context providers, no Redux, no prop drilling. Just import and use.",
+      }),
+
+      jsx("div", {
+        style: "background: #e8f5e9; padding: 1rem; border-radius: 8px; margin-bottom: 2rem;",
+        children: [
+          jsx("strong", { children: "What makes this special:" }),
+          jsx("ul", {
+            style: "margin: 0.5rem 0 0 0; padding-left: 1.5rem;",
+            children: [
+              jsx("li", { children: "cartCount is created in shared-cart-state.ts (outside any component)" }),
+              jsx("li", { children: "Header, ProductCard, and FloatingCartBadge all import and use it" }),
+              jsx("li", { children: "No Context.Provider wrapping the app" }),
+              jsx("li", { children: "No useContext() hooks or store subscriptions" }),
+              jsx("li", { children: "State just works because signals are addressable by ID" }),
+            ],
+          }),
+        ],
+      }),
+
+      // Header uses shared state
+      Header(),
+
+      // Product grid - each card uses the shared addToCart handler
+      jsx("div", {
+        style: "display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem;",
+        children: [
+          ProductCard({
+            name: "Wireless Headphones",
+            price: "$79.99",
+            image: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+          }),
+          ProductCard({
+            name: "Smart Watch",
+            price: "$199.99",
+            image: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
+          }),
+          ProductCard({
+            name: "Laptop Stand",
+            price: "$49.99",
+            image: "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
+          }),
+          ProductCard({
+            name: "USB-C Hub",
+            price: "$39.99",
+            image: "linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)",
+          }),
+        ],
+      }),
+
+      // Floating badge also uses shared state
+      FloatingCartBadge(),
+    ],
+  });
+}
