@@ -1,12 +1,24 @@
 import { Fragment } from "@/jsx/Fragment";
 import { ComponentElement, Element } from "@/jsx/types/Element";
 import { Node } from "@/jsx/types/Node";
-import { OpenTagToken, Token } from "./types/Token";
+import { OpenTagToken, Token, TokenOrExecutable, NodeExecutable } from "./types/Token";
 import { WeaverRegistry } from "@/registry";
-import { isSignal, isEventHandlerProp, eventPropToDataAttribute, propToDataAttribute } from "./signalDetection";
+import {
+  isSignal,
+  isEventHandlerProp,
+  eventPropToDataAttribute,
+  propToDataAttribute,
+  isNodeSignal,
+} from "./signalDetection";
+import { LogicSignal, ComponentSignal, NodeSignal } from "@/signals/types";
 
-export function tokenize(node: Node, registry?: WeaverRegistry): (Token | ComponentElement)[] {
-  // Check if node is a signal object
+export function tokenize(node: Node, registry?: WeaverRegistry): (TokenOrExecutable | ComponentElement)[] {
+  // Check if node is a NodeSignal - needs special handling for component execution
+  if (isNodeSignal(node)) {
+    return handleNodeSignal(node, registry);
+  }
+
+  // Check if node is a signal object (but not a NodeSignal)
   if (isSignal(node)) {
     if (!registry) {
       // No registry - can't serialize signal, skip it
@@ -85,6 +97,7 @@ export function tokenize(node: Node, registry?: WeaverRegistry): (Token | Compon
       const { children } = node;
       return [...children.flatMap((child) => tokenize(child, registry))];
     } else {
+      // Function component - return as ComponentElement for async processing
       return [node];
     }
   }
@@ -96,6 +109,88 @@ export function tokenize(node: Node, registry?: WeaverRegistry): (Token | Compon
     default:
       return [];
   }
+}
+
+/**
+ * Handle NodeSignal - emit signal definitions and return executable for component execution
+ */
+function handleNodeSignal(node: NodeSignal, registry?: WeaverRegistry): (TokenOrExecutable | ComponentElement)[] {
+  if (!registry) {
+    return [];
+  }
+
+  // Get signals from runtime references (preferred) or registry (fallback)
+  // eslint-disable-next-line no-underscore-dangle
+  let componentSignal = node._componentRef;
+  // eslint-disable-next-line no-underscore-dangle
+  let logicSignal = node._logicRef;
+
+  // Fallback to registry if runtime references not available
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+  componentSignal ??= registry.getSignal(node.component) as ComponentSignal | undefined;
+
+  if (!logicSignal) {
+    // Try to get from ComponentSignal first
+    if (componentSignal && typeof componentSignal.logic === "object") {
+      logicSignal = componentSignal.logic;
+    } else {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+      logicSignal = registry.getSignal(node.logic) as LogicSignal | undefined;
+    }
+  }
+
+  if (!componentSignal || !logicSignal) {
+    console.warn(`NodeSignal ${node.id} is missing component or logic signal`);
+    return [];
+  }
+
+  // Register all signals if not already registered
+  if (!registry.getSignal(logicSignal.id)) {
+    registry.registerSignal(logicSignal);
+  }
+  if (!registry.getSignal(componentSignal.id)) {
+    registry.registerSignal(componentSignal);
+  }
+  if (!registry.getSignal(node.id)) {
+    registry.registerSignal(node);
+  }
+
+  // Also register any signals in the node's props
+  for (const propValue of Object.values(node.props)) {
+    if (isSignal(propValue)) {
+      if (!registry.getSignal(propValue.id)) {
+        registry.registerSignal(propValue);
+      }
+      // If this signal references a logic signal, register that too
+      if ("logicRef" in propValue && isSignal(propValue.logicRef)) {
+        if (!registry.getSignal(propValue.logicRef.id)) {
+          registry.registerSignal(propValue.logicRef);
+        }
+      }
+    }
+  }
+
+  // Emit signal definitions, bind markers, and the executable
+  // The ComponentDelegate will:
+  // 1. Emit the signal definitions
+  // 2. Emit bind-marker-open
+  // 3. Execute the component and process its output
+  // 4. Emit bind-marker-close
+  const executable: NodeExecutable = {
+    kind: "node-executable",
+    node,
+    logic: logicSignal,
+    component: componentSignal,
+  };
+
+  return [
+    { kind: "signal-definition", signal: logicSignal },
+    { kind: "signal-definition", signal: componentSignal },
+    { kind: "signal-definition", signal: node },
+    { kind: "bind-marker-open", id: node.id },
+    executable,
+    { kind: "bind-marker-close", id: node.id },
+  ];
 }
 
 function propsToAttributes(props: Element["props"], registry?: WeaverRegistry): OpenTagToken["attributes"] {

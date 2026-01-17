@@ -1,19 +1,23 @@
 {
-  "extends": "../tsconfig.json",
   "compilerOptions": {
-    "jsx": "react",
-    "jsxFactory": "jsx",
-    "jsxFragmentFactory": "Fragment",
-    "noEmit": true,
+    "baseUrl": "./",
+    "target": "ES2020",
     "module": "ESNext",
     "moduleResolution": "bundler",
     "esModuleInterop": true,
+    "isolatedModules": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "jsxImportSource": "../src/jsx",
     "paths": {
       "@/*": ["../src/*"]
     }
   },
   "include": [
     "**/*.ts",
-    "**/*.tsx"
+    "**/*.tsx",
+    "../src/**/*.ts"
   ]
 }

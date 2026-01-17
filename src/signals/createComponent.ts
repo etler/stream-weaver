@@ -1,47 +1,34 @@
 import { ComponentSignal, LogicSignal } from "./types";
 import { allocateDerivedId } from "./idAllocation";
-import { isSignal } from "@/ComponentDelegate/signalDetection";
 
 /**
- * Creates a component signal with bound props
- * Components are reactive entities that re-render when prop signals change
+ * Creates a component template signal
  *
- * @param logic - LogicSignal or logic definition object
- * @param props - Props object containing signals or primitives
- * @returns ComponentSignal with extracted dependencies
+ * Component templates are inert definitions that can be instantiated
+ * multiple times with different props using createNode() or JSX.
+ *
+ * @param logic - LogicSignal referencing the component module
+ * @returns ComponentSignal template
+ *
+ * @example
+ * ```typescript
+ * // Create a component template
+ * const UserCard = createComponent(createLogic("/components/UserCard.tsx"));
+ *
+ * // Use in JSX (automatically creates nodes)
+ * <UserCard name={nameSignal} age={25} />
+ * ```
  */
-export function createComponent(logic: LogicSignal | { src: string }, props: Record<string, unknown>): ComponentSignal {
-  // Extract signal dependencies from props
-  const deps: string[] = [];
-  for (const value of Object.values(props)) {
-    if (isSignal(value)) {
-      deps.push(value.id);
-    }
-  }
-
+export function createComponent(logic: LogicSignal): ComponentSignal {
   // Get logic ID for content-addressable hash
-  const logicId = typeof logic === "object" && "id" in logic ? logic.id : JSON.stringify(logic);
+  const logicId = logic.id;
 
-  // Serialize props for hashing (signal IDs for signals, values for primitives)
-  const propsForHash: Record<string, string> = {};
-  for (const [key, value] of Object.entries(props)) {
-    if (isSignal(value)) {
-      propsForHash[key] = value.id;
-    } else {
-      propsForHash[key] = String(value);
-    }
-  }
-  const propsString = JSON.stringify(propsForHash);
-
-  // Generate content-addressable ID
-  const id = allocateDerivedId(logicId, [propsString]);
+  // Generate content-addressable ID based on logic only
+  const id = allocateDerivedId("component", [logicId]);
 
   return {
     id,
     kind: "component",
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-    logic: logic as LogicSignal | string,
-    props,
-    deps,
+    logic,
   };
 }

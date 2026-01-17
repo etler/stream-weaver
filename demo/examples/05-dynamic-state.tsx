@@ -10,11 +10,16 @@
  * Stream Weaver: Signals are identified by ID, not call order!
  * Create them in loops, conditionals, wherever you need them.
  */
-import { createSignal, createHandler, createLogic, createComputed } from "../../src/signals";
+import { createSignal, createHandler, createLogic, createComputed, createComponent } from "../../src/signals";
 
 // Logic for toggling state and visual display
 const toggleLogic = createLogic("/logic/toggle.js");
 const checkmarkLogic = createLogic("/logic/checkmark.js");
+
+// ComponentSignal for the ConditionalFeature component
+// This component will re-render when the 'enabled' prop signal changes
+const ConditionalFeatureLogic = createLogic("/components/ConditionalFeature.js");
+const ConditionalFeature = createComponent(ConditionalFeatureLogic);
 
 // Sample data - each item will get its own independent state
 const todoItems = [
@@ -71,57 +76,11 @@ function createTodoItem(item: { id: string; text: string; priority: string }): J
 }
 
 /**
- * Demonstrates conditional state creation
- *
- * ALSO IMPOSSIBLE IN OTHER FRAMEWORKS:
- * State that only exists when a condition is met.
- * React's Rules of Hooks forbid hooks inside conditionals.
- */
-function ConditionalFeature({ enabled }: { enabled: boolean }): JSX.Element {
-  if (!enabled) {
-    return (
-      <div style="padding: 1rem; background: #f5f5f5; border-radius: 8px; color: #999; text-align: center;">
-        Advanced mode is disabled. State doesn't even exist yet!
-      </div>
-    );
-  }
-
-  // State created conditionally! Only exists when enabled is true.
-  // In React, this would cause: "Rendered more hooks than during the previous render"
-  const advancedValue = createSignal(42);
-  const incrementAdvanced = createHandler(createLogic("/logic/increment.js"), [advancedValue]);
-  const decrementAdvanced = createHandler(createLogic("/logic/decrement.js"), [advancedValue]);
-
-  return (
-    <div style="padding: 1rem; background: #e3f2fd; border-radius: 8px;">
-      <h4 style="margin: 0 0 1rem 0; color: #1976d2;">Advanced Mode Active</h4>
-      <p style="margin: 0 0 1rem 0; color: #666;">
-        This state was created conditionally - it only exists because enabled=true
-      </p>
-      <div style="display: flex; align-items: center; gap: 1rem;">
-        <button
-          onClick={decrementAdvanced}
-          style="padding: 0.5rem 1rem; background: #1976d2; color: white; border: none; border-radius: 4px; cursor: pointer;"
-        >
-          -
-        </button>
-        <span style="font-size: 1.5rem; font-weight: bold; min-width: 60px; text-align: center;">{advancedValue}</span>
-        <button
-          onClick={incrementAdvanced}
-          style="padding: 0.5rem 1rem; background: #1976d2; color: white; border: none; border-radius: 4px; cursor: pointer;"
-        >
-          +
-        </button>
-      </div>
-    </div>
-  );
-}
-
-/**
  * Root component for the demo
  */
 export function DynamicStateExample(): JSX.Element {
   // State to toggle the conditional feature
+  // When this signal changes, the ConditionalFeature component will re-render
   const advancedEnabled = createSignal(true);
   const toggleAdvanced = createHandler(toggleLogic, [advancedEnabled]);
 
@@ -155,8 +114,8 @@ export function DynamicStateExample(): JSX.Element {
         <div style="background: #fce4ec; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
           <strong>What's happening:</strong>
           <p style="margin: 0.5rem 0 0 0; color: #666;">
-            The 'advancedValue' signal only exists when advanced mode is enabled. Toggle it off and the state disappears
-            entirely.
+            The 'advancedValue' signal is created INSIDE an if-block. In React, this code pattern would crash with
+            "Rendered more hooks than during previous render". In Stream Weaver, it just works.
           </p>
         </div>
         <div style="margin-bottom: 1rem;">
@@ -170,8 +129,9 @@ export function DynamicStateExample(): JSX.Element {
             <span>Currently: {advancedEnabled}</span>
           </label>
         </div>
-        {/* This component has conditional state inside! */}
-        <ConditionalFeature enabled={true} />
+        {/* Component with conditional state creation inside */}
+        {/* Using ComponentSignal - component will re-render when advancedEnabled changes */}
+        <ConditionalFeature enabled={advancedEnabled} />
       </section>
     </div>
   );

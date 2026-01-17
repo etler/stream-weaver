@@ -29,8 +29,13 @@ async function startDevServer() {
   const server = createServer((req, res) => {
     const url = req.url ?? "/";
     void (async () => {
-      // Serve client files, logic modules, and Vite assets through Vite
-      if (url.startsWith("/client.") || url.startsWith("/logic/") || url.startsWith("/@")) {
+      // Serve client files, logic modules, component modules, and Vite assets through Vite
+      if (
+        url.startsWith("/client.") ||
+        url.startsWith("/logic/") ||
+        url.startsWith("/components/") ||
+        url.startsWith("/@")
+      ) {
         vite.middlewares(req, res, () => {
           res.statusCode = 404;
           res.end("Not found");

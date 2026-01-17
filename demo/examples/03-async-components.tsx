@@ -77,7 +77,6 @@ async function RecentActivity({ userId }: { userId: number }): Promise<JSX.Eleme
       <h3 style="margin: 0 0 1rem 0; color: #333;">Recent Activity</h3>
       <ul style="list-style: none; padding: 0; margin: 0;">
         {activities.map((activity) => {
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-return
           return (
             <li
               key={String(activity.id)}

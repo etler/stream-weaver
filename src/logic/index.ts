@@ -4,3 +4,4 @@ export type { SignalInterface, WritableSignalInterface } from "./signalInterface
 export { executeComputed } from "./executeComputed";
 export { executeAction } from "./executeAction";
 export { executeHandler } from "./executeHandler";
+export { executeNode } from "./executeNode";

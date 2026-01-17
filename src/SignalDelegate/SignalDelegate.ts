@@ -1,7 +1,7 @@
 import { DelegateStream } from "delegate-stream";
 import { WeaverRegistry } from "@/registry";
 import { SignalEvent, SignalToken } from "./types";
-import { executeComputed } from "@/logic";
+import { executeComputed, executeNode } from "@/logic";
 import { executeHandler } from "@/logic/executeHandler";
 
 /**
@@ -39,7 +39,7 @@ export class SignalDelegate extends DelegateStream<SignalEvent, SignalToken> {
           for (const dependentId of dependents) {
             const dependent = reg.getSignal(dependentId);
 
-            // Only computed signals auto-execute on dependency updates
+            // Computed and node signals auto-execute on dependency updates
             // Actions and handlers are manually invoked
             if (dependent?.kind === "computed") {
               // Create child delegate for recursive propagation
@@ -67,6 +67,31 @@ export class SignalDelegate extends DelegateStream<SignalEvent, SignalToken> {
                 await childWriter.close();
               })().catch((error: unknown) => {
                 console.error(new Error("Computed execution error", { cause: error }));
+              });
+            } else if (dependent?.kind === "node") {
+              // Node signal - re-execute component and emit update with Node tree
+              const childDelegate = new SignalDelegate(reg);
+              const childWriter = childDelegate.writable.getWriter();
+
+              chain(childDelegate.readable);
+
+              (async () => {
+                // Execute the node signal to get updated Node tree
+                const result = await executeNode(reg, dependentId);
+
+                // Store the result in the registry
+                reg.setValue(dependentId, result);
+
+                // Emit a signal-update event with the Node tree
+                // ClientWeaver will serialize this to HTML for DOM update
+                await childWriter.write({
+                  kind: "signal-update",
+                  id: dependentId,
+                  value: result,
+                });
+                await childWriter.close();
+              })().catch((error: unknown) => {
+                console.error(new Error("Node execution error", { cause: error }));
               });
             }
           }

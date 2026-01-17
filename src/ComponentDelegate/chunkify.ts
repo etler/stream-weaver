@@ -1,21 +1,29 @@
 import { ComponentElement } from "@/jsx/types/Element";
 import { Chunk } from "./types/Chunk";
-import { Token } from "./types/Token";
+import { TokenOrExecutable, NodeExecutable } from "./types/Token";
 
-type ChunkItem = Chunk | ComponentElement;
+type ChunkItem = Chunk | ComponentElement | NodeExecutable;
 
-export function chunkify(list: (Token | ComponentElement)[]): ChunkItem[] {
-  return list.reduce<ChunkItem[]>((list, item): ChunkItem[] => {
+export function chunkify(list: (TokenOrExecutable | ComponentElement)[]): ChunkItem[] {
+  return list.reduce<ChunkItem[]>((acc, item): ChunkItem[] => {
+    // NodeExecutable - keep separate for async processing
+    if ("kind" in item && item.kind === "node-executable") {
+      acc.push(item);
+      return acc;
+    }
+
+    // Regular Token - group into chunks
     if ("kind" in item) {
-      const tail = list.at(-1);
+      const tail = acc.at(-1);
       if (Array.isArray(tail)) {
         tail.push(item);
       } else {
-        list.push([item]);
+        acc.push([item]);
       }
     } else {
-      list.push(item);
+      // ComponentElement - keep separate for async processing
+      acc.push(item);
     }
-    return list;
+    return acc;
   }, []);
 }

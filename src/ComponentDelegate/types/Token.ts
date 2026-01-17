@@ -1,4 +1,4 @@
-import { AnySignal } from "@/signals/types";
+import { AnySignal, NodeSignal, LogicSignal, ComponentSignal } from "@/signals/types";
 
 export interface OpenTagToken {
   kind: "open";
@@ -31,6 +31,17 @@ export interface SignalDefinitionToken {
   signal: AnySignal; // Signal definition to serialize
 }
 
+/**
+ * NodeExecutable represents a component node that needs to be executed
+ * Contains all the information needed to load and run the component
+ */
+export interface NodeExecutable {
+  kind: "node-executable";
+  node: NodeSignal;
+  logic: LogicSignal;
+  component: ComponentSignal;
+}
+
 export type Token =
   | OpenTagToken
   | CloseTagToken
@@ -38,3 +49,5 @@ export type Token =
   | BindMarkerOpenToken
   | BindMarkerCloseToken
   | SignalDefinitionToken;
+
+export type TokenOrExecutable = Token | NodeExecutable;

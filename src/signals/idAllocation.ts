@@ -4,14 +4,23 @@
 let sourceIdCounter = 0;
 
 /**
+ * Detect if we're running on the client (browser) vs server
+ */
+function isClient(): boolean {
+  return typeof window !== "undefined" && typeof document !== "undefined";
+}
+
+/**
  * Generates a unique ID for a source signal (StateSignal, LogicSignal)
  * These IDs must be unique across all instances
+ * Uses different prefixes for server (s) and client (c) to avoid collisions
  *
- * @returns A unique signal ID (e.g., 's1', 's2', ...)
+ * @returns A unique signal ID (e.g., 's1', 's2', ... on server, 'c1', 'c2', ... on client)
  */
 export function allocateSourceId(): string {
   sourceIdCounter++;
-  return `s${sourceIdCounter}`;
+  const prefix = isClient() ? "c" : "s";
+  return `${prefix}${sourceIdCounter}`;
 }
 
 /**

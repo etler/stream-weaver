@@ -1,4 +1,4 @@
-import { AnySignal } from "@/signals/types";
+import { AnySignal, ComponentSignal, NodeSignal } from "@/signals/types";
 
 /**
  * Type guard to check if a value is a signal definition object
@@ -46,4 +46,18 @@ export function eventPropToDataAttribute(propName: string): string {
  */
 export function propToDataAttribute(propName: string): string {
   return `data-w-${propName.toLowerCase()}`;
+}
+
+/**
+ * Type guard to check if a value is a ComponentSignal (template)
+ */
+export function isComponentSignal(value: unknown): value is ComponentSignal {
+  return isSignal(value) && value.kind === "component";
+}
+
+/**
+ * Type guard to check if a value is a NodeSignal (instance)
+ */
+export function isNodeSignal(value: unknown): value is NodeSignal {
+  return isSignal(value) && value.kind === "node";
 }
