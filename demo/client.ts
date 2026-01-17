@@ -2,6 +2,10 @@
  * Client-side entry point for Stream Weaver demos
  * This script hydrates the server-rendered HTML and makes it interactive
  */
+
+// Polyfill must be imported first, before any code that uses ReadableStream.from
+import "../src/polyfills/readableStreamFrom";
+
 import { ClientWeaver } from "../src/client/ClientWeaver";
 
 // Extend Window interface for our weaver property
