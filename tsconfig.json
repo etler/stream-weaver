@@ -9,7 +9,7 @@
     "isolatedModules": true,
     "jsx": "react-jsx",
     "jsxImportSource": "@/jsx",
-    "lib": ["ESNext", "DOM.AsyncIterable"],
+    "lib": ["ESNext", "DOM", "DOM.AsyncIterable"],
     "module": "preserve",
     "moduleResolution": "bundler",
     "noFallthroughCasesInSwitch": true,

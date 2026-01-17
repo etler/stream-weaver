@@ -45,6 +45,7 @@
     "eslint-plugin-prettier": "~5.5.4",
     "eslint-plugin-tsdoc": "~0.4.0",
     "globals": "^16.0.0",
+    "happy-dom": "^20.3.1",
     "husky": "~9.1.7",
     "lint-staged": "~15.4.3",
     "pkgroll": "^2.21.4",
