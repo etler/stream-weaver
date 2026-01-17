@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createSignal, createLogic, createComputed, createAction, createHandler } from "@/signals";
 import { WeaverRegistry } from "@/registry";
+import { loadLogic, createWritableSignalInterface, executeComputed, executeAction, executeHandler } from "@/logic";
 
 describe("Milestone 1: Signal System Foundation", () => {
   describe("Signal Creation", () => {
@@ -123,6 +124,108 @@ describe("Milestone 2: Dependency Graph", () => {
       expect(registry.getDependents(count.id).has(handleClick.id)).toBe(true);
       expect(increment.logic).toBe(incLogic.id); // Stores logic ID reference
       expect(handleClick.logic).toBe(clickLogic.id);
+    });
+  });
+});
+
+describe("Milestone 3: Logic System & Signal Interfaces", () => {
+  describe("Logic Module Loading", () => {
+    it("logic module can be loaded", async () => {
+      const doubleLogic = createLogic("./tests/fixtures/double.js");
+      const fn = await loadLogic(doubleLogic);
+
+      expect(typeof fn).toBe("function");
+    });
+  });
+
+  describe("Signal Interfaces", () => {
+    it("signal interface provides .value that accesses registry", () => {
+      const count = createSignal(5);
+      const registry = new WeaverRegistry();
+      registry.registerSignal(count);
+      registry.setValue(count.id, 5);
+
+      const countInterface = createWritableSignalInterface(registry, count.id);
+
+      expect(countInterface.value).toBe(5);
+      countInterface.value = 10;
+      expect(registry.getValue(count.id)).toBe(10);
+    });
+  });
+
+  describe("Computed Execution", () => {
+    it("computed executes logic and caches result", async () => {
+      const count = createSignal(5);
+      const doubleLogic = createLogic("./tests/fixtures/double.js");
+      const doubled = createComputed(doubleLogic, [count]);
+
+      const registry = new WeaverRegistry();
+      registry.registerSignal(count);
+      registry.registerSignal(doubleLogic);
+      registry.registerSignal(doubled);
+      registry.setValue(count.id, 5);
+
+      await executeComputed(registry, doubled.id);
+
+      expect(registry.getValue(doubled.id)).toBe(10);
+    });
+
+    it("multiple signals can be passed to logic", async () => {
+      const numA = createSignal(5);
+      const numB = createSignal(10);
+      const sumLogic = createLogic("./tests/fixtures/sum.js");
+      const sum = createComputed(sumLogic, [numA, numB]);
+
+      const registry = new WeaverRegistry();
+      registry.registerSignal(numA);
+      registry.registerSignal(numB);
+      registry.registerSignal(sumLogic);
+      registry.registerSignal(sum);
+      registry.setValue(numA.id, 5);
+      registry.setValue(numB.id, 10);
+
+      await executeComputed(registry, sum.id);
+
+      expect(registry.getValue(sum.id)).toBe(15);
+    });
+  });
+
+  describe("Action Execution", () => {
+    it("action can mutate signals via writable interface", async () => {
+      const count = createSignal(0);
+      const incLogic = createLogic("./tests/fixtures/increment.js");
+      const increment = createAction(incLogic, [count]);
+
+      const registry = new WeaverRegistry();
+      registry.registerSignal(count);
+      registry.registerSignal(incLogic);
+      registry.registerSignal(increment);
+      registry.setValue(count.id, 0);
+
+      await executeAction(registry, increment.id);
+
+      expect(registry.getValue(count.id)).toBe(1);
+    });
+  });
+
+  describe("Handler Execution", () => {
+    it("handler receives event and writable signal interfaces", async () => {
+      const count = createSignal(0);
+      const clickLogic = createLogic("./tests/fixtures/handleClick.js");
+      const handler = createHandler(clickLogic, [count]);
+
+      const registry = new WeaverRegistry();
+      registry.registerSignal(count);
+      registry.registerSignal(clickLogic);
+      registry.registerSignal(handler);
+      registry.setValue(count.id, 0);
+
+      // Simple mock event object (Node environment doesn't have MouseEvent)
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+      const mockEvent = { type: "click" } as Event;
+      await executeHandler(registry, handler.id, mockEvent);
+
+      expect(registry.getValue(count.id)).toBe(1);
     });
   });
 });
