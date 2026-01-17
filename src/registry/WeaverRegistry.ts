@@ -48,8 +48,13 @@ export class WeaverRegistry {
       this.values.set(signal.id, signal.init);
     }
 
-    // Track dependency relationships for computed, action, and handler signals
-    if (signal.kind === "computed" || signal.kind === "action" || signal.kind === "handler") {
+    // Track dependency relationships for computed, action, handler, and component signals
+    if (
+      signal.kind === "computed" ||
+      signal.kind === "action" ||
+      signal.kind === "handler" ||
+      signal.kind === "component"
+    ) {
       // Register this signal as a dependent of each of its dependencies
       for (const depId of signal.deps) {
         let dependentSet = this.dependents.get(depId);

@@ -55,6 +55,17 @@ export interface HandlerSignal extends Signal {
 }
 
 /**
+ * ComponentSignal represents a component instance with bound props
+ * Components are reactive and re-render when prop signals change
+ */
+export interface ComponentSignal extends Signal {
+  logic: LogicSignal | string; // LogicSignal definition or ID reference
+  props: Record<string, unknown>; // Props object (signals or primitives)
+  deps: string[]; // Array of signal IDs extracted from props
+  kind: "component";
+}
+
+/**
  * Discriminated union of all signal types
  */
-export type AnySignal = StateSignal | LogicSignal | ComputedSignal | ActionSignal | HandlerSignal;
+export type AnySignal = StateSignal | LogicSignal | ComputedSignal | ActionSignal | HandlerSignal | ComponentSignal;
