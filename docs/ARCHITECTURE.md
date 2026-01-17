@@ -46,10 +46,10 @@ Qwik shares our goal of Resumability but achieves it through **Implicit Compiler
 
 | Feature | Qwik | Stream Weaver |
 | --- | --- | --- |
-| **Logic Extraction** | **Compiler-Driven:** `$(...)` captures closures. | **Address-Driven:** `import source` references modules. |
+| **Logic Extraction** | **Compiler-Driven:** `$(...)` captures closures. | **Address-Driven:** `import()` expressions with build-time transformation. |
 | **State Scope** | **Component-Local:** State must be inside `component$`. | **Universal:** State can be global or local singletons. |
 | **Reactivity** | **Proxy-Tree:** Serializes a graph of objects. | **Flat Sink:** Serializes a flat Map of IDs. |
-| **Standardization** | **Proprietary:** Custom `q-json` and optimizer. | **Standard:** Stage 3 **Source Phase Imports**. |
+| **Standardization** | **Proprietary:** Custom `q-json` and optimizer. | **Standard:** **Dynamic Imports** (ES2020) with build-time plugin. |
 
 **The Weaver Advantage:**
 - **"Honest" State:** In Qwik, it's easy to accidentally serialize a massive parent object because of a closure. In Weaver, you only serialize what you explicitly pass to the dependency array.
@@ -62,7 +62,7 @@ Wiz is the gold standard for "Action-State" separation but is notoriously diffic
 | Feature | Wiz | Stream Weaver |
 | --- | --- | --- |
 | **Authoring** | **Registry Pattern:** Manual string IDs for every action. | **Factory Pattern:** `createAction` uses standard imports. |
-| **Type Safety** | **Manual:** Hard to sync template types with logic. | **Automatic:** TS infers types from the `source` handle. |
+| **Type Safety** | **Manual:** Hard to sync template types with logic. | **Automatic:** TS infers types from `import()` expressions. |
 | **Composition** | **Limited:** Actions are usually flat handlers. | **Recursive:** Actions can return signals and be nested. |
 
 **The Weaver Advantage:**
@@ -91,7 +91,7 @@ A Component is not a template; it is a **Pure UI Action**.
 
 ### II. Logic is Data (The Law of Addressability)
 
-We treat executable code exactly like strings or numbers. Logic is a serializable value. By leveraging **Source Phase Imports** (Stage 3), we treat code as a static asset to be delivered only when needed.
+We treat executable code exactly like strings or numbers. Logic is a serializable value. By using standard **Dynamic Imports** with build-time transformation, we treat code as a static asset to be delivered only when needed.
 
 **Logic Composition:**
 - Actions receive signals as dependencies and can mutate them
@@ -145,7 +145,7 @@ State is not a "place" in a database or a global store. State is the **accumulat
 We stripped out the "Automatic Transmission" of VDOM and Hydration to give architects a high-throughput execution engine.
 
 * **Transport:** Recursive `ReadableStream` (No VDOM)
-* **Logic:** Action Files referenced via `import source` (Stage 3 Proposal)
+* **Logic:** Action Files referenced via `import()` with build-time transformation
 * **State:** Explicit, Serializable Signal IDs
 * **The Weaver:** Serializes code URLs and state IDs into a surgical, ~1kb runtime
 
@@ -209,7 +209,7 @@ Our strict isolation model enforces "Clean Room" development. Functions receive 
 
 We bet on the Platform:
 
-* **Source Phase Imports:** (Stage 3 ECMAScript) for code addressing.
+* **Dynamic Imports:** (ES2020) with build-time transformation for code addressing.
 * **Streams API:** For recursive, sequential delivery.
 * **ES Modules:** For native lazy-loading.
 

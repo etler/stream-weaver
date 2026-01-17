@@ -2582,7 +2582,6 @@ The following areas are intentionally deferred for later iterations:
 - **Error Handling**: Standardized error boundaries and recovery strategies for action/computed failures
 - **Update Batching**: Coalescing multiple signal updates within a single event loop tick
 - **Race Condition Handling**: Cancellation and priority strategies for concurrent async actions
-- **Source Phase Import Polyfill**: Build-time transformation for environments without native support
 - **Worker Pool Parallelism**: Distributed ComponentDelegates to pre-warmed worker pool
 - **UIntArray Optimization**: Optimized stream serialization representation
 - **SharedArrayBuffer**: Worker pool memory optimization
