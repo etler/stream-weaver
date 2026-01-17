@@ -1,4 +1,5 @@
 import { OpenTagToken, Token } from "@/ComponentDelegate/types/Token";
+import { AnySignal } from "@/signals/types";
 
 export class ComponentSerializer extends TransformStream<Token, string> {
   constructor() {
@@ -29,15 +30,40 @@ function serializeToken(token: Token): string {
       } else {
         return "";
       }
+    case "bind-marker-open":
+      return `<!--^${token.id}-->`;
+    case "bind-marker-close":
+      return `<!--/${token.id}-->`;
+    case "signal-definition":
+      return serializeSignalDefinition(token.signal);
   }
+}
+
+function serializeSignalDefinition(signal: AnySignal): string {
+  // Create a serializable version of the signal
+  const signalData = JSON.stringify({ kind: "signal-definition", signal });
+  return `<script>weaver.push(${signalData})</script>`;
 }
 
 function serializeAttributes(token: OpenTagToken): string {
   const attributeStrings = Object.entries(token.attributes).map(([key, value]) => {
+    const attributeName = normalizeAttributeName(key);
     const valueString = value !== null ? `=${JSON.stringify(sanitizeAttribute(value))}` : "";
-    return `${key}${valueString}`;
+    return `${attributeName}${valueString}`;
   });
   return attributeStrings.join(" ");
+}
+
+// Convert JSX attribute names to HTML attribute names
+function normalizeAttributeName(jsxName: string): string {
+  switch (jsxName) {
+    case "className":
+      return "class";
+    case "htmlFor":
+      return "for";
+    default:
+      return jsxName;
+  }
 }
 
 // Sanitize reserved characters with HTML entities

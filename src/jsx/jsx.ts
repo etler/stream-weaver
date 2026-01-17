@@ -1,6 +1,7 @@
 import { Node } from "./types/Node";
 import type { Element } from "./types/Element";
 import { Fragment } from "./Fragment";
+import { isSignal } from "@/ComponentDelegate/signalDetection";
 
 type UnknownRecord<T extends string = string> = Record<T, unknown>;
 
@@ -33,6 +34,9 @@ function normalizeChild(child: unknown): Node {
     return null;
   }
   if (isElement(child)) {
+    return child;
+  }
+  if (isSignal(child)) {
     return child;
   }
   if (Array.isArray(child)) {

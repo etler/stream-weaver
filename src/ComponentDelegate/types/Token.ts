@@ -1,3 +1,5 @@
+import { AnySignal } from "@/signals/types";
+
 export interface OpenTagToken {
   kind: "open";
   tag: string;
@@ -14,4 +16,25 @@ export interface TextToken {
   content: string;
 }
 
-export type Token = OpenTagToken | CloseTagToken | TextToken;
+export interface BindMarkerOpenToken {
+  kind: "bind-marker-open";
+  id: string; // Signal ID
+}
+
+export interface BindMarkerCloseToken {
+  kind: "bind-marker-close";
+  id: string; // Signal ID
+}
+
+export interface SignalDefinitionToken {
+  kind: "signal-definition";
+  signal: AnySignal; // Signal definition to serialize
+}
+
+export type Token =
+  | OpenTagToken
+  | CloseTagToken
+  | TextToken
+  | BindMarkerOpenToken
+  | BindMarkerCloseToken
+  | SignalDefinitionToken;

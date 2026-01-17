@@ -1,9 +1,11 @@
 import { ComponentDelegate } from "@/ComponentDelegate/ComponentDelegate";
 import { ComponentSerializer } from "@/ComponentHtmlSerializer/ComponentSerializer";
 import { Element } from "@/jsx/types/Element";
+import { WeaverRegistry } from "@/registry";
 
 export interface StreamWeaverOptions {
   root: Element | Promise<Element>;
+  registry?: WeaverRegistry; // Optional registry for signal binding
 }
 
 /**
@@ -34,8 +36,8 @@ export interface StreamWeaverOptions {
  */
 export class StreamWeaver {
   public readable: ReadableStream;
-  constructor({ root }: StreamWeaverOptions) {
-    const delegate = new ComponentDelegate();
+  constructor({ root, registry }: StreamWeaverOptions) {
+    const delegate = new ComponentDelegate(registry);
     const writer = delegate.writable.getWriter();
     this.readable = delegate.readable.pipeThrough(new ComponentSerializer());
     (async () => {
