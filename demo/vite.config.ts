@@ -3,6 +3,10 @@ import path from "path";
 
 export default defineConfig({
   root: path.resolve(__dirname),
+  esbuild: {
+    jsx: "automatic",
+    jsxImportSource: "@/jsx",
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "../src"),

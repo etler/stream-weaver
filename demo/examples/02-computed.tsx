@@ -2,7 +2,6 @@
  * Example 2: Computed Signals
  * Demonstrates reactive computed values that update automatically
  */
-import { jsx } from "../../src/jsx/jsx";
 import { createSignal, createHandler, createComputed, createLogic } from "../../src/signals";
 
 // Create a state signal for the count
@@ -23,44 +22,27 @@ const decrement = createHandler(decrementLogic, [count]);
 
 // Define the component
 export function ComputedExample(): JSX.Element {
-  return jsx("div", {
-    style: "max-width: 400px; margin: 2rem auto; padding: 2rem; border: 1px solid #ddd; border-radius: 8px;",
-    children: [
-      jsx("h1", { style: "margin-top: 0;", children: "Computed Signals" }),
-      jsx("div", {
-        style: "margin: 2rem 0;",
-        children: [
-          jsx("div", {
-            style: "display: flex; justify-content: space-between; margin-bottom: 1rem;",
-            children: [
-              jsx("span", { children: "Count:" }),
-              jsx("strong", { style: "font-size: 1.5rem;", children: count }),
-            ],
-          }),
-          jsx("div", {
-            style: "display: flex; justify-content: space-between; color: #0066cc;",
-            children: [
-              jsx("span", { children: "Doubled:" }),
-              jsx("strong", { style: "font-size: 1.5rem;", children: doubled }),
-            ],
-          }),
-        ],
-      }),
-      jsx("div", {
-        style: "display: flex; gap: 1rem; justify-content: center;",
-        children: [
-          jsx("button", {
-            onClick: decrement,
-            style: "padding: 0.5rem 1rem; font-size: 1rem; cursor: pointer;",
-            children: "-",
-          }),
-          jsx("button", {
-            onClick: increment,
-            style: "padding: 0.5rem 1rem; font-size: 1rem; cursor: pointer;",
-            children: "+",
-          }),
-        ],
-      }),
-    ],
-  });
+  return (
+    <div style="max-width: 400px; margin: 2rem auto; padding: 2rem; border: 1px solid #ddd; border-radius: 8px;">
+      <h1 style="margin-top: 0;">Computed Signals</h1>
+      <div style="margin: 2rem 0;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 1rem;">
+          <span>Count:</span>
+          <strong style="font-size: 1.5rem;">{count}</strong>
+        </div>
+        <div style="display: flex; justify-content: space-between; color: #0066cc;">
+          <span>Doubled:</span>
+          <strong style="font-size: 1.5rem;">{doubled}</strong>
+        </div>
+      </div>
+      <div style="display: flex; gap: 1rem; justify-content: center;">
+        <button onClick={decrement} style="padding: 0.5rem 1rem; font-size: 1rem; cursor: pointer;">
+          -
+        </button>
+        <button onClick={increment} style="padding: 0.5rem 1rem; font-size: 1rem; cursor: pointer;">
+          +
+        </button>
+      </div>
+    </div>
+  );
 }

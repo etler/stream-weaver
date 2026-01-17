@@ -9,7 +9,6 @@
  *
  * Stream Weaver streams HTML as data arrives - just use await!
  */
-import { jsx } from "../../src/jsx/jsx";
 
 // Simulated API calls with delays to demonstrate streaming
 async function fetchUser(id: number): Promise<{ id: number; name: string; email: string }> {
@@ -48,32 +47,22 @@ async function UserStats({ userId }: { userId: number }): Promise<JSX.Element> {
   // Just await inline - Stream Weaver handles the streaming
   const stats = await fetchStats();
 
-  return jsx("div", {
-    style: "display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin: 1rem 0;",
-    children: [
-      jsx("div", {
-        style: "background: #e3f2fd; padding: 1rem; border-radius: 8px; text-align: center;",
-        children: [
-          jsx("div", { style: "font-size: 2rem; font-weight: bold; color: #1976d2;", children: String(stats.commits) }),
-          jsx("div", { style: "color: #666; font-size: 0.9rem;", children: "Commits" }),
-        ],
-      }),
-      jsx("div", {
-        style: "background: #e8f5e9; padding: 1rem; border-radius: 8px; text-align: center;",
-        children: [
-          jsx("div", { style: "font-size: 2rem; font-weight: bold; color: #388e3c;", children: String(stats.prs) }),
-          jsx("div", { style: "color: #666; font-size: 0.9rem;", children: "Pull Requests" }),
-        ],
-      }),
-      jsx("div", {
-        style: "background: #fff3e0; padding: 1rem; border-radius: 8px; text-align: center;",
-        children: [
-          jsx("div", { style: "font-size: 2rem; font-weight: bold; color: #f57c00;", children: String(stats.reviews) }),
-          jsx("div", { style: "color: #666; font-size: 0.9rem;", children: "Reviews" }),
-        ],
-      }),
-    ],
-  });
+  return (
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin: 1rem 0;">
+      <div style="background: #e3f2fd; padding: 1rem; border-radius: 8px; text-align: center;">
+        <div style="font-size: 2rem; font-weight: bold; color: #1976d2;">{String(stats.commits)}</div>
+        <div style="color: #666; font-size: 0.9rem;">Commits</div>
+      </div>
+      <div style="background: #e8f5e9; padding: 1rem; border-radius: 8px; text-align: center;">
+        <div style="font-size: 2rem; font-weight: bold; color: #388e3c;">{String(stats.prs)}</div>
+        <div style="color: #666; font-size: 0.9rem;">Pull Requests</div>
+      </div>
+      <div style="background: #fff3e0; padding: 1rem; border-radius: 8px; text-align: center;">
+        <div style="font-size: 2rem; font-weight: bold; color: #f57c00;">{String(stats.reviews)}</div>
+        <div style="color: #666; font-size: 0.9rem;">Reviews</div>
+      </div>
+    </div>
+  );
 }
 
 /**
@@ -83,25 +72,25 @@ async function UserStats({ userId }: { userId: number }): Promise<JSX.Element> {
 async function RecentActivity({ userId }: { userId: number }): Promise<JSX.Element> {
   const activities = await fetchRecentActivity();
 
-  return jsx("div", {
-    style: "margin-top: 1.5rem;",
-    children: [
-      jsx("h3", { style: "margin: 0 0 1rem 0; color: #333;", children: "Recent Activity" }),
-      jsx("ul", {
-        style: "list-style: none; padding: 0; margin: 0;",
-        children: activities.map((activity) =>
-          jsx("li", {
-            key: String(activity.id),
-            style: "padding: 0.75rem; border-bottom: 1px solid #eee; display: flex; justify-content: space-between;",
-            children: [
-              jsx("span", { children: activity.action }),
-              jsx("span", { style: "color: #999; font-size: 0.9rem;", children: activity.time }),
-            ],
-          }),
-        ),
-      }),
-    ],
-  });
+  return (
+    <div style="margin-top: 1.5rem;">
+      <h3 style="margin: 0 0 1rem 0; color: #333;">Recent Activity</h3>
+      <ul style="list-style: none; padding: 0; margin: 0;">
+        {activities.map((activity) => {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+          return (
+            <li
+              key={String(activity.id)}
+              style="padding: 0.75rem; border-bottom: 1px solid #eee; display: flex; justify-content: space-between;"
+            >
+              <span>{activity.action}</span>
+              <span style="color: #999; font-size: 0.9rem;">{activity.time}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
 }
 
 /**
@@ -114,70 +103,49 @@ async function UserDashboard({ userId }: { userId: number }): Promise<JSX.Elemen
   // Fetch user data inline - the HTML streams as this resolves
   const user = await fetchUser(userId);
 
-  return jsx("div", {
-    style:
-      "max-width: 600px; margin: 2rem auto; padding: 2rem; border: 1px solid #ddd; border-radius: 8px; background: white;",
-    children: [
-      jsx("div", {
-        style: "display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem;",
-        children: [
-          jsx("div", {
-            style:
-              "width: 64px; height: 64px; background: #1976d2; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.5rem; font-weight: bold;",
-            children: user.name.charAt(0),
-          }),
-          jsx("div", {
-            children: [
-              jsx("h2", { style: "margin: 0;", children: user.name }),
-              jsx("p", { style: "margin: 0.25rem 0 0 0; color: #666;", children: user.email }),
-            ],
-          }),
-        ],
-      }),
+  return (
+    <div style="max-width: 600px; margin: 2rem auto; padding: 2rem; border: 1px solid #ddd; border-radius: 8px; background: white;">
+      <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem;">
+        <div style="width: 64px; height: 64px; background: #1976d2; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.5rem; font-weight: bold;">
+          {user.name.charAt(0)}
+        </div>
+        <div>
+          <h2 style="margin: 0;">{user.name}</h2>
+          <p style="margin: 0.25rem 0 0 0; color: #666;">{user.email}</p>
+        </div>
+      </div>
 
-      // Nested async components - they stream independently!
-
-      await UserStats({ userId: user.id }),
-
-      await RecentActivity({ userId: user.id }),
-    ],
-  });
+      {/* Nested async components - they stream independently! */}
+      {await UserStats({ userId: user.id })}
+      {await RecentActivity({ userId: user.id })}
+    </div>
+  );
 }
 
 /**
  * Root component for the demo
  */
 export async function AsyncComponentsExample(): Promise<JSX.Element> {
-  return jsx("div", {
-    style: "padding: 1rem;",
-    children: [
-      jsx("h1", { style: "text-align: center; color: #333;", children: "Async Components Demo" }),
-      jsx("p", {
-        style: "text-align: center; color: #666; max-width: 500px; margin: 0 auto 2rem auto;",
-        children:
-          "This entire dashboard is built with async components. Each section fetches its own data with plain await - no Suspense, no loading states, no useEffect. The HTML streams to you as data arrives.",
-      }),
+  return (
+    <div style="padding: 1rem;">
+      <h1 style="text-align: center; color: #333;">Async Components Demo</h1>
+      <p style="text-align: center; color: #666; max-width: 500px; margin: 0 auto 2rem auto;">
+        This entire dashboard is built with async components. Each section fetches its own data with plain await - no
+        Suspense, no loading states, no useEffect. The HTML streams to you as data arrives.
+      </p>
 
-      jsx("div", {
-        style:
-          "background: #fff8e1; padding: 1rem; border-radius: 8px; margin-bottom: 2rem; max-width: 600px; margin-left: auto; margin-right: auto;",
-        children: [
-          jsx("strong", { children: "What makes this special:" }),
-          jsx("ul", {
-            style: "margin: 0.5rem 0 0 0; padding-left: 1.5rem;",
-            children: [
-              jsx("li", { children: "UserDashboard is an async function that awaits fetchUser()" }),
-              jsx("li", { children: "UserStats is a nested async component that awaits fetchStats()" }),
-              jsx("li", { children: "RecentActivity is another nested async component" }),
-              jsx("li", { children: "No Suspense boundaries, no special wrappers needed" }),
-            ],
-          }),
-        ],
-      }),
+      <div style="background: #fff8e1; padding: 1rem; border-radius: 8px; margin-bottom: 2rem; max-width: 600px; margin-left: auto; margin-right: auto;">
+        <strong>What makes this special:</strong>
+        <ul style="margin: 0.5rem 0 0 0; padding-left: 1.5rem;">
+          <li>UserDashboard is an async function that awaits fetchUser()</li>
+          <li>UserStats is a nested async component that awaits fetchStats()</li>
+          <li>RecentActivity is another nested async component</li>
+          <li>No Suspense boundaries, no special wrappers needed</li>
+        </ul>
+      </div>
 
-      // The main async component - just await it!
-
-      await UserDashboard({ userId: 1 }),
-    ],
-  });
+      {/* The main async component - just await it! */}
+      {await UserDashboard({ userId: 1 })}
+    </div>
+  );
 }

@@ -1,6 +1,7 @@
 import { jsx } from "./jsx";
 import { Element as JsxElement } from "./types/Element";
 
+export { jsx };
 export { jsx as jsxs };
 export { jsx as jsxDEV };
 export { Fragment } from "./Fragment";

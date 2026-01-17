@@ -2,7 +2,6 @@
  * Example 1: Simple Counter
  * Demonstrates basic state signals and event handlers
  */
-import { jsx } from "../../src/jsx/jsx";
 import { createSignal, createHandler, createLogic } from "../../src/signals";
 import type { WeaverRegistry } from "../../src/registry/WeaverRegistry";
 
@@ -20,31 +19,22 @@ export function Counter(): JSX.Element {
   const increment = createHandler(incrementLogic, [count]);
   const decrement = createHandler(decrementLogic, [count]);
 
-  return jsx("div", {
-    style: "max-width: 400px; margin: 2rem auto; padding: 2rem; border: 1px solid #ddd; border-radius: 8px;",
-    children: [
-      jsx("h1", { style: "margin-top: 0;", children: "Counter Example" }),
-      jsx("div", {
-        style: "text-align: center; margin: 2rem 0;",
-        children: jsx("div", { style: "font-size: 3rem; font-weight: bold;", children: count }),
-      }),
-      jsx("div", {
-        style: "display: flex; gap: 1rem; justify-content: center;",
-        children: [
-          jsx("button", {
-            onClick: decrement,
-            style: "padding: 0.5rem 1rem; font-size: 1rem; cursor: pointer;",
-            children: "-",
-          }),
-          jsx("button", {
-            onClick: increment,
-            style: "padding: 0.5rem 1rem; font-size: 1rem; cursor: pointer;",
-            children: "+",
-          }),
-        ],
-      }),
-    ],
-  });
+  return (
+    <div style="max-width: 400px; margin: 2rem auto; padding: 2rem; border: 1px solid #ddd; border-radius: 8px;">
+      <h1 style="margin-top: 0;">Counter Example</h1>
+      <div style="text-align: center; margin: 2rem 0;">
+        <div style="font-size: 3rem; font-weight: bold;">{count}</div>
+      </div>
+      <div style="display: flex; gap: 1rem; justify-content: center;">
+        <button onClick={decrement} style="padding: 0.5rem 1rem; font-size: 1rem; cursor: pointer;">
+          -
+        </button>
+        <button onClick={increment} style="padding: 0.5rem 1rem; font-size: 1rem; cursor: pointer;">
+          +
+        </button>
+      </div>
+    </div>
+  );
 }
 
 /**
