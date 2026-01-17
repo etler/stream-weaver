@@ -1,5 +1,3 @@
-import { SignalDelegate } from "@/SignalDelegate/SignalDelegate";
-
 /**
  * Event types to delegate
  */
@@ -9,11 +7,9 @@ const DELEGATED_EVENTS = ["click", "input", "change", "submit", "focus", "blur",
  * Setup global event delegation
  * Attaches event listeners to the document root and routes events to SignalDelegate
  *
- * @param delegate - SignalDelegate instance to route events to
+ * @param writer - WritableStreamDefaultWriter for the SignalDelegate
  */
-export function setupEventDelegation(delegate: SignalDelegate): void {
-  const writer = delegate.writable.getWriter();
-
+export function setupEventDelegation(writer: WritableStreamDefaultWriter): void {
   // Attach global event listeners for each event type
   for (const eventType of DELEGATED_EVENTS) {
     document.addEventListener(eventType, (event: Event) => {

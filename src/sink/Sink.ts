@@ -70,6 +70,13 @@ export class Sink {
   }
 
   /**
+   * Check if a signal has any bind points in the DOM
+   */
+  public hasBindPoint(id: string): boolean {
+    return this.bindPoints.has(id);
+  }
+
+  /**
    * Scan for bind markers (<!--^id--> ... <!--/id-->)
    */
   private scanForBindMarkers(root: Node): void {

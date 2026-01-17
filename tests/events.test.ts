@@ -43,7 +43,8 @@ describe("Milestone 7: Event Delegation Infrastructure", () => {
     document.body.innerHTML = `<button data-w-onclick="${handler.id}">Click</button>`;
 
     const delegate = new SignalDelegate(registry);
-    setupEventDelegation(delegate);
+    const writer = delegate.writable.getWriter();
+    setupEventDelegation(writer);
 
     // Consume the delegate stream
     (async () => {
@@ -92,7 +93,8 @@ describe("Milestone 7: Event Delegation Infrastructure", () => {
     `;
 
     const delegate = new SignalDelegate(registry);
-    setupEventDelegation(delegate);
+    const writer = delegate.writable.getWriter();
+    setupEventDelegation(writer);
 
     // Consume the delegate stream
     (async () => {
@@ -142,7 +144,8 @@ describe("Milestone 7: Event Delegation Infrastructure", () => {
     document.body.innerHTML = `<div data-w-onclick="${handler.id}"><button>Nested</button></div>`;
 
     const delegate = new SignalDelegate(registry);
-    setupEventDelegation(delegate);
+    const writer = delegate.writable.getWriter();
+    setupEventDelegation(writer);
 
     // Consume the delegate stream
     (async () => {
