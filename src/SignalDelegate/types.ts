@@ -9,14 +9,20 @@ export interface SignalUpdateEvent {
 }
 
 /**
- * Union type for all signal events
- * Currently only signal-update, but could be extended for other event types
+ * HandlerExecuteEvent represents a request to execute a handler
  */
-export type SignalEvent = SignalUpdateEvent;
+export interface HandlerExecuteEvent {
+  kind: "handler-execute";
+  id: string; // Handler signal ID
+  event: Event; // DOM event that triggered the handler
+}
+
+/**
+ * Union type for all signal events
+ */
+export type SignalEvent = SignalUpdateEvent | HandlerExecuteEvent;
 
 /**
  * Token represents output from the SignalDelegate stream
- * For M4, we emit signal-update events as tokens
- * In later milestones, we may add other token types
  */
 export type SignalToken = SignalUpdateEvent;
