@@ -1,19 +1,5 @@
 import { StateSignal } from "./types";
-
-/**
- * Module-level counter for generating unique signal IDs
- * This counter persists across all createSignal calls
- */
-let signalIdCounter = 0;
-
-/**
- * Generates a unique ID for a source signal
- * @returns A unique signal ID (e.g., 's1', 's2', ...)
- */
-function allocateSignalId(): string {
-  signalIdCounter++;
-  return `s${signalIdCounter}`;
-}
+import { allocateSourceId } from "./idAllocation";
 
 /**
  * Creates a new state signal definition
@@ -25,7 +11,7 @@ function allocateSignalId(): string {
  */
 export function createSignal<T>(init: T): StateSignal<T> {
   return {
-    id: allocateSignalId(),
+    id: allocateSourceId(),
     kind: "state",
     init,
   };

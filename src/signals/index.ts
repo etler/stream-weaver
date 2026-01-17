@@ -1,2 +1,6 @@
 export { createSignal } from "./createSignal";
-export type { Signal, StateSignal, AnySignal } from "./types";
+export { createLogic } from "./createLogic";
+export { createComputed } from "./createComputed";
+export { createAction } from "./createAction";
+export { createHandler } from "./createHandler";
+export type { Signal, StateSignal, LogicSignal, ComputedSignal, ActionSignal, HandlerSignal, AnySignal } from "./types";
