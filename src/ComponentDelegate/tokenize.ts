@@ -2,7 +2,7 @@ import { Fragment } from "@/jsx/Fragment";
 import { ComponentElement, Element } from "@/jsx/types/Element";
 import { Node } from "@/jsx/types/Node";
 import { OpenTagToken, Token, TokenOrExecutable, NodeExecutable } from "./types/Token";
-import { WeaverRegistry } from "@/registry";
+import { WeaverRegistry } from "@/registry/WeaverRegistry";
 import {
   isSignal,
   isEventHandlerProp,

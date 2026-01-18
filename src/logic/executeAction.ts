@@ -1,4 +1,4 @@
-import { WeaverRegistry } from "@/registry";
+import { WeaverRegistry } from "@/registry/WeaverRegistry";
 import { loadLogic } from "./loadLogic";
 import { createWritableSignalInterface } from "./signalInterfaces";
 

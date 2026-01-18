@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createSignal, createLogic, createComputed } from "@/signals";
-import { WeaverRegistry } from "@/registry";
+import { WeaverRegistry } from "@/registry/WeaverRegistry";
 import { SignalDelegate } from "@/SignalDelegate";
 import { executeComputed } from "@/logic";
 

@@ -1,7 +1,7 @@
 import { ComponentDelegate } from "@/ComponentDelegate/ComponentDelegate";
 import { ComponentSerializer } from "@/ComponentHtmlSerializer/ComponentSerializer";
 import { Element } from "@/jsx/types/Element";
-import { WeaverRegistry } from "@/registry";
+import { WeaverRegistry } from "@/registry/WeaverRegistry";
 
 export interface StreamWeaverOptions {
   root: Element | Promise<Element>;

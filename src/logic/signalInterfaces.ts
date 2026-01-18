@@ -1,4 +1,4 @@
-import { WeaverRegistry } from "@/registry";
+import { WeaverRegistry } from "@/registry/WeaverRegistry";
 
 /**
  * Signal interface that provides .value access to the registry

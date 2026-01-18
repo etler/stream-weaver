@@ -1,5 +1,5 @@
 import { DelegateStream } from "delegate-stream";
-import { WeaverRegistry } from "@/registry";
+import { WeaverRegistry } from "@/registry/WeaverRegistry";
 import { SignalEvent, SignalToken } from "./types";
 import { executeComputed, executeNode } from "@/logic";
 import { executeHandler } from "@/logic/executeHandler";

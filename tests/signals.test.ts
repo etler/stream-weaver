@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createSignal, createLogic, createComputed, createAction, createHandler } from "@/signals";
-import { WeaverRegistry } from "@/registry";
+import { WeaverRegistry } from "@/registry/WeaverRegistry";
 import { loadLogic, createWritableSignalInterface, executeComputed, executeAction, executeHandler } from "@/logic";
 
 describe("Milestone 1: Signal System Foundation", () => {

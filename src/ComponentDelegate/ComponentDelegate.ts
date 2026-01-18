@@ -3,7 +3,7 @@ import { tokenize } from "@/ComponentDelegate/tokenize";
 import { Token, NodeExecutable } from "@/ComponentDelegate/types/Token";
 import { DelegateStream } from "delegate-stream";
 import { Node } from "@/jsx/types/Node";
-import { WeaverRegistry } from "@/registry";
+import { WeaverRegistry } from "@/registry/WeaverRegistry";
 import { ComponentElement } from "@/jsx/types/Element";
 import { loadSSRModule } from "@/ssr";
 
