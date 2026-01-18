@@ -5,6 +5,7 @@ import { DelegateStream } from "delegate-stream";
 import { Node } from "@/jsx/types/Node";
 import { WeaverRegistry } from "@/registry";
 import { ComponentElement } from "@/jsx/types/Element";
+import { loadSSRModule } from "@/ssr";
 
 export class ComponentDelegate extends DelegateStream<Node, Token> {
   constructor(registry?: WeaverRegistry) {
@@ -67,12 +68,14 @@ function executeNodeSignal(
     const { node, logic } = executable;
 
     // Load the component module
+    // Use src (absolute path) - the SSR module loader will convert to Vite-friendly format
     const moduleSrc = logic.src;
 
-    let module;
+    let module: unknown;
     try {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      module = await import(/* @vite-ignore */ moduleSrc);
+      // Use the SSR module loader (e.g., Vite's ssrLoadModule)
+      // Falls back to direct import if no loader is configured
+      module = await loadSSRModule(moduleSrc);
     } catch {
       // Module loading failed (common during SSR with URL paths)
       // Close the writer and return - client will hydrate the component
@@ -82,8 +85,10 @@ function executeNodeSignal(
     }
 
     // Get the component function (default export)
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-    const componentFn: (props: Record<string, unknown>) => Node | Promise<Node> = module.default;
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+    const componentFn = (module as { default: unknown }).default as
+      | ((props: Record<string, unknown>) => Node | Promise<Node>)
+      | undefined;
 
     if (typeof componentFn !== "function") {
       console.warn(`Component module ${moduleSrc} does not have a default export function`);

@@ -87,6 +87,11 @@ export class ClientWeaver {
     for (const nodeId of this.pendingNodeSignals) {
       // Check if this NodeSignal has a bind point in the DOM
       if (this.sink.hasBindPoint(nodeId)) {
+        // Skip if content was already rendered by SSR
+        // This is a key optimization: don't reload component modules for SSR-rendered content
+        if (this.sink.hasContent(nodeId)) {
+          continue;
+        }
         // Execute the NodeSignal and render it
         this.executeAndRenderNode(nodeId);
       }

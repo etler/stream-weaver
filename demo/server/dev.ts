@@ -2,7 +2,7 @@
  * Development server for Stream Weaver demo
  * Handles SSR, client bundle serving, and hot module reloading
  */
-import { createServer as createViteServer } from "vite";
+import { createServer as createViteServer, ViteDevServer } from "vite";
 import { createServer } from "http";
 import * as path from "path";
 import { fileURLToPath } from "url";
@@ -47,27 +47,27 @@ async function startDevServer() {
           const module = (await vite.ssrLoadModule("./src/pages/Counter.tsx")) as {
             Counter: () => JSX.Element;
           };
-          html = await renderExample("Counter", module.Counter);
+          html = await renderExample("Counter", module.Counter, vite);
         } else if (url === "/computed") {
           const module = (await vite.ssrLoadModule("./src/pages/Computed.tsx")) as {
             ComputedExample: () => JSX.Element;
           };
-          html = await renderExample("Computed Signals", module.ComputedExample);
+          html = await renderExample("Computed Signals", module.ComputedExample, vite);
         } else if (url === "/async") {
           const module = (await vite.ssrLoadModule("./src/pages/AsyncComponents.tsx")) as {
             AsyncComponentsExample: () => Promise<JSX.Element>;
           };
-          html = await renderExample("Async Components", module.AsyncComponentsExample);
+          html = await renderExample("Async Components", module.AsyncComponentsExample, vite);
         } else if (url === "/shared-state") {
           const module = (await vite.ssrLoadModule("./src/pages/SharedState.tsx")) as {
             SharedStateExample: () => JSX.Element;
           };
-          html = await renderExample("Shared State", module.SharedStateExample);
+          html = await renderExample("Shared State", module.SharedStateExample, vite);
         } else if (url === "/dynamic-state") {
           const module = (await vite.ssrLoadModule("./src/pages/DynamicState.tsx")) as {
             DynamicStateExample: () => JSX.Element;
           };
-          html = await renderExample("Dynamic State", module.DynamicStateExample);
+          html = await renderExample("Dynamic State", module.DynamicStateExample, vite);
         } else {
           res.writeHead(404, { "Content-Type": "text/plain" });
           res.end("Not Found");
@@ -107,9 +107,31 @@ async function startDevServer() {
 async function renderExample(
   title: string,
   Component: () => JSX.Element | Promise<JSX.Element>,
+  vite: ViteDevServer,
 ): Promise<string> {
   // Dynamic imports for SSR (using relative path for root execution)
-  const { StreamWeaver, WeaverRegistry } = await import("../../src/index.js");
+  const { StreamWeaver, WeaverRegistry, setSSRModuleLoader, clearSSRModuleLoader } = await import(
+    "../../src/index.js"
+  );
+
+  // Configure SSR module loader to use Vite's ssrLoadModule
+  // Convert absolute paths to Vite-friendly project-relative paths
+  setSSRModuleLoader(async (src: string) => {
+    let vitePath = src;
+
+    // Convert absolute filesystem paths to project-relative paths
+    if (src.startsWith("/")) {
+      // Make it relative to demo root for Vite
+      if (src.startsWith(demoRoot)) {
+        vitePath = "./" + src.slice(demoRoot.length + 1);
+      } else {
+        // For paths outside demo root, use absolute path
+        vitePath = src;
+      }
+    }
+
+    return await vite.ssrLoadModule(vitePath);
+  });
 
   const registry = new WeaverRegistry();
   const root = await Component();
@@ -121,6 +143,9 @@ async function renderExample(
     chunks.push(chunk as string);
   }
   const body = chunks.join("");
+
+  // Clear the SSR module loader after rendering
+  clearSSRModuleLoader();
 
   return `<!DOCTYPE html>
 <html lang="en">

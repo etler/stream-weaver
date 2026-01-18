@@ -45,5 +45,9 @@ export type {
 // Signal interfaces for logic modules
 export type { SignalInterface, WritableSignalInterface } from "./logic/signalInterfaces";
 
+// SSR utilities
+export { setSSRModuleLoader, clearSSRModuleLoader } from "./ssr";
+export type { ModuleLoader } from "./ssr";
+
 // Polyfills (side-effect import)
 import "./polyfills/readableStreamFrom";

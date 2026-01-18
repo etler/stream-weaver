@@ -27,7 +27,8 @@ export interface StateSignal<T = unknown> extends Signal {
  *               Used for compile-time type checking of dependencies
  */
 export interface LogicSignal<F extends LogicFunction = LogicFunction> extends Signal {
-  src: string; // Module URL for runtime import
+  src: string; // Client-side module path (absolute, for /@fs/ loading)
+  ssrSrc?: string; // SSR module path (relative, for Node.js import)
   kind: "logic";
   /** @internal Phantom property for compile-time function signature tracking - never set at runtime */
   readonly _functionType?: F;

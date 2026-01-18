@@ -108,8 +108,9 @@ export function transformCode(
         const nodeWithPos = firstArg as unknown as NodeWithPosition;
 
         // Replace import("...") with a LogicSignal object literal
-        // Use resolved path so client can import correctly regardless of where loadLogic executes
-        const replacement = `{id:"${logicId}",kind:"logic",src:"${resolved}"}`;
+        // src: resolved absolute path for client-side loading via /@fs/
+        // ssrSrc: original relative path for SSR loading via Vite
+        const replacement = `{id:"${logicId}",kind:"logic",src:"${resolved}",ssrSrc:"${importPath}"}`;
         ms.overwrite(nodeWithPos.start, nodeWithPos.end, replacement);
       }
     },
@@ -248,8 +249,9 @@ export function transformCodeWithFallback(
 
           // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
           const nodeWithPos = firstArg as unknown as NodeWithPosition;
-          // Use resolved path so client can import correctly regardless of where loadLogic executes
-          const replacement = `{id:"${logicId}",kind:"logic",src:"${resolved}"}`;
+          // src: resolved absolute path for client-side loading via /@fs/
+          // ssrSrc: original relative path for SSR loading via Vite
+          const replacement = `{id:"${logicId}",kind:"logic",src:"${resolved}",ssrSrc:"${importPath}"}`;
           ms.overwrite(nodeWithPos.start, nodeWithPos.end, replacement);
         }
       }

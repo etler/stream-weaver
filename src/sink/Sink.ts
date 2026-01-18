@@ -77,6 +77,31 @@ export class Sink {
   }
 
   /**
+   * Check if a signal's bind point already has content (SSR-rendered)
+   * Returns true if the Range between markers contains non-whitespace content
+   */
+  public hasContent(id: string): boolean {
+    const points = this.bindPoints.get(id);
+    if (!points) {
+      return false;
+    }
+
+    for (const point of points) {
+      if (point.type === "content") {
+        // Check if the range has any non-whitespace content
+        const contents = point.range.cloneContents();
+        const text = contents.textContent ?? "";
+        // Also check for elements (not just text)
+        if (text.trim() !== "" || contents.childElementCount > 0) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  /**
    * Scan for bind markers (<!--^id--> ... <!--/id-->)
    */
   private scanForBindMarkers(root: Node): void {
