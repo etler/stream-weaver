@@ -342,5 +342,6 @@ The chain can simply focus on delegating the plan and the plan can be developed 
 * Sam Thorogood, ["Async Generators for User Input"](https://samthor.au/2020/async-generators-input/), April 2020 Blog.<br/>
   Retrieved July 18, 2025 from https://samthor.au/2020/async-generators-input/
   * An implementation of an async event generator with an unresolved tail promise and an internal queue while researching prior art to check if the pattern had been implemented prior. While this pattern uses unresolved tail promises generated after enqueuing, it does not implement an iterator chain of iterators.
-* Mark Gibson [deno_jsx_stream](https://github.com/jollytoad/deno_jsx_stream), 2023 Github.<br/>
+* Mark Gibson ["JSX Streaming"](https://jollytoad.deno.dev/blog/jsx_streaming), July 2023 Blog.<br/>
+  Retrieved January 17, 2026 from https://jollytoad.deno.dev/blog/jsx_streaming/
   * An implementation of async functional components using generator functions

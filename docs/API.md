@@ -2585,3 +2585,4 @@ The following areas are intentionally deferred for later iterations:
 - **Worker Pool Parallelism**: Distributed ComponentDelegates to pre-warmed worker pool
 - **UIntArray Optimization**: Optimized stream serialization representation
 - **SharedArrayBuffer**: Worker pool memory optimization
+- **Server Only Logic**: Provide a way to flag logic that must be run on the server and send signals to the server for remote execution instead
