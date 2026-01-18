@@ -1,10 +1,8 @@
 /**
  * Handler logic for toggling a boolean value
  */
-interface SignalInterface {
-  value: boolean;
-}
+import type { WritableSignalInterface } from "stream-weaver";
 
-export default function toggle(_event: Event, value: SignalInterface): void {
+export default function toggle(_event: Event, value: WritableSignalInterface<boolean>): void {
   value.value = !value.value;
 }

@@ -12,12 +12,12 @@
  */
 import { createSignal, createHandler, createLogic, createComputed, createComponent } from "stream-weaver";
 
-// Logic for toggling state and visual display
-const toggleLogic = createLogic("/src/logic/toggle.ts");
-const checkmarkLogic = createLogic("/src/logic/checkmark.ts");
+// Logic for toggling state and visual display (type-safe with import())
+const toggleLogic = createLogic(import("../logic/toggle"));
+const checkmarkLogic = createLogic(import("../logic/checkmark"));
 
 // ComponentSignal for the ConditionalFeature component
-const ConditionalFeatureLogic = createLogic("/src/components/ConditionalFeature.tsx");
+const ConditionalFeatureLogic = createLogic(import("../components/ConditionalFeature"));
 const ConditionalFeature = createComponent(ConditionalFeatureLogic);
 
 // Sample data - each item will get its own independent state

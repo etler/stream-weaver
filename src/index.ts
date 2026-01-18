@@ -28,7 +28,15 @@ export type {
   ComponentSignal,
   NodeSignal,
   AnySignal,
+  LogicFunction,
+  ExtractLogicFunction,
+  SignalValueType,
+  SignalsToReadOnlyInterfaces,
+  SignalsToWritableInterfaces,
 } from "./signals";
+
+// Signal interfaces for logic modules
+export type { SignalInterface, WritableSignalInterface } from "./logic/signalInterfaces";
 
 // Polyfills (side-effect import)
 import "./polyfills/readableStreamFrom";

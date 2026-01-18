@@ -8,11 +8,11 @@ export function Counter(): JSX.Element {
   // Create a state signal for the count
   const count = createSignal(0);
 
-  // Create logic signals for the handlers
-  const incrementLogic = createLogic("/src/logic/increment.ts");
-  const decrementLogic = createLogic("/src/logic/decrement.ts");
+  // Create logic signals for the handlers (type-safe with import())
+  const incrementLogic = createLogic(import("../logic/increment"));
+  const decrementLogic = createLogic(import("../logic/decrement"));
 
-  // Create handlers for increment/decrement
+  // Create handlers for increment/decrement (TypeScript validates deps match function signature)
   const increment = createHandler(incrementLogic, [count]);
   const decrement = createHandler(decrementLogic, [count]);
 

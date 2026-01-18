@@ -1,10 +1,8 @@
 /**
  * Handler logic for clearing the cart
  */
-interface SignalInterface {
-  value: number;
-}
+import type { WritableSignalInterface } from "stream-weaver";
 
-export default function clearCart(_event: Event, cartCount: SignalInterface): void {
+export default function clearCart(_event: Event, cartCount: WritableSignalInterface<number>): void {
   cartCount.value = 0;
 }

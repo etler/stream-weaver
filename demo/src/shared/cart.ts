@@ -16,10 +16,10 @@ import { createSignal, createHandler, createLogic } from "stream-weaver";
 // In React, this would require Context, Redux, Zustand, etc.
 export const cartCount = createSignal(0);
 
-// Create logic signals for handlers
-const addToCartLogic = createLogic("/src/logic/addToCart.ts");
-const clearCartLogic = createLogic("/src/logic/clearCart.ts");
+// Create logic signals for handlers (type-safe with import())
+const addToCartLogic = createLogic(import("../logic/addToCart"));
+const clearCartLogic = createLogic(import("../logic/clearCart"));
 
-// Create handlers that operate on the shared state
+// Create handlers that operate on the shared state (TypeScript validates deps match function signature)
 export const addToCart = createHandler(addToCartLogic, [cartCount]);
 export const clearCart = createHandler(clearCartLogic, [cartCount]);

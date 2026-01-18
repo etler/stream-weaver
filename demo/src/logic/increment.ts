@@ -1,10 +1,8 @@
 /**
  * Handler logic for incrementing a counter
  */
-interface SignalInterface {
-  value: number;
-}
+import type { WritableSignalInterface } from "stream-weaver";
 
-export default function increment(_event: Event, count: SignalInterface): void {
+export default function increment(_event: Event, count: WritableSignalInterface<number>): void {
   count.value = count.value + 1;
 }

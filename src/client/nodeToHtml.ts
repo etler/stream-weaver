@@ -23,7 +23,6 @@ function registerSignalWithDependencies(signal: AnySignal, registry: WeaverRegis
 
   // For handlers, also register the logic signal if it's a reference
   if (signal.kind === "handler" && "logicRef" in signal) {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
     const logicSignal = (signal as { logicRef?: AnySignal }).logicRef;
     if (logicSignal !== undefined && !registry.getSignal(logicSignal.id)) {
       registry.registerSignal(logicSignal);

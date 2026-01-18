@@ -16,3 +16,12 @@ export type {
   NodeSignal,
   AnySignal,
 } from "./types";
+export type {
+  LogicFunction,
+  ExtractLogicFunction,
+  SignalValueType,
+  SignalsToReadOnlyInterfaces,
+  SignalsToWritableInterfaces,
+  DropFirst,
+  First,
+} from "./logicTypes";

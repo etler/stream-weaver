@@ -1,10 +1,8 @@
 /**
  * Computed logic for doubling a value
  */
-interface SignalInterface {
-  value: number;
-}
+import type { SignalInterface } from "stream-weaver";
 
-export default function double(count: SignalInterface): number {
+export default function double(count: SignalInterface<number>): number {
   return count.value * 2;
 }
