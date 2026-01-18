@@ -24,4 +24,9 @@ export type {
   SignalsToWritableInterfaces,
   DropFirst,
   First,
+  Mutable,
+  IsTypedLogic,
+  ValidateHandlerDeps,
+  ValidateComputedDeps,
+  ValidateActionDeps,
 } from "./logicTypes";

@@ -1,5 +1,5 @@
 import { ActionSignal, LogicSignal, AnySignal } from "./types";
-import { SignalsToWritableInterfaces } from "./logicTypes";
+import { LogicFunction, ValidateActionDeps } from "./logicTypes";
 import { allocateDerivedId } from "./idAllocation";
 
 /**
@@ -25,15 +25,11 @@ import { allocateDerivedId } from "./idAllocation";
  * const action = createAction(legacyLogic, [count]);  // No type checking
  */
 
-// Overload 1: Typed logic with dependency validation
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function createAction<F extends (...args: any[]) => void, Deps extends readonly AnySignal[]>(
+// Single signature with validation - const Deps ensures tuple inference
+export function createAction<F extends LogicFunction, const Deps extends readonly AnySignal[]>(
   logic: LogicSignal<F>,
-  deps: Deps & (SignalsToWritableInterfaces<Deps> extends Parameters<F> ? Deps : never),
+  deps: ValidateActionDeps<F, Deps>,
 ): ActionSignal;
-
-// Overload 2: Untyped logic (backwards compatible)
-export function createAction(logic: LogicSignal, deps: AnySignal[]): ActionSignal;
 
 // Implementation
 export function createAction(logic: LogicSignal, deps: AnySignal[]): ActionSignal {

@@ -33,6 +33,13 @@ export type {
   SignalValueType,
   SignalsToReadOnlyInterfaces,
   SignalsToWritableInterfaces,
+  DropFirst,
+  First,
+  Mutable,
+  IsTypedLogic,
+  ValidateHandlerDeps,
+  ValidateComputedDeps,
+  ValidateActionDeps,
 } from "./signals";
 
 // Signal interfaces for logic modules

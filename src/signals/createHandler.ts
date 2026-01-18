@@ -1,5 +1,5 @@
 import { HandlerSignal, LogicSignal, AnySignal } from "./types";
-import { SignalsToWritableInterfaces, DropFirst } from "./logicTypes";
+import { LogicFunction, ValidateHandlerDeps, First } from "./logicTypes";
 import { allocateDerivedId } from "./idAllocation";
 
 /**
@@ -28,19 +28,15 @@ import { allocateDerivedId } from "./idAllocation";
  * const handler = createHandler(legacyLogic, [count]);  // HandlerSignal<Event>
  */
 
-// Overload 1: Typed logic with event type and dependency validation
-export function createHandler<
-  TEvent extends Event,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  F extends (event: TEvent, ...args: any[]) => void,
-  Deps extends readonly AnySignal[],
->(
-  logic: LogicSignal<F>,
-  deps: Deps & (SignalsToWritableInterfaces<Deps> extends DropFirst<Parameters<F>> ? Deps : never),
-): HandlerSignal<TEvent>;
+// Extract event type from handler function, defaulting to Event
+type ExtractEventType<F extends LogicFunction> = First<Parameters<F>> extends Event ? First<Parameters<F>> : Event;
 
-// Overload 2: Untyped logic (backwards compatible)
-export function createHandler(logic: LogicSignal, deps: AnySignal[]): HandlerSignal;
+// Single signature with validation - no fallback overload
+// Use [...Deps] to encourage tuple inference instead of array inference
+export function createHandler<F extends LogicFunction, const Deps extends readonly AnySignal[]>(
+  logic: LogicSignal<F>,
+  deps: ValidateHandlerDeps<F, Deps>,
+): HandlerSignal<ExtractEventType<F>>;
 
 // Implementation
 export function createHandler(logic: LogicSignal, deps: AnySignal[]): HandlerSignal {

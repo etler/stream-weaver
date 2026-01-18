@@ -1,5 +1,5 @@
 import { ComputedSignal, LogicSignal, AnySignal } from "./types";
-import { SignalsToReadOnlyInterfaces } from "./logicTypes";
+import { LogicFunction, ValidateComputedDeps } from "./logicTypes";
 import { allocateDerivedId } from "./idAllocation";
 
 /**
@@ -26,16 +26,12 @@ import { allocateDerivedId } from "./idAllocation";
  * const result = createComputed(legacyLogic, [count]);  // ComputedSignal<unknown>
  */
 
-// Overload 1: Typed logic with dependency validation
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function createComputed<F extends (...args: any[]) => any, Deps extends readonly AnySignal[]>(
+// Single signature with validation - const Deps ensures tuple inference
+export function createComputed<F extends LogicFunction, const Deps extends readonly AnySignal[]>(
   logic: LogicSignal<F>,
-  deps: Deps & (SignalsToReadOnlyInterfaces<Deps> extends Parameters<F> ? Deps : never),
+  deps: ValidateComputedDeps<F, Deps>,
   init?: ReturnType<F>,
 ): ComputedSignal<ReturnType<F>>;
-
-// Overload 2: Untyped logic (backwards compatible)
-export function createComputed(logic: LogicSignal, deps: AnySignal[], init?: unknown): ComputedSignal;
 
 // Implementation
 export function createComputed(logic: LogicSignal, deps: AnySignal[], init?: unknown): ComputedSignal {

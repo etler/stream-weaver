@@ -79,3 +79,60 @@ export type DropFirst<T extends readonly any[]> = T extends [unknown, ...infer R
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type First<T extends readonly any[]> = T extends [infer F, ...unknown[]] ? F : never;
+
+/**
+ * Removes readonly modifier from a tuple/array type
+ * This is necessary because mapped types preserve readonly, but function parameters are mutable
+ *
+ * @example
+ * type T = Mutable<readonly [number, string]>;
+ * // = [number, string]
+ */
+export type Mutable<T> = { -readonly [K in keyof T]: T[K] };
+
+/**
+ * Checks if F is a specific typed function or the generic LogicFunction
+ * Used to determine if dependency validation should be applied
+ *
+ * We detect if F has typed parameters by checking if its parameter types
+ * are more specific than `any[]`. Since `any` is bi-directionally assignable,
+ * we use a tuple check: typed functions have tuple parameters, untyped have `any[]`.
+ */
+export type IsTypedLogic<F extends LogicFunction> =
+  // Check if Parameters<F> is a tuple (has specific length) vs any[]
+  // any[] has length `number`, tuples have specific numeric literal lengths
+  number extends Parameters<F>["length"] ? false : true;
+
+/**
+ * Validates handler dependencies against function parameters
+ * Returns Deps if valid, or a descriptive error type if invalid
+ *
+ * For untyped logic (LogicFunction), always returns Deps (no validation)
+ * For typed logic, validates that signal types match function parameters
+ */
+export type ValidateHandlerDeps<F extends LogicFunction, Deps extends readonly AnySignal[]> =
+  IsTypedLogic<F> extends true
+    ? Mutable<SignalsToWritableInterfaces<Deps>> extends DropFirst<Parameters<F>>
+      ? Deps
+      : "Error: Signal types don't match handler function parameters"
+    : Deps;
+
+/**
+ * Validates computed dependencies against function parameters
+ */
+export type ValidateComputedDeps<F extends LogicFunction, Deps extends readonly AnySignal[]> =
+  IsTypedLogic<F> extends true
+    ? Mutable<SignalsToReadOnlyInterfaces<Deps>> extends Parameters<F>
+      ? Deps
+      : "Error: Signal types don't match computed function parameters"
+    : Deps;
+
+/**
+ * Validates action dependencies against function parameters
+ */
+export type ValidateActionDeps<F extends LogicFunction, Deps extends readonly AnySignal[]> =
+  IsTypedLogic<F> extends true
+    ? Mutable<SignalsToWritableInterfaces<Deps>> extends Parameters<F>
+      ? Deps
+      : "Error: Signal types don't match action function parameters"
+    : Deps;
