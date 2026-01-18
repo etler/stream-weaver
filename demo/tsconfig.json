@@ -1,23 +1,27 @@
 {
   "compilerOptions": {
-    "baseUrl": "./",
-    "target": "ES2020",
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable", "DOM.AsyncIterable"],
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "esModuleInterop": true,
-    "isolatedModules": true,
     "strict": true,
+    "esModuleInterop": true,
     "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
-    "jsxImportSource": "../src/jsx",
+    "jsxImportSource": "stream-weaver",
+    "baseUrl": ".",
     "paths": {
+      "stream-weaver": ["../src/index.ts"],
+      "stream-weaver/jsx-runtime": ["../src/jsx/jsx-runtime.ts"],
+      "stream-weaver/jsx-dev-runtime": ["../src/jsx/jsx-dev-runtime.ts"],
+      "stream-weaver/client": ["../src/client/ClientWeaver.ts"],
+      "stream-weaver/polyfills": ["../src/polyfills/readableStreamFrom.ts"],
       "@/*": ["../src/*"]
     }
   },
-  "include": [
-    "**/*.ts",
-    "**/*.tsx",
-    "../src/**/*.ts"
-  ]
+  "include": ["src/**/*", "server/**/*", "*.ts"],
+  "exclude": ["node_modules", "dist"]
 }

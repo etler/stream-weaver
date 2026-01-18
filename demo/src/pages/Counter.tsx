@@ -2,18 +2,15 @@
  * Example 1: Simple Counter
  * Demonstrates basic state signals and event handlers
  */
-import { createSignal, createHandler, createLogic } from "../../src/signals";
-import type { WeaverRegistry } from "../../src/registry/WeaverRegistry";
+import { createSignal, createHandler, createLogic } from "stream-weaver";
 
-// Define the component
 export function Counter(): JSX.Element {
   // Create a state signal for the count
   const count = createSignal(0);
 
   // Create logic signals for the handlers
-  // Use absolute paths from the demo root so Vite can resolve them correctly
-  const incrementLogic = createLogic("/logic/increment.js");
-  const decrementLogic = createLogic("/logic/decrement.js");
+  const incrementLogic = createLogic("/src/logic/increment.ts");
+  const decrementLogic = createLogic("/src/logic/decrement.ts");
 
   // Create handlers for increment/decrement
   const increment = createHandler(incrementLogic, [count]);
@@ -35,23 +32,4 @@ export function Counter(): JSX.Element {
       </div>
     </div>
   );
-}
-
-/**
- * Setup function to pre-register signals with the registry
- * This ensures LogicSignals are available before rendering
- */
-export function setupCounter(registry: WeaverRegistry): void {
-  const count = createSignal(0);
-  const incrementLogic = createLogic("./logic/increment.js");
-  const decrementLogic = createLogic("./logic/decrement.js");
-  const increment = createHandler(incrementLogic, [count]);
-  const decrement = createHandler(decrementLogic, [count]);
-
-  registry.registerSignal(count);
-  registry.registerSignal(incrementLogic);
-  registry.registerSignal(decrementLogic);
-  registry.registerSignal(increment);
-  registry.registerSignal(decrement);
-  registry.setValue(count.id, 0);
 }

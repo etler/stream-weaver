@@ -14,5 +14,6 @@ export function createSignal<T>(init: T): StateSignal<T> {
     id: allocateSourceId(),
     kind: "state",
     init,
+    value: init, // On server, value equals init
   };
 }

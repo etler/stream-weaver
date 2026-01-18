@@ -10,15 +10,14 @@
  * Stream Weaver: Signals are identified by ID, not call order!
  * Create them in loops, conditionals, wherever you need them.
  */
-import { createSignal, createHandler, createLogic, createComputed, createComponent } from "../../src/signals";
+import { createSignal, createHandler, createLogic, createComputed, createComponent } from "stream-weaver";
 
 // Logic for toggling state and visual display
-const toggleLogic = createLogic("/logic/toggle.js");
-const checkmarkLogic = createLogic("/logic/checkmark.js");
+const toggleLogic = createLogic("/src/logic/toggle.ts");
+const checkmarkLogic = createLogic("/src/logic/checkmark.ts");
 
 // ComponentSignal for the ConditionalFeature component
-// This component will re-render when the 'enabled' prop signal changes
-const ConditionalFeatureLogic = createLogic("/components/ConditionalFeature.js");
+const ConditionalFeatureLogic = createLogic("/src/components/ConditionalFeature.tsx");
 const ConditionalFeature = createComponent(ConditionalFeatureLogic);
 
 // Sample data - each item will get its own independent state
@@ -40,7 +39,6 @@ const todoItems = [
  */
 function createTodoItem(item: { id: string; text: string; priority: string }): JSX.Element {
   // State created in a loop! Each item has its own independent completed state.
-  // The signal ID is derived from the item ID, making it stable and unique.
   const completed = createSignal(false);
   const toggleCompleted = createHandler(toggleLogic, [completed]);
 
@@ -80,7 +78,6 @@ function createTodoItem(item: { id: string; text: string; priority: string }): J
  */
 export function DynamicStateExample(): JSX.Element {
   // State to toggle the conditional feature
-  // When this signal changes, the ConditionalFeature component will re-render
   const advancedEnabled = createSignal(true);
   const toggleAdvanced = createHandler(toggleLogic, [advancedEnabled]);
 
@@ -101,11 +98,7 @@ export function DynamicStateExample(): JSX.Element {
             'Rendered fewer hooks than expected'
           </p>
         </div>
-        {/* Each item gets its own state created in the loop! */}
-        <div>
-          {/* eslint-disable-next-line @typescript-eslint/no-unsafe-return */}
-          {todoItems.map((item) => createTodoItem(item))}
-        </div>
+        <div>{todoItems.map((item) => createTodoItem(item))}</div>
       </section>
 
       {/* Conditional State Section */}
@@ -129,8 +122,7 @@ export function DynamicStateExample(): JSX.Element {
             <span>Currently: {advancedEnabled}</span>
           </label>
         </div>
-        {/* Component with conditional state creation inside */}
-        {/* Using ComponentSignal - component will re-render when advancedEnabled changes */}
+        {/* @ts-expect-error ComponentSignal is valid JSX in stream-weaver */}
         <ConditionalFeature enabled={advancedEnabled} />
       </section>
     </div>

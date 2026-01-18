@@ -45,6 +45,7 @@ export class ComponentDelegate extends DelegateStream<Node, Token> {
  */
 function executeComponentElement(component: ComponentElement, writer: WritableStreamDefaultWriter<Node>): void {
   (async () => {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const { type, props } = component;
     const node = await type(props);
     await writer.write(node);

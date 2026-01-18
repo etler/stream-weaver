@@ -2,15 +2,15 @@
  * Example 2: Computed Signals
  * Demonstrates reactive computed values that update automatically
  */
-import { createSignal, createHandler, createComputed, createLogic } from "../../src/signals";
+import { createSignal, createHandler, createComputed, createLogic } from "stream-weaver";
 
 // Create a state signal for the count
 const count = createSignal(0);
 
-// Create logic signals - use absolute paths from demo root so Vite can resolve them
-const doubleLogic = createLogic("/logic/double.js");
-const incrementLogic = createLogic("/logic/increment.js");
-const decrementLogic = createLogic("/logic/decrement.js");
+// Create logic signals
+const doubleLogic = createLogic("/src/logic/double.ts");
+const incrementLogic = createLogic("/src/logic/increment.ts");
+const decrementLogic = createLogic("/src/logic/decrement.ts");
 
 // Create a computed signal that doubles the count
 // Initial value of 0 for SSR (since 0 * 2 = 0)
@@ -20,7 +20,6 @@ const doubled = createComputed(doubleLogic, [count], 0);
 const increment = createHandler(incrementLogic, [count]);
 const decrement = createHandler(decrementLogic, [count]);
 
-// Define the component
 export function ComputedExample(): JSX.Element {
   return (
     <div style="max-width: 400px; margin: 2rem auto; padding: 2rem; border: 1px solid #ddd; border-radius: 8px;">

@@ -40,11 +40,8 @@ async function fetchRecentActivity(): Promise<{ id: number; action: string; time
 
 /**
  * Async component that fetches user stats
- * Note: This is a nested async component - no special handling needed!
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function UserStats({ userId }: { userId: number }): Promise<JSX.Element> {
-  // Just await inline - Stream Weaver handles the streaming
+async function UserStats(_props: { userId: number }): Promise<JSX.Element> {
   const stats = await fetchStats();
 
   return (
@@ -66,27 +63,24 @@ async function UserStats({ userId }: { userId: number }): Promise<JSX.Element> {
 }
 
 /**
- * Another async component for recent activity
+ * Async component for recent activity
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function RecentActivity({ userId }: { userId: number }): Promise<JSX.Element> {
+async function RecentActivity(_props: { userId: number }): Promise<JSX.Element> {
   const activities = await fetchRecentActivity();
 
   return (
     <div style="margin-top: 1.5rem;">
       <h3 style="margin: 0 0 1rem 0; color: #333;">Recent Activity</h3>
       <ul style="list-style: none; padding: 0; margin: 0;">
-        {activities.map((activity) => {
-          return (
-            <li
-              key={String(activity.id)}
-              style="padding: 0.75rem; border-bottom: 1px solid #eee; display: flex; justify-content: space-between;"
-            >
-              <span>{activity.action}</span>
-              <span style="color: #999; font-size: 0.9rem;">{activity.time}</span>
-            </li>
-          );
-        })}
+        {activities.map((activity) => (
+          <li
+            key={String(activity.id)}
+            style="padding: 0.75rem; border-bottom: 1px solid #eee; display: flex; justify-content: space-between;"
+          >
+            <span>{activity.action}</span>
+            <span style="color: #999; font-size: 0.9rem;">{activity.time}</span>
+          </li>
+        ))}
       </ul>
     </div>
   );
@@ -94,12 +88,8 @@ async function RecentActivity({ userId }: { userId: number }): Promise<JSX.Eleme
 
 /**
  * Main async component - fetches user data and renders nested async components
- *
- * Look ma, no Suspense! No loading states! No useEffect!
- * Just async/await like you always wanted.
  */
 async function UserDashboard({ userId }: { userId: number }): Promise<JSX.Element> {
-  // Fetch user data inline - the HTML streams as this resolves
   const user = await fetchUser(userId);
 
   return (
@@ -143,7 +133,6 @@ export async function AsyncComponentsExample(): Promise<JSX.Element> {
         </ul>
       </div>
 
-      {/* The main async component - just await it! */}
       {await UserDashboard({ userId: 1 })}
     </div>
   );

@@ -7,17 +7,38 @@
   "main": "./dist/index.cjs",
   "types": "./dist/index.d.cts",
   "exports": {
-    "require": {
-      "types": "./dist/index.d.cts",
-      "default": "./dist/index.cjs"
+    ".": {
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      },
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
     },
-    "import": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
+    "./jsx-runtime": {
+      "types": "./dist/jsx/jsx-runtime.d.ts",
+      "default": "./dist/jsx/jsx-runtime.js"
+    },
+    "./jsx-dev-runtime": {
+      "types": "./dist/jsx/jsx-dev-runtime.d.ts",
+      "default": "./dist/jsx/jsx-dev-runtime.js"
+    },
+    "./client": {
+      "types": "./dist/client/ClientWeaver.d.ts",
+      "default": "./dist/client/ClientWeaver.js"
+    },
+    "./polyfills": {
+      "types": "./dist/polyfills/readableStreamFrom.d.ts",
+      "default": "./dist/polyfills/readableStreamFrom.js"
     }
   },
   "files": [
     "dist"
+  ],
+  "workspaces": [
+    "demo"
   ],
   "scripts": {
     "prepublishOnly": "npm run clean && npm run build && npm run lint && npm run test",
@@ -25,7 +46,7 @@
     "clean": "rm -rf dist/",
     "build": "pkgroll",
     "dev": "pkgroll -w",
-    "demo": "tsx demo/dev.ts",
+    "demo": "tsx demo/server/dev.ts",
     "lint": "npx eslint",
     "test": "tsc -p tests && vitest run --config tests/vitest.config.mts",
     "fix": "npx eslint --fix",

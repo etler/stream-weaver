@@ -10,7 +10,7 @@ describe("Milestone 1: Signal System Foundation", () => {
       expect(count.id).toBe("s1");
       expect(count.kind).toBe("state");
       expect(count.init).toBe(0);
-      expect(count).not.toHaveProperty("value"); // No .value on definitions
+      expect(count.value).toBe(0); // .value equals init for SSR
     });
 
     it("multiple signals have unique IDs", () => {

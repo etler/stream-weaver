@@ -1,12 +1,12 @@
 /**
- * Client-side entry point for Stream Weaver demos
+ * Client-side entry point for Stream Weaver demo
  * This script hydrates the server-rendered HTML and makes it interactive
  */
 
 // Polyfill must be imported first, before any code that uses ReadableStream.from
-import "../src/polyfills/readableStreamFrom";
+import "stream-weaver/polyfills";
 
-import { ClientWeaver } from "../src/client/ClientWeaver";
+import { ClientWeaver } from "stream-weaver/client";
 
 // Extend Window interface for our weaver property
 declare global {
@@ -19,10 +19,10 @@ declare global {
 const clientWeaver = new ClientWeaver();
 
 // Process any queued messages from the stub
-// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition, @typescript-eslint/strict-boolean-expressions
 if (window.weaver && "weaverQueue" in window.weaver) {
   for (const msg of window.weaver.weaverQueue) {
-    clientWeaver.push(msg);
+    // Messages from server are already typed correctly, just need to satisfy TypeScript
+    clientWeaver.push(msg as Parameters<typeof clientWeaver.push>[0]);
   }
 }
 

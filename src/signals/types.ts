@@ -13,6 +13,7 @@ export interface Signal {
  */
 export interface StateSignal<T = unknown> extends Signal {
   init: T; // Initial value
+  value: T; // Current value (on server, same as init; on client, from registry)
   kind: "state";
 }
 

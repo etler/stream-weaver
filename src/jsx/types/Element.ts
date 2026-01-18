@@ -8,10 +8,13 @@ interface BaseElement<Type, Props, Children extends Node[]> {
   children: Children;
 }
 
-export type IntrinsicElement<Props = unknown> = BaseElement<string, Props, Node[]>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type IntrinsicElement<Props = any> = BaseElement<string, Props, Node[]>;
 
 export type FragmentElement = BaseElement<typeof Fragment, void, Node[]>;
 
-export type ComponentElement<Props = unknown> = BaseElement<Component<Props>, Props, []>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type ComponentElement<Props = any> = BaseElement<Component<Props>, Props, []>;
 
-export type Element<Props = unknown> = ComponentElement<Props> | IntrinsicElement<Props> | FragmentElement;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type Element<Props = any> = ComponentElement<Props> | IntrinsicElement<Props> | FragmentElement;

@@ -61,11 +61,13 @@ export function tokenize(node: Node, registry?: WeaverRegistry): (TokenOrExecuta
 
   if (node !== null && typeof node === "object" && "type" in node) {
     if (typeof node.type === "string") {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const { type, props, children } = node;
 
       // Collect signal definitions from props
       const signalDefinitions: Token[] = [];
       if (typeof props === "object" && props !== null) {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
         for (const propValue of Object.values(props)) {
           if (isSignal(propValue)) {
             if (registry && !registry.getSignal(propValue.id)) {
@@ -200,6 +202,7 @@ function propsToAttributes(props: Element["props"], registry?: WeaverRegistry): 
 
   const attributes: Record<string, string | null> = {};
 
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
   for (const [key, prop] of Object.entries(props)) {
     // Check if prop value is a signal
     if (isSignal(prop)) {

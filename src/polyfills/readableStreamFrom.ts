@@ -4,21 +4,14 @@
  * Firefox supports it natively
  */
 
-// Extend ReadableStream interface to include the from method
-declare global {
-  interface ReadableStreamConstructor {
-    from<T>(iterable: Iterable<T> | AsyncIterable<T>): ReadableStream<T>;
-  }
-  // eslint-disable-next-line no-var
-  var ReadableStream: ReadableStreamConstructor & {
-    prototype: ReadableStream;
-    new <R = unknown>(underlyingSource?: UnderlyingSource<R>, strategy?: QueuingStrategy<R>): ReadableStream<R>;
-  };
-}
-
-// Only add polyfill if ReadableStream.from doesn't exist
-if (typeof ReadableStream !== "undefined" && ReadableStream.from === undefined) {
-  ReadableStream.from = function <T>(iterable: Iterable<T> | AsyncIterable<T>): ReadableStream<T> {
+// Check if polyfill is needed and add it
+if (
+  typeof ReadableStream !== "undefined" &&
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-type-assertion
+  (ReadableStream as any).from === undefined
+) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-type-assertion
+  (ReadableStream as any).from = function <T>(iterable: Iterable<T> | AsyncIterable<T>): ReadableStream<T> {
     // Check if it's an async iterable
     const isAsyncIterable = (obj: Iterable<T> | AsyncIterable<T>): obj is AsyncIterable<T> => {
       return Symbol.asyncIterator in obj;

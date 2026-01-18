@@ -10,14 +10,10 @@
  * Stream Weaver: Signals are just objects - create them anywhere!
  * Import them in any component, no providers needed.
  */
-
-// Import shared state from a separate module
-// This is the "impossible" part - state defined outside any component!
-import { cartCount, addToCart, clearCart } from "./shared-cart-state";
+import { cartCount, addToCart, clearCart } from "../shared/cart";
 
 /**
  * A product card component that uses the shared cart state
- * Multiple instances all share the same cart count
  */
 function ProductCard({ name, price, image }: { name: string; price: string; image: string }): JSX.Element {
   return (
@@ -37,7 +33,6 @@ function ProductCard({ name, price, image }: { name: string; price: string; imag
 
 /**
  * A header component that displays the cart count
- * It imports the same shared state - no prop drilling needed!
  */
 function Header(): JSX.Element {
   return (
@@ -62,7 +57,7 @@ function Header(): JSX.Element {
 }
 
 /**
- * A floating cart indicator - yet another component using the same shared state
+ * A floating cart indicator
  */
 function FloatingCartBadge(): JSX.Element {
   return (
@@ -88,7 +83,7 @@ export function SharedStateExample(): JSX.Element {
       <div style="background: #e8f5e9; padding: 1rem; border-radius: 8px; margin-bottom: 2rem;">
         <strong>What makes this special:</strong>
         <ul style="margin: 0.5rem 0 0 0; padding-left: 1.5rem;">
-          <li>cartCount is created in shared-cart-state.ts (outside any component)</li>
+          <li>cartCount is created in shared/cart.ts (outside any component)</li>
           <li>Header, ProductCard, and FloatingCartBadge all import and use it</li>
           <li>No Context.Provider wrapping the app</li>
           <li>No useContext() hooks or store subscriptions</li>
@@ -96,10 +91,8 @@ export function SharedStateExample(): JSX.Element {
         </ul>
       </div>
 
-      {/* Header uses shared state */}
       <Header />
 
-      {/* Product grid - each card uses the shared addToCart handler */}
       <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem;">
         <ProductCard
           name="Wireless Headphones"
@@ -111,7 +104,6 @@ export function SharedStateExample(): JSX.Element {
         <ProductCard name="USB-C Hub" price="$39.99" image="linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)" />
       </div>
 
-      {/* Floating badge also uses shared state */}
       <FloatingCartBadge />
     </div>
   );

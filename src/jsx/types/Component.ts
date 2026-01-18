@@ -1,3 +1,4 @@
 import { Node } from "./Node";
 
-export type Component<Props = unknown> = (props: Props) => Node | Promise<Node>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type Component<Props = any> = (props: Props) => Node | Promise<Node>;

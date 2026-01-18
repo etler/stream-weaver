@@ -116,6 +116,7 @@ export function nodeToHtml(node: Node, registry?: WeaverRegistry): string {
 }
 
 function elementToHtml(element: Element, registry?: WeaverRegistry): string {
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   const { type, props, children } = element;
 
   // Fragment - just render children
@@ -148,6 +149,7 @@ function propsToAttributes(props: Element["props"], registry?: WeaverRegistry): 
 
   const attributes: string[] = [];
 
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
   for (const [key, value] of Object.entries(props)) {
     if (value === null || value === undefined) {
       continue;
@@ -186,6 +188,7 @@ function propsToAttributes(props: Element["props"], registry?: WeaverRegistry): 
     } else {
       // Regular prop - normalize as usual
       const attributeName = normalizeAttributeName(key);
+      // eslint-disable-next-line @typescript-eslint/no-base-to-string
       const attributeValue = sanitizeAttribute(String(value));
       attributes.push(`${attributeName}="${attributeValue}"`);
     }

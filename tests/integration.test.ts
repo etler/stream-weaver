@@ -44,7 +44,7 @@ describe("Milestone 9: Full Stack Integration", () => {
     // Manually push signal definitions (normally from inline scripts)
     clientWeaver.push({
       kind: "signal-definition",
-      signal: { id: "s1", kind: "state", init: 5 },
+      signal: { id: "s1", kind: "state", init: 5, value: 5 },
     });
     clientWeaver.push({
       kind: "signal-definition",
@@ -81,7 +81,7 @@ describe("Milestone 9: Full Stack Integration", () => {
     const clientWeaver = new ClientWeaver();
     clientWeaver.push({
       kind: "signal-definition",
-      signal: { id: "s1", kind: "state", init: 5 },
+      signal: { id: "s1", kind: "state", init: 5, value: 5 },
     });
 
     expect(clientWeaver.registry.getSignal("s1")).toBeDefined();
