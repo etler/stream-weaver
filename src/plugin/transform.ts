@@ -108,9 +108,8 @@ export function transformCode(
         const nodeWithPos = firstArg as unknown as NodeWithPosition;
 
         // Replace import("...") with a LogicSignal object literal
-        // Note: src will be the import path, which will be resolved at runtime
-        // The manifest will map IDs to final URLs after bundling
-        const replacement = `{id:"${logicId}",kind:"logic",src:"${importPath}"}`;
+        // Use resolved path so client can import correctly regardless of where loadLogic executes
+        const replacement = `{id:"${logicId}",kind:"logic",src:"${resolved}"}`;
         ms.overwrite(nodeWithPos.start, nodeWithPos.end, replacement);
       }
     },
@@ -249,7 +248,8 @@ export function transformCodeWithFallback(
 
           // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
           const nodeWithPos = firstArg as unknown as NodeWithPosition;
-          const replacement = `{id:"${logicId}",kind:"logic",src:"${importPath}"}`;
+          // Use resolved path so client can import correctly regardless of where loadLogic executes
+          const replacement = `{id:"${logicId}",kind:"logic",src:"${resolved}"}`;
           ms.overwrite(nodeWithPos.start, nodeWithPos.end, replacement);
         }
       }

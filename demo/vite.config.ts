@@ -1,8 +1,10 @@
 import { defineConfig } from "vite";
 import path from "path";
+import { weaverPlugin } from "../src/plugin";
 
 export default defineConfig({
   root: path.resolve(__dirname),
+  plugins: [weaverPlugin()],
   esbuild: {
     jsx: "automatic",
     jsxImportSource: "stream-weaver",
@@ -37,5 +39,9 @@ export default defineConfig({
   },
   server: {
     port: 3000,
+    fs: {
+      // Allow serving files from the entire project (needed for logic module loading)
+      allow: [path.resolve(__dirname, "..")],
+    },
   },
 });

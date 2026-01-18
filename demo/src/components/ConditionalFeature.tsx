@@ -23,8 +23,11 @@ export default function ConditionalFeature({ enabled }: Props): JSX.Element {
 
   // State created conditionally! Only exists when enabled is true.
   const advancedValue = createSignal(42);
-  const incrementAdvanced = createHandler(createLogic("/src/logic/increment.ts"), [advancedValue]);
-  const decrementAdvanced = createHandler(createLogic("/src/logic/decrement.ts"), [advancedValue]);
+  // Use import() syntax for type-safe logic that goes through the plugin transform
+  const incrementLogic = createLogic(import("../logic/increment"));
+  const decrementLogic = createLogic(import("../logic/decrement"));
+  const incrementAdvanced = createHandler(incrementLogic, [advancedValue]);
+  const decrementAdvanced = createHandler(decrementLogic, [advancedValue]);
 
   return (
     <div style="padding: 1rem; background: #e3f2fd; border-radius: 8px;">

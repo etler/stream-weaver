@@ -1,9 +1,15 @@
 import type { Plugin } from "vite";
 import type { SourceMapInput } from "rollup";
 import * as path from "path";
+import * as fs from "fs";
 import { transformCode, transformCodeWithFallback } from "./transform";
 import { generateFileHash } from "./hash";
 import type { WeaverPluginOptions, LogicManifest, PluginState } from "./types";
+
+/**
+ * Extensions to try when resolving imports without extensions
+ */
+const EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".mts"];
 
 /**
  * Create the Stream Weaver Vite/Rollup plugin
@@ -59,12 +65,28 @@ export function weaverPlugin(options: WeaverPluginOptions = {}): Plugin {
         return null;
       }
 
-      // Resolve import paths to absolute paths
+      // Resolve import paths to absolute paths with extension
       const resolvePath = (importPath: string, importer: string): string | null => {
         // Handle relative imports
         if (importPath.startsWith(".")) {
           const dir = path.dirname(importer);
-          return path.resolve(dir, importPath);
+          const basePath = path.resolve(dir, importPath);
+
+          // If path already has an extension, use it directly
+          if (path.extname(basePath)) {
+            return basePath;
+          }
+
+          // Try common extensions
+          for (const ext of EXTENSIONS) {
+            const fullPath = basePath + ext;
+            if (fs.existsSync(fullPath)) {
+              return fullPath;
+            }
+          }
+
+          // Fallback to path without extension
+          return basePath;
         }
 
         // Handle absolute and package imports
@@ -180,10 +202,27 @@ export function weaverPluginWithFallback(options: WeaverPluginOptions = {}): Plu
         return null;
       }
 
+      // Resolve import paths to absolute paths with extension
       const resolvePath = (importPath: string, importer: string): string | null => {
         if (importPath.startsWith(".")) {
           const dir = path.dirname(importer);
-          return path.resolve(dir, importPath);
+          const basePath = path.resolve(dir, importPath);
+
+          // If path already has an extension, use it directly
+          if (path.extname(basePath)) {
+            return basePath;
+          }
+
+          // Try common extensions
+          for (const ext of EXTENSIONS) {
+            const fullPath = basePath + ext;
+            if (fs.existsSync(fullPath)) {
+              return fullPath;
+            }
+          }
+
+          // Fallback to path without extension
+          return basePath;
         }
         return importPath;
       };

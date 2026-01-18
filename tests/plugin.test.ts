@@ -41,7 +41,8 @@ describe("Milestone 10: Build Plugin for Logic Transformation", () => {
 
       expect(result.code).toContain('id:"logic_');
       expect(result.code).toContain('kind:"logic"');
-      expect(result.code).toContain('src:"./double"');
+      // src contains resolved absolute path for correct client-side resolution
+      expect(result.code).toContain('src:"/project/src/double"');
       expect(result.code).not.toContain("import(");
       expect(result.logicModules.length).toBe(1);
     });

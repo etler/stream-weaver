@@ -15,8 +15,16 @@ interface LogicModule {
  * @returns Promise that resolves to the logic function
  */
 export async function loadLogic(logicSignal: LogicSignal): Promise<(...args: unknown[]) => unknown> {
+  let { src } = logicSignal;
+
+  // In development, Vite serves files outside the root via /@fs/ prefix
+  // Absolute paths need this prefix for client-side dynamic imports
+  if (src.startsWith("/") && !src.startsWith("/@")) {
+    src = `/@fs${src}`;
+  }
+
   // Type assertion is necessary for dynamic import
   // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-  const module = (await import(/* @vite-ignore */ logicSignal.src)) as LogicModule;
+  const module = (await import(/* @vite-ignore */ src)) as LogicModule;
   return module.default;
 }
