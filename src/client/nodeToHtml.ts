@@ -3,13 +3,12 @@ import type { Element } from "@/jsx/types/Element";
 import type { AnySignal } from "@/signals/types";
 import type { WeaverRegistry } from "@/registry/WeaverRegistry";
 import { Fragment } from "@/jsx/Fragment";
-
-/**
- * Check if a value is a signal (has id and kind properties)
- */
-function isSignal(value: unknown): value is AnySignal {
-  return typeof value === "object" && value !== null && "id" in value && "kind" in value;
-}
+import {
+  isSignal,
+  isEventHandlerProp,
+  eventPropToDataAttribute,
+  propToDataAttribute,
+} from "@/ComponentDelegate/signalDetection";
 
 /**
  * Register a signal and any nested signals it references
@@ -37,31 +36,6 @@ function registerSignalWithDependencies(signal: AnySignal, registry: WeaverRegis
       registry.registerSignal(logicSignal);
     }
   }
-}
-
-/**
- * Check if a prop name is an event handler (onClick, onInput, etc.)
- */
-function isEventHandlerProp(key: string): boolean {
-  if (!key.startsWith("on") || key.length <= 2) {
-    return false;
-  }
-  const [, , thirdChar] = key;
-  return thirdChar !== undefined && thirdChar === thirdChar.toUpperCase();
-}
-
-/**
- * Convert event prop name to data attribute (onClick -> data-w-onclick)
- */
-function eventPropToDataAttribute(key: string): string {
-  return `data-w-${key.toLowerCase()}`;
-}
-
-/**
- * Convert prop name to data attribute for bindings (className -> data-w-classname)
- */
-function propToDataAttribute(key: string): string {
-  return `data-w-${key.toLowerCase()}`;
 }
 
 /**
