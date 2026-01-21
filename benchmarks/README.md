@@ -52,6 +52,40 @@ npm run bench -- --only=react
 npm run bench -- --warmup --runs=100 --only=stream-weaver
 ```
 
+## Bun Runtime Support
+
+You can run benchmarks using the Bun runtime instead of Node.js for comparison.
+
+### Install Bun
+
+```bash
+# macOS/Linux
+curl -fsSL https://bun.sh/install | bash
+
+# Windows (via npm)
+npm install -g bun
+```
+
+### Run benchmarks with Bun
+
+```bash
+npm run bench:bun                    # Run all benchmarks with Bun
+npm run bench:bun -- --warmup        # With warmup phase
+npm run bench:bun -- --only=react    # Single framework
+```
+
+### Run individual servers with Bun
+
+```bash
+npm run server:bun:stream-weaver  # http://localhost:3001
+npm run server:bun:react          # http://localhost:3002
+npm run server:bun:solid          # http://localhost:3003
+npm run server:bun:qwik           # http://localhost:3004
+npm run server:bun:vue            # http://localhost:3005
+```
+
+Results are saved to `benchmark-results-bun.json` when using Bun runtime.
+
 ## Running Individual Servers
 
 You can run servers individually for manual testing:

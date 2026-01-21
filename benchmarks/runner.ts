@@ -4,10 +4,12 @@
  * Runs benchmarks against all framework servers and collects TTFB and full render metrics.
  *
  * Usage:
- *   npm run bench                    # Run benchmarks (default 50 iterations)
+ *   npm run bench                    # Run benchmarks with Node.js/tsx (default 50 iterations)
  *   npm run bench -- --warmup        # Include warmup phase
  *   npm run bench -- --runs=100      # Custom iteration count
  *   npm run bench -- --only=react    # Benchmark specific framework
+ *   npm run bench:bun                # Run benchmarks with Bun runtime
+ *   npm run bench:bun -- --warmup    # Bun with warmup phase
  */
 
 import { spawn, type ChildProcess } from "node:child_process";
@@ -17,10 +19,13 @@ import { SERVERS, type BenchmarkResult, type BenchmarkStats } from "./shared/typ
 const DEFAULT_RUNS = 50;
 const WARMUP_RUNS = 10;
 
+type Runtime = "node" | "bun";
+
 interface BenchmarkOptions {
   runs: number;
   warmup: boolean;
   only?: string;
+  runtime: Runtime;
 }
 
 function parseArgs(): BenchmarkOptions {
@@ -28,6 +33,7 @@ function parseArgs(): BenchmarkOptions {
   const options: BenchmarkOptions = {
     runs: DEFAULT_RUNS,
     warmup: false,
+    runtime: "node",
   };
 
   for (const arg of args) {
@@ -39,6 +45,8 @@ function parseArgs(): BenchmarkOptions {
     } else if (arg.startsWith("--only=")) {
       const [, value] = arg.split("=");
       options.only = value;
+    } else if (arg === "--runtime=bun") {
+      options.runtime = "bun";
     }
   }
 
@@ -64,8 +72,17 @@ async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function startServer(command: string): Promise<ChildProcess> {
-  const child = spawn("npm", ["run", command], {
+function getServerCommand(baseCommand: string, runtime: Runtime): string {
+  if (runtime === "bun") {
+    // Convert "server:react" to "server:bun:react"
+    return baseCommand.replace("server:", "server:bun:");
+  }
+  return baseCommand;
+}
+
+async function startServer(command: string, runtime: Runtime): Promise<ChildProcess> {
+  const serverCommand = getServerCommand(command, runtime);
+  const child = spawn("npm", ["run", serverCommand], {
     cwd: process.cwd(),
     stdio: ["ignore", "pipe", "pipe"],
     detached: false,
@@ -151,6 +168,7 @@ async function main(): Promise<void> {
   console.log("=".repeat(60));
   console.log("SSR STREAMING BENCHMARK");
   console.log("=".repeat(60));
+  console.log(`Runtime: ${options.runtime === "bun" ? "Bun" : "Node.js (tsx)"}`);
   console.log(`Runs per framework: ${options.runs}`);
   console.log(`Warmup: ${options.warmup ? "enabled" : "disabled"}`);
   console.log(`Frameworks: ${servers.map((server) => server.name).join(", ")}`);
@@ -161,7 +179,7 @@ async function main(): Promise<void> {
   for (const server of servers) {
     console.log(`\n[${server.name}] Starting server on port ${server.port}...`);
 
-    const child = await startServer(server.command);
+    const child = await startServer(server.command, options.runtime);
 
     // Wait for server to be ready
     const ready = await waitForServer(server.port);
@@ -193,9 +211,10 @@ async function main(): Promise<void> {
   }
 
   // Export results as JSON
-  const jsonPath = "benchmark-results.json";
+  const jsonPath = options.runtime === "bun" ? "benchmark-results-bun.json" : "benchmark-results.json";
   const jsonOutput = {
     timestamp: new Date().toISOString(),
+    runtime: options.runtime === "bun" ? "bun" : "node",
     options: {
       runs: options.runs,
       warmup: options.warmup,

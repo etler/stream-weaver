@@ -6,11 +6,18 @@
   "scripts": {
     "bench": "tsx runner.ts",
     "bench:warmup": "tsx runner.ts --warmup",
+    "bench:bun": "bun runner.ts --runtime=bun",
+    "bench:bun:warmup": "bun runner.ts --runtime=bun --warmup",
     "server:stream-weaver": "tsx servers/stream-weaver.ts",
     "server:react": "tsx servers/react.tsx",
     "server:solid": "tsx servers/solid.ts",
     "server:qwik": "tsx servers/qwik.ts",
-    "server:vue": "tsx servers/vue.ts"
+    "server:vue": "tsx servers/vue.ts",
+    "server:bun:stream-weaver": "bun servers/stream-weaver.ts",
+    "server:bun:react": "bun servers/react.tsx",
+    "server:bun:solid": "bun servers/solid.ts",
+    "server:bun:qwik": "bun servers/qwik.ts",
+    "server:bun:vue": "bun servers/vue.ts"
   },
   "dependencies": {
     "@vue/server-renderer": "^3.5.13",
@@ -20,6 +27,7 @@
     "vue": "^3.5.13"
   },
   "devDependencies": {
+    "@types/bun": "^1.3.6",
     "@types/node": "^24.0.6",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
