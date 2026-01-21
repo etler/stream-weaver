@@ -2581,8 +2581,7 @@ The following areas are intentionally deferred for later iterations:
 - **Bind Point Cleanup**: Memory optimization for removing bind points and signal chains when DOM nodes are removed (MutationObserver-based GC)
 - **Error Handling**: Standardized error boundaries and recovery strategies for action/computed failures
 - **Race Condition Handling**: Cancellation and priority strategies for concurrent async actions
-- **Worker Pool Parallelism**: Distributed ComponentDelegates to pre-warmed worker pool
-- **SharedArrayBuffer**: Worker pool memory optimization
+- **Worker Pool Logic Signals**: Allow logic signals to spawn work on a worker pool
 - **Async Logic**: Allow logic to take async functions and return the results via promise
 - **Deferred Logic**: Provide a way to defer logic so it is removed from the stream, executed, then added back to the start of the stream when it is complete
 - **Server Only Logic**: Provide a way to flag logic that must be run on the server and send signals to the server for remote execution instead
