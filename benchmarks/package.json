@@ -1,0 +1,29 @@
+{
+  "name": "stream-weaver-benchmarks",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "bench": "tsx runner.ts",
+    "bench:warmup": "tsx runner.ts --warmup",
+    "server:stream-weaver": "tsx servers/stream-weaver.ts",
+    "server:react": "tsx servers/react.tsx",
+    "server:solid": "tsx servers/solid.ts",
+    "server:qwik": "tsx servers/qwik.ts",
+    "server:vue": "tsx servers/vue.ts"
+  },
+  "dependencies": {
+    "@vue/server-renderer": "^3.5.13",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "solid-js": "^1.9.5",
+    "vue": "^3.5.13"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.6",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "tsx": "^4.21.0",
+    "typescript": "~5.7.3"
+  }
+}
