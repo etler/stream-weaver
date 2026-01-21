@@ -2587,7 +2587,7 @@ The following areas are intentionally deferred for later iterations:
 - **Deferred Logic**: Provide a way to defer logic so it is removed from the stream, executed, then added back to the start of the stream when it is complete
 - **Server Only Logic**: Provide a way to flag logic that must be run on the server and send signals to the server for remote execution instead
 - **Suspense Component**: Utilize deferred logic to allow for deferred suspense components that show a loading component until completed
-- **Serializable JSON Signals**: Add type support for JSON types to signals
+- **Serializable JSON Signal Types**: Add type strictness for state signal inits to be JSON only
 - **Stream Signals**: Add a signal type that supports putting a stream in the value
 - **Native Sink**: A sink adapter for native apps
 - **Embedded Weavers**: Support for putting weavers in weavers as bind points
