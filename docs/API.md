@@ -2574,7 +2574,383 @@ This pattern enables:
 
 All with surgical DOM updates and zero hydration cost.
 
-## 11. Future Work
+## 11. Advanced Logic
+
+This section covers advanced logic execution features that extend the core signal system with async handling, deferred execution, server-side execution, suspense boundaries, and stream processing.
+
+### 11.1 Async Logic
+
+Logic functions can be asynchronous. When a logic function returns a Promise, the framework automatically awaits the result before storing it in the registry.
+
+**Behavior**:
+- Logic execution is awaited when the return value is a Promise
+- The `executeLogic` function handles both cases uniformly
+- Async computeds resolve before their value is available
+- Async actions/handlers complete before signal updates propagate
+
+**Type Definition**:
+```typescript
+// Logic functions can return T or Promise<T>
+type LogicFunction<T = unknown> = (...args: SignalInterface[]) => T | Promise<T>;
+```
+
+**Example**:
+```typescript
+// computed/fetchUser.ts
+export default async (userId: ReadOnly<StateSignal<string>>) => {
+  const response = await fetch(`/api/users/${userId.value}`);
+  return response.json();
+};
+
+// Usage
+const user = createComputed(import("./fetchUser"), [userId]);
+// user.value will be the resolved JSON object
+```
+
+### 11.2 Deferred Logic
+
+Deferred logic allows long-running operations to execute without blocking the stream. When logic is marked as deferred, the stream continues processing other events while the deferred operation completes in the background.
+
+**Problem Solved**:
+The DelegateStream enforces sequential ordering for determinism. When a slow operation executes, it blocks all downstream updates—even unrelated ones. Deferred logic opts out of this blocking behavior when the developer knows ordering doesn't matter.
+
+**API**:
+```typescript
+interface LogicSignal<F> extends Signal {
+  src: string;
+  ssrSrc?: string;
+  deferred?: boolean;  // When true, execution doesn't block the stream
+  kind: 'logic';
+}
+
+// Creating deferred logic
+const fetchLogic = createLogic(import("./slowFetch"), { deferred: true });
+```
+
+**PENDING Sentinel**:
+While deferred logic is executing, the signal's value is set to a special `PENDING` symbol:
+
+```typescript
+// Exported constant
+export const PENDING: unique symbol;
+
+// Type helper
+type MaybePending<T> = T | typeof PENDING;
+```
+
+**Note**: If a ComputedSignal has an `init` value specified, that value is used instead of `PENDING` during deferred execution. This allows developers to provide meaningful placeholder data rather than checking for `PENDING`.
+
+**Execution Flow**:
+
+Without deferred:
+1. Execute logic
+2. Await result (stream blocked)
+3. Emit signal-update
+4. Stream continues
+
+With deferred:
+1. Set signal value to `PENDING`
+2. Start execution (don't await)
+3. Stream continues immediately
+4. When execution completes, push signal-update to stream
+
+**Example**:
+```typescript
+// Any signal using deferred logic inherits the behavior
+const slowLogic = createLogic(import("./heavyComputation"), { deferred: true });
+const result = createComputed(slowLogic, [inputData]);
+
+// In a component, check for pending state
+function MyComponent({ data }) {
+  if (data.value === PENDING) {
+    return <div>Loading...</div>;
+  }
+  return <div>{data.value.name}</div>;
+}
+```
+
+### 11.3 Serverside Logic
+
+Serverside logic is code that must only execute on the server—for database access, secrets, or operations that cannot run in the browser. When triggered on the client, the framework automatically sends a request to the server for execution.
+
+**Key Insight**: Most applications don't need full server-side components—just server-side data resolvers. A single `createServerLogic` computed can fetch data from a database, and that data flows into regular client-side components. This keeps components simple and client-rendered while securely fetching data from the server.
+
+**Serialization Requirement**: Serverside logic **must return serializable values** (JSON-compatible types). The return value is sent over the wire from server to client, so it cannot contain functions, symbols, circular references, or other non-serializable data. This is enforced at compile time via TypeScript.
+
+**API**:
+```typescript
+// JSON-compatible types (enforced at compile time)
+type JsonPrimitive = string | number | boolean | null;
+type JsonObject = { [Key in string]: JsonValue };
+type JsonArray = JsonValue[] | readonly JsonValue[];
+type JsonValue = JsonPrimitive | JsonObject | JsonArray;
+
+// Alias for clarity in our API
+type Serializable = JsonValue;
+
+type ServerLogicFunction = (...args: SignalInterface[]) => Serializable | Promise<Serializable>;
+
+// Create server logic (enforces serializable return type)
+function createServerLogic<F extends ServerLogicFunction>(
+  module: Promise<{ default: F }>,
+  options?: { deferred?: boolean }
+): LogicSignal<F>;
+```
+
+**Signal Definition**:
+```typescript
+interface LogicSignal<F> extends Signal {
+  src: string;
+  ssrSrc?: string;
+  deferred?: boolean;
+  context?: 'server' | 'client';  // Execution environment restriction
+  kind: 'logic';
+}
+```
+
+**Client-Side Behavior**:
+When `executeLogic` encounters a serverside logic signal on the client:
+1. Don't load the module (it doesn't exist in the client bundle)
+2. Serialize the full signal dependency chain
+3. POST to `/weaver/execute` endpoint
+4. Server rebuilds the dependency graph and executes
+5. Apply returned signal update to registry
+
+**Wire Format**:
+```typescript
+// Request
+POST /weaver/execute
+{
+  signalId: "c1",  // The signal being executed
+  chain: {
+    signals: {     // Signal definitions in dependency chain
+      "s1": { id: "s1", kind: "state", init: "" },
+      "c2": { id: "c2", kind: "computed", logic: "logic_format", deps: ["s1"] },
+      "logic_fetch": { id: "logic_fetch", kind: "logic", src: "...", context: "server" }
+    },
+    values: {      // Current state signal values
+      "s1": "user123"
+    }
+  }
+}
+
+// Response (single update)
+{ id: "c1", value: { name: "Alice", email: "alice@example.com" } }
+```
+
+**Chain Serialization Optimization**:
+When building the dependency chain, the framework can optimize by checking if intermediate computed values are serializable. If a computed's current value is serializable, send the value directly instead of its definition—this prunes the graph and reduces server-side re-execution.
+
+**Example**:
+```typescript
+// serverLogic/fetchUserFromDB.ts (never shipped to client)
+import { db } from '../db';
+
+export default async (userId: ReadOnly<StateSignal<string>>) => {
+  const user = await db.users.findById(userId.value);
+  return { name: user.name, email: user.email };  // Serializable
+};
+
+// Usage
+const dbLogic = createServerLogic(import("./serverLogic/fetchUserFromDB"));
+const userData = createComputed(dbLogic, [userId]);
+// On client: triggers server request
+// On server: executes directly
+```
+
+### 11.4 Suspense
+
+Suspense is a built-in component that shows fallback content while deferred children are pending. It's implemented using existing primitives—no special framework magic required.
+
+**How It Works**:
+Suspense is a regular component that:
+1. Receives a child signal and fallback content as props
+2. Checks if the child's value is `PENDING`
+3. Returns fallback if pending, otherwise returns the child's resolved value
+4. Re-renders automatically when the child signal updates (standard reactivity)
+
+**Implementation**:
+```typescript
+// Built-in Suspense component logic
+export default function Suspense({
+  child,
+  fallback
+}: {
+  child: MaybePending<Node>,
+  fallback: Node
+}) {
+  if (child.value === PENDING) {
+    return fallback;
+  }
+  return child.value;
+}
+```
+
+**Usage**:
+```tsx
+const slowLogic = createLogic(import("./SlowComponent"), { deferred: true });
+const SlowComponent = createComponent(slowLogic);
+const slowNode = createNode(SlowComponent, { userId });
+
+// Suspense wraps the potentially-pending node
+<Suspense child={slowNode} fallback={<Loading />} />
+```
+
+**Flow**:
+1. `slowNode`'s logic is deferred, so its value starts as `PENDING`
+2. Suspense sees `PENDING`, renders `<Loading />`
+3. Stream continues (deferred doesn't block)
+4. `slowNode`'s logic completes, value updates
+5. Suspense depends on `slowNode`, so it re-executes
+6. Suspense now sees resolved value, returns actual content
+7. DOM updates via standard signal propagation
+
+### 11.5 Client Logic
+
+Client logic is code that must only execute in the browser—for accessing browser APIs, localStorage, device features, or libraries that don't work in Node. During SSR, client logic returns `PENDING` (or an `init` value) and the actual execution happens after the client boots.
+
+**Difference from Deferred**:
+- Deferred: Executes on server asynchronously, result streamed as swap script at end of HTML
+- Client: Never executes on server, client must execute after boot
+
+**API**:
+```typescript
+// Create client-only logic
+function createClientLogic<F extends LogicFunction>(
+  module: Promise<{ default: F }>,
+  options?: { deferred?: boolean }
+): LogicSignal<F>;
+```
+
+**Signal Definition**:
+```typescript
+interface LogicSignal<F> extends Signal {
+  src: string;
+  ssrSrc?: string;
+  deferred?: boolean;
+  context?: 'server' | 'client';  // Execution environment restriction
+  kind: 'logic';
+}
+```
+
+**SSR Behavior**:
+When `executeLogic` encounters a clientside logic signal on the server:
+1. Don't load or execute the module
+2. Return `PENDING` (or the signal's `init` value if specified)
+3. Emit bind point with placeholder value
+4. No swap script is emitted
+
+**Client Behavior**:
+After the client boots:
+1. Clientside logic signals are detected and queued for execution
+2. Logic modules are loaded and executed
+3. Signal updates propagate through normal reactivity
+4. DOM patches via Sink
+
+**Example**:
+```typescript
+// clientLogic/getViewport.ts (uses browser APIs)
+export default () => ({
+  width: window.innerWidth,
+  height: window.innerHeight
+});
+
+// clientLogic/getStoredPrefs.ts
+export default () => {
+  const prefs = localStorage.getItem('userPrefs');
+  return prefs ? JSON.parse(prefs) : { theme: 'light' };
+};
+
+// Usage
+const viewportLogic = createClientLogic(import("./clientLogic/getViewport"));
+const viewport = createComputed(viewportLogic, [], { init: { width: 1024, height: 768 } });
+// SSR: emits init value { width: 1024, height: 768 }
+// Client: executes and updates with actual viewport
+
+const prefsLogic = createClientLogic(import("./clientLogic/getStoredPrefs"));
+const userPrefs = createComputed(prefsLogic, []);
+// SSR: emits PENDING
+// Client: reads localStorage and updates
+```
+
+**Note**: Unlike serverside logic, client logic return values do not need to be serializable—they never travel over the wire.
+
+### 11.6 Stream Signals
+
+Stream signals provide a convenient way to reduce ECMA Web Streams (ReadableStream) into reactive signal values. As items arrive from the stream, the signal value is updated via a reducer function.
+
+**API**:
+```typescript
+interface StreamSignal<T> extends Signal {
+  kind: 'stream';
+  source: string;    // Signal ID whose value is a ReadableStream
+  reducer: string;   // LogicSignal ID for reducer function
+  init: T;           // Initial accumulator value
+}
+
+// Signature matches standard reduce: (source, reducer, init)
+function createStream<T, I>(
+  sourceSignal: Signal,           // Signal whose value is ReadableStream<T>
+  reducerLogic: LogicSignal,      // (accumulator: I, item: T) => I
+  init: I                         // Initial value
+): StreamSignal<I>;
+```
+
+**Reducer Logic**:
+The reducer is a standard LogicSignal that takes the accumulator and current item:
+```typescript
+// reducers/append.ts
+export default <T>(acc: T[], item: T) => [...acc, item];
+
+// reducers/latest.ts
+export default <T>(_acc: T, item: T) => item;
+
+// reducers/indexById.ts
+export default <T extends { id: string }>(acc: Record<string, T>, item: T) => ({
+  ...acc,
+  [item.id]: item
+});
+```
+
+**Example - WebSocket Messages**:
+```typescript
+// streams/websocket.ts - User adapts WebSocket to ReadableStream
+export default function(channel: ReadOnly<StateSignal<string>>) {
+  return new ReadableStream({
+    start(controller) {
+      const ws = new WebSocket(`/ws/${channel.value}`);
+      ws.onmessage = (e) => controller.enqueue(JSON.parse(e.data));
+      ws.onclose = () => controller.close();
+      ws.onerror = (e) => controller.error(e);
+    }
+  });
+}
+
+// Usage
+const wsLogic = createLogic(import("./streams/websocket"));
+const wsStream = createComputed(wsLogic, [channel]);  // Value is ReadableStream
+
+const appendLogic = createLogic(import("./reducers/append"));
+const messages = createStream(wsStream, appendLogic, []);
+
+// messages.value is Message[], updates as items arrive
+```
+
+**Execution Behavior**:
+Stream signals behave like repeated deferred updates:
+1. Subscribe to the ReadableStream
+2. For each item, apply reducer: `newValue = reducer(currentValue, item)`
+3. Update registry with new value
+4. Emit signal-update (triggers dependent re-renders)
+5. Repeat until stream closes
+
+**SSR Considerations**:
+For the initial implementation, stream signals are client-only:
+- SSR emits the initial value
+- Client starts the stream subscription after resumption
+- All stream updates happen client-side
+
+## 12. Future Work
 
 The following areas are intentionally deferred for later iterations:
 
@@ -2582,12 +2958,8 @@ The following areas are intentionally deferred for later iterations:
 - **Error Handling**: Standardized error boundaries and recovery strategies for action/computed failures
 - **Race Condition Handling**: Cancellation and priority strategies for concurrent async actions
 - **Worker Pool Logic Signals**: Allow logic signals to spawn work on a worker pool
-- **Async Logic**: Allow logic to take async functions and return the results via promise
-- **Deferred Logic**: Provide a way to defer logic so it is removed from the stream, executed, then added back to the start of the stream when it is complete
-- **Server Only Logic**: Provide a way to flag logic that must be run on the server and send signals to the server for remote execution instead
 - **WASM Logic Sources**: Add support for letting logic signals execute wasm
-- **Suspense Component**: Utilize deferred logic to allow for deferred suspense components that show a loading component until completed
+- **Logic Module Pre-fetching**: Create a logic module pre-fetch algorithm to lazily load logic and prioritize logic chains of handlers more likely to execute
 - **Serializable JSON Signal Types**: Add type strictness for state signal inits to be JSON only
-- **Stream Signals**: Add a signal type that supports putting a stream in the value
 - **Native Sink**: A sink adapter for native apps
 - **Embedded Weavers**: Support for putting weavers in weavers as bind points

@@ -990,6 +990,603 @@ test('manifest enables server URL resolution', async () => {
 
 ---
 
+## Milestone 11: Async Logic
+
+**Goal**: Enable logic functions to be asynchronous with proper await handling.
+
+**Implementation Tasks**:
+- Extract core logic execution into `executeLogic(registry, logicSignal, args): Promise<unknown>`
+- Refactor `executeComputed`, `executeAction`, `executeHandler`, `executeNode` to use `executeLogic`
+- Ensure logic execution awaits the result when it is a Promise
+- Update `LogicFunction` type to allow `Promise<T>` return types
+- Define `Serializable` type (JSON-compatible types) based on TypeFest's JsonValue:
+  ```typescript
+  type JsonPrimitive = string | number | boolean | null;
+  type JsonObject = { [Key in string]: JsonValue };
+  type JsonArray = JsonValue[] | readonly JsonValue[];
+  type JsonValue = JsonPrimitive | JsonObject | JsonArray;
+
+  // Alias for clarity in our API
+  type Serializable = JsonValue;
+  ```
+- Update `createSignal<T>` init type from `unknown` to `Serializable` (init is part of serialized definition)
+- Update `createComputed` init option type from `unknown` to `Serializable`
+- Export `Serializable` type for use in `createServerLogic` return type enforcement
+
+**Test Criteria**:
+```typescript
+test('async computed logic resolves before storing value', async () => {
+  // tests/fixtures/asyncDouble.ts: export default async (x) => { await delay(10); return x.value * 2; }
+  const count = createSignal(5);
+  const asyncLogic: LogicSignal = {
+    id: 'logic_asyncDouble',
+    kind: 'logic',
+    src: './tests/fixtures/asyncDouble.js'
+  };
+  const doubled = createComputed(asyncLogic, [count]);
+
+  const registry = new WeaverRegistry();
+  registry.registerSignal(count);
+  registry.registerSignal(asyncLogic);
+  registry.registerSignal(doubled);
+  registry.setValue(count.id, 5);
+
+  await executeComputed(registry, doubled.id);
+
+  // Value should be resolved, not a Promise
+  expect(registry.getValue(doubled.id)).toBe(10);
+});
+
+test('async action completes before signal updates propagate', async () => {
+  // tests/fixtures/asyncIncrement.ts: export default async (x) => { await delay(10); x.value++; }
+  const count = createSignal(0);
+  const asyncLogic: LogicSignal = {
+    id: 'logic_asyncInc',
+    kind: 'logic',
+    src: './tests/fixtures/asyncIncrement.js'
+  };
+  const increment = createAction(asyncLogic, [count]);
+
+  const registry = new WeaverRegistry();
+  registry.registerSignal(count);
+  registry.registerSignal(asyncLogic);
+  registry.registerSignal(increment);
+  registry.setValue(count.id, 0);
+
+  await executeAction(registry, increment.id);
+
+  expect(registry.getValue(count.id)).toBe(1);
+});
+
+test('createSignal init must be Serializable', () => {
+  // Valid: JSON-compatible types
+  const s1 = createSignal('hello');
+  const s2 = createSignal(42);
+  const s3 = createSignal(true);
+  const s4 = createSignal(null);
+  const s5 = createSignal({ name: 'Alice', age: 30 });
+  const s6 = createSignal([1, 2, 3]);
+  const s7 = createSignal({ nested: { array: [1, 'two', null] } });
+
+  // TypeScript should error on non-serializable types:
+  // const bad1 = createSignal(() => {}); // Function
+  // const bad2 = createSignal(undefined); // undefined
+  // const bad3 = createSignal(Symbol()); // Symbol
+  // const bad4 = createSignal(new Map()); // Map
+});
+
+test('async handler awaits completion', async () => {
+  // tests/fixtures/asyncHandler.ts: export default async (e, x) => { await delay(10); x.value = e.type; }
+  const value = createSignal('');
+  const asyncLogic: LogicSignal = {
+    id: 'logic_asyncHandler',
+    kind: 'logic',
+    src: './tests/fixtures/asyncHandler.js'
+  };
+  const handler = createHandler(asyncLogic, [value]);
+
+  const registry = new WeaverRegistry();
+  registry.registerSignal(value);
+  registry.registerSignal(asyncLogic);
+  registry.registerSignal(handler);
+
+  const mockEvent = new MouseEvent('click');
+  await executeHandler(registry, handler.id, mockEvent);
+
+  expect(registry.getValue(value.id)).toBe('click');
+});
+```
+
+**Deliverable**: All logic execution properly awaits async functions with consolidated `executeLogic` function.
+
+---
+
+## Milestone 12: Deferred and Client Logic
+
+**Goal**: Allow logic to execute without blocking the stream (deferred) or only on client (clientside), using PENDING sentinel for pending state.
+
+**Implementation Tasks**:
+- Add `deferred?: boolean` option to `createLogic`
+- Export `PENDING` symbol constant from stream-weaver
+- Modify `executeLogic` to check `logicSignal.deferred` flag
+- When deferred: set value to `PENDING` (or `init` if specified), start execution, return immediately
+- When deferred execution completes, push signal-update to main stream
+- Update SignalDelegate to handle deferred execution flow
+- Add `MaybePending<T>` type helper
+- Implement `createClientLogic` function with `context: 'client'` flag
+- When clientside on server: return `PENDING`/`init` immediately without loading module
+- On client boot: detect and execute pending clientside signals
+
+**Test Criteria**:
+```typescript
+import { PENDING } from 'stream-weaver';
+
+test('deferred logic sets PENDING immediately', async () => {
+  const count = createSignal(5);
+  const slowLogic = createLogic({ src: './tests/fixtures/slowDouble.js' }, { deferred: true });
+  const result = createComputed(slowLogic, [count]);
+
+  const registry = new WeaverRegistry();
+  registry.registerSignal(count);
+  registry.registerSignal(slowLogic);
+  registry.registerSignal(result);
+  registry.setValue(count.id, 5);
+
+  // Start execution (don't await)
+  const promise = executeComputed(registry, result.id);
+
+  // Value should be PENDING immediately
+  expect(registry.getValue(result.id)).toBe(PENDING);
+
+  // After completion, value should be resolved
+  await promise;
+  expect(registry.getValue(result.id)).toBe(10);
+});
+
+test('deferred logic does not block stream', async () => {
+  const count1 = createSignal(5);
+  const count2 = createSignal(10);
+  const slowLogic = createLogic({ src: './tests/fixtures/slowDouble.js' }, { deferred: true });
+  const fastLogic = createLogic({ src: './tests/fixtures/double.js' });
+  const slow = createComputed(slowLogic, [count1]);
+  const fast = createComputed(fastLogic, [count2]);
+
+  const registry = new WeaverRegistry();
+  registry.registerSignal(count1);
+  registry.registerSignal(count2);
+  registry.registerSignal(slowLogic);
+  registry.registerSignal(fastLogic);
+  registry.registerSignal(slow);
+  registry.registerSignal(fast);
+
+  const delegate = new SignalDelegate(registry);
+  const writer = delegate.writable.getWriter();
+
+  const updates: string[] = [];
+  (async () => {
+    for await (const token of delegate.readable) {
+      if (token.kind === 'signal-update') {
+        updates.push(token.id);
+      }
+    }
+  })();
+
+  // Trigger both updates
+  await writer.write({ kind: 'signal-update', id: count1.id, value: 5 });
+  await writer.write({ kind: 'signal-update', id: count2.id, value: 10 });
+  await writer.close();
+
+  // Fast should complete before slow (deferred doesn't block)
+  expect(updates.indexOf(fast.id)).toBeLessThan(updates.indexOf(slow.id));
+});
+
+test('PENDING is a unique symbol', () => {
+  expect(typeof PENDING).toBe('symbol');
+  expect(PENDING).not.toBe(Symbol('PENDING')); // Unique instance
+});
+
+test('createClientLogic sets context to client', () => {
+  const viewportLogic = createClientLogic(import('./getViewport'));
+
+  expect(viewportLogic.context).toBe('client');
+  expect(viewportLogic.kind).toBe('logic');
+});
+
+test('clientside logic returns PENDING on server', async () => {
+  // Mock isServer() to return true
+  const viewportLogic = createClientLogic(import('./getViewport'));
+  const viewport = createComputed(viewportLogic, []);
+
+  const registry = new WeaverRegistry();
+  registry.registerSignal(viewportLogic);
+  registry.registerSignal(viewport);
+
+  await executeComputed(registry, viewport.id);
+
+  // Should be PENDING, not executed
+  expect(registry.getValue(viewport.id)).toBe(PENDING);
+});
+
+test('clientside logic uses init value on server when provided', async () => {
+  const viewportLogic = createClientLogic(import('./getViewport'));
+  const viewport = createComputed(viewportLogic, [], { init: { width: 1024, height: 768 } });
+
+  const registry = new WeaverRegistry();
+  registry.registerSignal(viewportLogic);
+  registry.registerSignal(viewport);
+
+  await executeComputed(registry, viewport.id);
+
+  // Should use init value
+  expect(registry.getValue(viewport.id)).toEqual({ width: 1024, height: 768 });
+});
+
+test('clientside logic executes on client', async () => {
+  // Mock isServer() to return false
+  const viewportLogic = createClientLogic(import('./getViewport'));
+  const viewport = createComputed(viewportLogic, []);
+
+  const registry = new WeaverRegistry();
+  registry.registerSignal(viewportLogic);
+  registry.registerSignal(viewport);
+
+  await executeComputed(registry, viewport.id);
+
+  // Should have actual value from logic execution
+  expect(registry.getValue(viewport.id)).toEqual({
+    width: expect.any(Number),
+    height: expect.any(Number)
+  });
+});
+```
+
+**Deliverable**: Deferred and client logic execution with PENDING sentinel that handles execution timing appropriately.
+
+---
+
+## Milestone 13: Serverside Logic
+
+**Goal**: Enable logic that executes only on the server with automatic client-server communication.
+
+**Implementation Tasks**:
+- Create `createServerLogic<F>` function that enforces `Serializable` return type (using type from M11)
+- Use `context: 'server'` flag on LogicSignal (using existing `context` union type)
+- Implement `executeRemote(registry, signalId)` for client-side remote execution
+- Build signal chain serializer that walks dependency graph
+- Implement chain serialization optimization (prune at serializable values)
+- Create `/weaver/execute` server endpoint
+- Server endpoint: rebuild registry from chain, execute logic, return result
+- Modify `executeLogic` to detect `context: 'server'` and call `executeRemote` on client
+- Ensure server logic modules are excluded from client bundle (build plugin)
+
+**Test Criteria**:
+```typescript
+test('createServerLogic sets context to server', () => {
+  const dbLogic = createServerLogic(import('./serverLogic/query'));
+
+  expect(dbLogic.context).toBe('server');
+  expect(dbLogic.kind).toBe('logic');
+});
+
+test('signal chain serializer walks dependency graph', () => {
+  const userId = createSignal('user123');
+  const formatted = createComputed(formatLogic, [userId]);
+  const result = createComputed(serversideLogic, [formatted]);
+
+  const registry = new WeaverRegistry();
+  registry.registerSignal(userId);
+  registry.registerSignal(formatLogic);
+  registry.registerSignal(formatted);
+  registry.registerSignal(serversideLogic);
+  registry.registerSignal(result);
+
+  const chain = serializeSignalChain(registry, result.id);
+
+  // Chain includes all dependencies
+  expect(chain.signals).toHaveProperty(userId.id);
+  expect(chain.signals).toHaveProperty(formatted.id);
+  expect(chain.signals).toHaveProperty(formatLogic.id);
+  expect(chain.values).toHaveProperty(userId.id);
+  expect(chain.values[userId.id]).toBe('user123');
+});
+
+test('chain serialization prunes at serializable computed values', () => {
+  const a = createSignal(5);
+  const b = createComputed(doubleLogic, [a]); // Returns number (serializable)
+  const c = createComputed(serversideLogic, [b]);
+
+  const registry = new WeaverRegistry();
+  // ... register all ...
+  registry.setValue(b.id, 10); // Computed has serializable value
+
+  const chain = serializeSignalChain(registry, c.id);
+
+  // b's value is serializable, so a and doubleLogic can be pruned
+  expect(chain.signals).not.toHaveProperty(a.id);
+  expect(chain.values).toHaveProperty(b.id);
+  expect(chain.values[b.id]).toBe(10);
+});
+
+test('server endpoint executes logic and returns result', async () => {
+  const response = await fetch('/weaver/execute', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      signalId: 'c1',
+      chain: {
+        signals: {
+          's1': { id: 's1', kind: 'state', init: '' },
+          'logic_db': { id: 'logic_db', kind: 'logic', src: './db-query.js', context: 'server' },
+          'c1': { id: 'c1', kind: 'computed', logic: 'logic_db', deps: ['s1'] }
+        },
+        values: { 's1': 'user123' }
+      }
+    })
+  });
+
+  const result = await response.json();
+  expect(result.id).toBe('c1');
+  expect(result.value).toEqual({ name: 'Alice' }); // From DB
+});
+
+test('executeLogic calls executeRemote for server logic on client', async () => {
+  // Mock isClient() to return true
+  const dbLogic = createServerLogic(import('./serverLogic/query'));
+  const result = createComputed(dbLogic, [userId]);
+
+  const registry = new WeaverRegistry();
+  // ... setup ...
+
+  // Should make fetch request, not load module
+  await executeComputed(registry, result.id);
+
+  expect(fetchMock).toHaveBeenCalledWith('/weaver/execute', expect.any(Object));
+});
+```
+
+**Deliverable**: Serverside logic execution with automatic chain serialization and server endpoint.
+
+---
+
+## Milestone 14: Suspense Component
+
+**Goal**: Provide a built-in Suspense component for showing fallback content during deferred loading.
+
+**Implementation Tasks**:
+- Create Suspense component logic module
+- Register Suspense as a built-in component
+- Suspense checks `child.value === PENDING` and returns fallback or child
+- Ensure Suspense re-renders when child signal updates (standard reactivity)
+- Export Suspense component from stream-weaver package
+
+**Test Criteria**:
+```typescript
+test('Suspense shows fallback when child is PENDING', async () => {
+  const slowLogic = createLogic(import('./slowComponent'), { deferred: true });
+  const SlowComponent = createComponent(slowLogic);
+  const slowNode = createNode(SlowComponent, {});
+
+  const registry = new WeaverRegistry();
+  registry.registerSignal(slowLogic);
+  registry.registerSignal(SlowComponent);
+  registry.registerSignal(slowNode);
+  registry.setValue(slowNode.id, PENDING);
+
+  const fallback = <div class="loading">Loading...</div>;
+  const suspenseNode = createNode(Suspense, { child: slowNode, fallback });
+
+  registry.registerSignal(suspenseNode);
+  const result = await executeNode(registry, suspenseNode.id);
+
+  // Should render fallback
+  expect(result).toEqual(fallback);
+});
+
+test('Suspense shows child when resolved', async () => {
+  const slowNode = createSignal(null); // Simulate resolved node
+  const childContent = <div class="content">Loaded!</div>;
+
+  const registry = new WeaverRegistry();
+  registry.registerSignal(slowNode);
+  registry.setValue(slowNode.id, childContent);
+
+  const fallback = <div class="loading">Loading...</div>;
+  const suspenseNode = createNode(Suspense, { child: slowNode, fallback });
+
+  registry.registerSignal(suspenseNode);
+  const result = await executeNode(registry, suspenseNode.id);
+
+  // Should render child content
+  expect(result).toEqual(childContent);
+});
+
+test('Suspense re-renders when child transitions from PENDING to resolved', async () => {
+  const slowLogic = createLogic(import('./slowComponent'), { deferred: true });
+  const SlowComponent = createComponent(slowLogic);
+  const slowNode = createNode(SlowComponent, {});
+
+  const registry = new WeaverRegistry();
+  // ... register all ...
+  registry.setValue(slowNode.id, PENDING);
+
+  const fallback = <div>Loading...</div>;
+  const suspenseNode = createNode(Suspense, { child: slowNode, fallback });
+  registry.registerSignal(suspenseNode);
+
+  // Initial render shows fallback
+  let result = await executeNode(registry, suspenseNode.id);
+  expect(result).toEqual(fallback);
+
+  // Simulate child resolving
+  const resolvedContent = <div>Content!</div>;
+  registry.setValue(slowNode.id, resolvedContent);
+
+  // Re-render shows content
+  result = await executeNode(registry, suspenseNode.id);
+  expect(result).toEqual(resolvedContent);
+});
+
+test('Suspense integrates with SignalDelegate for reactive updates', async () => {
+  // Full integration test with deferred logic triggering Suspense swap
+  const slowLogic = createLogic(import('./slowComponent'), { deferred: true });
+  const SlowComponent = createComponent(slowLogic);
+  const slowNode = createNode(SlowComponent, {});
+
+  const registry = new WeaverRegistry();
+  // ... full setup ...
+
+  const delegate = new SignalDelegate(registry);
+
+  // Track DOM updates
+  const updates: Array<{ id: string; value: unknown }> = [];
+  // ... consume delegate.readable ...
+
+  // Trigger slow node execution
+  // ... should see suspenseNode update twice: once with fallback bind, once with content
+});
+```
+
+**Deliverable**: Built-in Suspense component that shows fallback during PENDING state.
+
+---
+
+## Milestone 15: Stream Signals
+
+**Goal**: Provide a convenient way to reduce ECMA Web Streams into reactive signal values.
+
+**Implementation Tasks**:
+- Define `StreamSignal` interface with `source`, `reducer`, and `init` fields
+- Implement `createStream(sourceSignal, reducerLogic, init)` function
+- Implement stream subscription in `executeStream`
+- On each stream item: apply reducer, update registry, emit signal-update
+- Handle stream completion and errors
+- Streams are client-only for initial implementation (SSR emits init value)
+
+**Test Criteria**:
+```typescript
+test('createStream creates a StreamSignal', () => {
+  const wsLogic = createLogic(import('./websocket'));
+  const wsStream = createComputed(wsLogic, [channel]);
+  const appendLogic = createLogic(import('./append'));
+
+  const messages = createStream(wsStream, appendLogic, []);
+
+  expect(messages.kind).toBe('stream');
+  expect(messages.source).toBe(wsStream.id);
+  expect(messages.reducer).toBe(appendLogic.id);
+  expect(messages.init).toEqual([]);
+});
+
+test('stream signal accumulates values via reducer', async () => {
+  // Create a mock ReadableStream
+  const mockStream = new ReadableStream({
+    start(controller) {
+      controller.enqueue({ id: 1, text: 'Hello' });
+      controller.enqueue({ id: 2, text: 'World' });
+      controller.close();
+    }
+  });
+
+  const sourceSignal = createSignal(mockStream);
+  const appendLogic = createLogic(import('./append'));
+  const messages = createStream(sourceSignal, appendLogic, []);
+
+  const registry = new WeaverRegistry();
+  registry.registerSignal(sourceSignal);
+  registry.registerSignal(appendLogic);
+  registry.registerSignal(messages);
+  registry.setValue(sourceSignal.id, mockStream);
+
+  await executeStream(registry, messages.id);
+
+  const value = registry.getValue(messages.id);
+  expect(value).toEqual([
+    { id: 1, text: 'Hello' },
+    { id: 2, text: 'World' }
+  ]);
+});
+
+test('stream signal with latest reducer keeps only last value', async () => {
+  const mockStream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(1);
+      controller.enqueue(2);
+      controller.enqueue(3);
+      controller.close();
+    }
+  });
+
+  const sourceSignal = createSignal(mockStream);
+  const latestLogic = createLogic(import('./latest')); // (_, item) => item
+  const current = createStream(sourceSignal, latestLogic, null);
+
+  const registry = new WeaverRegistry();
+  // ... register all ...
+
+  await executeStream(registry, current.id);
+
+  expect(registry.getValue(current.id)).toBe(3);
+});
+
+test('stream signal emits signal-update for each item', async () => {
+  const mockStream = new ReadableStream({
+    start(controller) {
+      controller.enqueue('a');
+      controller.enqueue('b');
+      controller.close();
+    }
+  });
+
+  const sourceSignal = createSignal(mockStream);
+  const appendLogic = createLogic(import('./append'));
+  const items = createStream(sourceSignal, appendLogic, []);
+
+  const registry = new WeaverRegistry();
+  // ... register all ...
+
+  const delegate = new SignalDelegate(registry);
+  const updates: unknown[] = [];
+
+  (async () => {
+    for await (const token of delegate.readable) {
+      if (token.kind === 'signal-update' && token.id === items.id) {
+        updates.push(token.value);
+      }
+    }
+  })();
+
+  await executeStream(registry, items.id);
+
+  // Should have emitted update for each item
+  expect(updates).toEqual([
+    ['a'],
+    ['a', 'b']
+  ]);
+});
+
+test('stream signal handles stream errors', async () => {
+  const errorStream = new ReadableStream({
+    start(controller) {
+      controller.enqueue('ok');
+      controller.error(new Error('Stream failed'));
+    }
+  });
+
+  const sourceSignal = createSignal(errorStream);
+  const appendLogic = createLogic(import('./append'));
+  const items = createStream(sourceSignal, appendLogic, []);
+
+  const registry = new WeaverRegistry();
+  // ... register all ...
+
+  await expect(executeStream(registry, items.id)).rejects.toThrow('Stream failed');
+});
+```
+
+**Deliverable**: Stream signals that reduce ReadableStream items into reactive signal values.
+
+---
+
 ## Implementation Strategy
 
 ### Approach for AI Agent
@@ -1031,6 +1628,16 @@ M8 (Components as Signals)
 M9 (Full Stack Integration)
   ↓
 M10 (Build Plugin)
+  ↓
+M11 (Async Logic)
+  ↓
+M12 (Deferred Logic) ──→ M14 (Suspense)
+  ↓
+M13 (Serverside Logic)
+
+M11 (Async Logic)
+  ↓
+M15 (Stream Signals)
 ```
 
 ### Estimated Complexity
@@ -1047,6 +1654,11 @@ M10 (Build Plugin)
 | M8 | Medium | Medium | Component integration with existing POC |
 | M9 | High | High | Full client/server parity |
 | M10 | High | High | AST transformation, manifest generation, build system integration |
+| M11 | Low | Low | Extract executeLogic, add await |
+| M12 | Medium | Medium | PENDING sentinel, deferred + clientside execution modes |
+| M13 | High | High | Chain serialization, server endpoint, client-server protocol |
+| M14 | Low | Low | Built-in component using existing primitives |
+| M15 | Medium | Medium | Stream subscription, repeated signal updates |
 
 ### Review Points
 
