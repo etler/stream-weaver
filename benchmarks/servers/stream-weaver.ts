@@ -87,8 +87,7 @@ const server = createServer((req, res) => {
     "Transfer-Encoding": "chunked",
   });
 
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- StreamWeaver.readable is typed as ReadableStream
-  const reader = weaver.readable.getReader() as ReadableStreamDefaultReader<string>;
+  const reader = weaver.readable.getReader();
 
   const processStream = async (): Promise<void> => {
     try {

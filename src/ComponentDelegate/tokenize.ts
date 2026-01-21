@@ -1,7 +1,7 @@
 import { Fragment } from "@/jsx/Fragment";
 import { ComponentElement, Element } from "@/jsx/types/Element";
 import { Node } from "@/jsx/types/Node";
-import { OpenTagToken, Token, TokenOrExecutable, NodeExecutable } from "./types/Token";
+import { OpenTagToken, TokenOrExecutable, NodeExecutable } from "./types/Token";
 import { WeaverRegistry } from "@/registry/WeaverRegistry";
 import {
   isSignal,
@@ -39,7 +39,7 @@ export function tokenize(node: Node, registry?: WeaverRegistry): (TokenOrExecuta
     }
 
     // Collect any logic signal definitions that need to be emitted first
-    const logicDefs: Token[] = [];
+    const logicDefs: TokenOrExecutable[] = [];
     if ("logicRef" in node && isSignal(node.logicRef)) {
       // Register and emit the logic signal for computed/handler/action signals
       if (!registry.getSignal(node.logicRef.id)) {
@@ -65,7 +65,7 @@ export function tokenize(node: Node, registry?: WeaverRegistry): (TokenOrExecuta
       const { type, props, children } = node;
 
       // Collect signal definitions from props
-      const signalDefinitions: Token[] = [];
+      const signalDefinitions: TokenOrExecutable[] = [];
       if (typeof props === "object" && props !== null) {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
         for (const propValue of Object.values(props)) {

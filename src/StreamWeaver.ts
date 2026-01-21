@@ -1,7 +1,13 @@
 import { ComponentDelegate } from "@/ComponentDelegate/ComponentDelegate";
-import { ComponentSerializer } from "@/ComponentHtmlSerializer/ComponentSerializer";
+import { chunkify } from "@/ComponentDelegate/chunkify";
+import { tokenize } from "@/ComponentDelegate/tokenize";
+import { Token } from "@/ComponentDelegate/types/Token";
+import { ComponentSerializer, serializeToken } from "@/ComponentHtmlSerializer/ComponentSerializer";
 import { Element } from "@/jsx/types/Element";
 import { WeaverRegistry } from "@/registry/WeaverRegistry";
+
+// Buffer target size for fast path (matches ComponentSerializer)
+const BUFFER_TARGET_SIZE = 2048;
 
 export interface StreamWeaverOptions {
   root: Element | Promise<Element>;
@@ -35,16 +41,108 @@ export interface StreamWeaverOptions {
  *
  */
 export class StreamWeaver {
-  public readable: ReadableStream;
+  public readable: ReadableStream<string>;
   constructor({ root, registry }: StreamWeaverOptions) {
+    // Handle Promise root by deferring to async path
+    if (root instanceof Promise) {
+      this.readable = this.createAsyncStream(root, registry);
+      return;
+    }
+
+    // Tokenize and chunkify to detect if content is static
+    const chunks = chunkify(tokenize(root, registry));
+    const isStatic = chunks.every((chunk) => Array.isArray(chunk));
+
+    if (isStatic) {
+      // Fast path: all chunks are static token arrays
+      // Serialize directly without DelegateStream overhead
+      this.readable = this.createStaticStream(chunks as Token[][]);
+    } else {
+      // Slow path: has async components, use DelegateStream
+      this.readable = this.createDelegateStream(root, registry);
+    }
+  }
+
+  /**
+   * Fast path for static content - bypasses DelegateStream entirely
+   */
+  private createStaticStream(chunks: Token[][]): ReadableStream<string> {
+    let chunkIndex = 0;
+    let buffer = "";
+    let firstChunkSent = false;
+
+    return new ReadableStream<string>({
+      pull: (controller) => {
+        // Process chunks until we have enough to emit or we're done
+        while (chunkIndex < chunks.length) {
+          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+          const tokenChunk = chunks[chunkIndex]!;
+          chunkIndex++;
+
+          for (const token of tokenChunk) {
+            buffer += serializeToken(token);
+          }
+
+          // Flush immediately on first content for TTFB
+          if (!firstChunkSent && buffer.length > 0) {
+            controller.enqueue(buffer);
+            buffer = "";
+            firstChunkSent = true;
+            return;
+          }
+
+          // Buffer subsequent content into larger chunks
+          if (buffer.length >= BUFFER_TARGET_SIZE) {
+            controller.enqueue(buffer);
+            buffer = "";
+            return;
+          }
+        }
+
+        // Flush remaining buffer and close
+        if (buffer.length > 0) {
+          controller.enqueue(buffer);
+          buffer = "";
+        }
+        controller.close();
+      },
+    });
+  }
+
+  /**
+   * Slow path using DelegateStream for async component support
+   */
+  private createDelegateStream(root: Element, registry?: WeaverRegistry): ReadableStream<string> {
     const delegate = new ComponentDelegate(registry);
     const writer = delegate.writable.getWriter();
-    this.readable = delegate.readable.pipeThrough(new ComponentSerializer());
-    (async () => {
-      await writer.write(await root);
-      await writer.close();
-    })().catch((error: unknown) => {
-      console.error(new Error("Error Writing `rootNode` to output stream", { cause: error }));
-    });
+
+    writer
+      .write(root)
+      // eslint-disable-next-line @typescript-eslint/promise-function-async
+      .then(() => writer.close())
+      .catch((error: unknown) => {
+        console.error(new Error("Error Writing `rootNode` to output stream", { cause: error }));
+      });
+
+    return delegate.readable.pipeThrough(new ComponentSerializer());
+  }
+
+  /**
+   * Handle Promise<Element> root - must use async path
+   */
+  private createAsyncStream(root: Promise<Element>, registry?: WeaverRegistry): ReadableStream<string> {
+    const delegate = new ComponentDelegate(registry);
+    const writer = delegate.writable.getWriter();
+
+    root
+      // eslint-disable-next-line @typescript-eslint/promise-function-async
+      .then((resolvedRoot) => writer.write(resolvedRoot))
+      // eslint-disable-next-line @typescript-eslint/promise-function-async
+      .then(() => writer.close())
+      .catch((error: unknown) => {
+        console.error(new Error("Error Writing `rootNode` to output stream", { cause: error }));
+      });
+
+    return delegate.readable.pipeThrough(new ComponentSerializer());
   }
 }
