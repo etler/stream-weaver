@@ -204,6 +204,11 @@ function propsToAttributes(props: Element["props"], registry?: WeaverRegistry): 
 
   // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
   for (const [key, prop] of Object.entries(props)) {
+    // Skip children, key, and ref - they're not HTML attributes
+    if (key === "children" || key === "key" || key === "ref") {
+      continue;
+    }
+
     // Check if prop value is a signal
     if (isSignal(prop)) {
       if (!registry) {
