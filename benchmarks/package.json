@@ -8,18 +8,21 @@
     "bench:warmup": "tsx runner.ts --warmup",
     "bench:bun": "bun runner.ts --runtime=bun",
     "bench:bun:warmup": "bun runner.ts --runtime=bun --warmup",
-    "server:stream-weaver": "tsx servers/stream-weaver.ts",
-    "server:react": "tsx servers/react.tsx",
-    "server:solid": "tsx servers/solid.ts",
-    "server:qwik": "tsx servers/qwik.ts",
-    "server:vue": "tsx servers/vue.ts",
-    "server:bun:stream-weaver": "bun servers/stream-weaver.ts",
-    "server:bun:react": "bun servers/react.tsx",
-    "server:bun:solid": "bun servers/solid.ts",
-    "server:bun:qwik": "bun servers/qwik.ts",
-    "server:bun:vue": "bun servers/vue.ts"
+    "server:stream-weaver": "tsx servers/stream-weaver/server.ts",
+    "server:react": "tsx servers/react/server.tsx",
+    "server:solid": "tsx servers/solid/server.ts",
+    "server:qwik": "tsx servers/qwik/server.ts",
+    "server:vue": "tsx servers/vue/server.ts",
+    "server:template": "tsx servers/template/server.ts",
+    "server:bun:stream-weaver": "bun servers/stream-weaver/server.ts",
+    "server:bun:react": "bun servers/react/server.tsx",
+    "server:bun:solid": "bun servers/solid/server.ts",
+    "server:bun:qwik": "bun servers/qwik/server.ts",
+    "server:bun:vue": "bun servers/vue/server.ts",
+    "server:bun:template": "bun servers/template/server.ts"
   },
   "dependencies": {
+    "@builder.io/qwik": "^1.18.0",
     "@vue/server-renderer": "^3.5.13",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
@@ -32,6 +35,7 @@
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "tsx": "^4.21.0",
-    "typescript": "~5.7.3"
+    "typescript": "~5.7.3",
+    "vite": "^7.3.1"
   }
 }

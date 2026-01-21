@@ -1,19 +1,18 @@
 /**
- * Qwik SSR Benchmark Server
+ * Template String Control Benchmark Server
  *
- * Qwik requires compilation for SSR due to its resumability architecture.
- * This benchmark uses direct string templates to produce comparable HTML output.
- * NOTE: This does NOT measure Qwik's actual SSR performance as it requires
- * the full build toolchain for proper comparison.
+ * This is the CONTROL TEST - plain template strings with no framework overhead.
+ * It represents the theoretical minimum for string-based HTML generation.
+ *
+ * Use this to establish a baseline for comparison with actual framework SSR.
  */
 
 import { createServer } from "node:http";
-import { COMPONENT_DATA } from "../shared/types.ts";
+import { COMPONENT_DATA } from "../../shared/types.ts";
 
-const PORT = 3004;
+const PORT = 3006;
 
-// Qwik's compiled output includes serialization markers for resumability
-// We simulate basic HTML output for comparison purposes
+// Plain template string rendering - no framework, minimal overhead
 function renderApp(): string {
   const { title, items, metadata } = COMPONENT_DATA;
 
@@ -48,7 +47,7 @@ function renderApp(): string {
         </ul>
       </main>
       <footer>
-        <p>Rendered by Qwik</p>
+        <p>Rendered by Template Strings</p>
       </footer>
     </body>
   </html>`;
@@ -74,7 +73,7 @@ const server = createServer((req, res) => {
     });
 
     // Stream the output in chunks
-    const chunkSize = 1024;
+    const chunkSize = 2048;
     for (let offset = 0; offset < html.length; offset += chunkSize) {
       res.write(html.slice(offset, offset + chunkSize));
     }
@@ -88,6 +87,5 @@ const server = createServer((req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`Qwik benchmark server running on http://localhost:${PORT}`);
-  console.log("NOTE: Qwik SSR requires compilation. This benchmark uses string templates.");
+  console.log(`Template String (Control) benchmark server running on http://localhost:${PORT}`);
 });

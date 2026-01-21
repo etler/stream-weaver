@@ -8,7 +8,7 @@
 import { createServer } from "node:http";
 import { createSSRApp, h, type VNode } from "vue";
 import { renderToWebStream } from "@vue/server-renderer";
-import { COMPONENT_DATA } from "../shared/types.ts";
+import { COMPONENT_DATA } from "../../shared/types.ts";
 
 const PORT = 3005;
 

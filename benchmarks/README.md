@@ -1,17 +1,33 @@
 # SSR Streaming Benchmarks
 
 Compares SSR streaming performance between Stream Weaver and other frameworks:
+- **Stream Weaver** - Full streaming SSR with direct serialization fast path
 - **React** (renderToReadableStream) - Full streaming SSR
 - **Vue** (renderToWebStream) - Full streaming SSR with h() function
-- **SolidJS** - Template strings (requires compilation for actual SSR)
-- **Qwik** - Template strings (requires compilation for actual SSR)
+- **SolidJS** (renderToStringAsync + ssrElement) - Full SSR with hydration markers
+- **Qwik** (component$ + Vite build) - Full SSR with resumability markers
+- **Template** (control) - Plain template strings, no framework overhead
 
-## Important Notes
+## Framework Implementation Details
 
-**Fair Comparison:** Only Stream Weaver, React, and Vue use actual framework SSR rendering.
-SolidJS and Qwik require build-time compilation to transform JSX into optimized template
-strings. Without compilation, their benchmarks use plain string templates which gives
-artificially fast results but doesn't represent real framework performance.
+| Framework | Implementation | SSR Functions Used | Output Size |
+|-----------|---------------|-------------------|-------------|
+| Template | Control baseline | Plain template strings | 31.4 KB |
+| Stream Weaver | Full SSR | `StreamWeaver`, `jsx()`, `serializeElement()` | 25.3 KB |
+| React | Full SSR | `renderToReadableStream()`, `jsx()` | 25.3 KB |
+| Vue | Full SSR | `renderToWebStream()`, `h()` | 25.3 KB |
+| SolidJS | Full SSR | `renderToStringAsync()`, `ssrElement()`, `ssr`, `createComponent()` | 27.5 KB |
+| Qwik | Full SSR + Build | `component$()`, `renderToString()`, Vite build | 39.0 KB |
+
+### Why Qwik Output is Larger
+
+Qwik's SSR output includes extensive resumability markers:
+- `q:container`, `q:version`, `q:render` attributes
+- `q:id` and `q:key` on every element for resumption tracking
+- `<!--qv-->` comment markers for component boundaries
+- `<!--t=N-->` markers for text nodes
+
+These markers enable Qwik's unique "resumability" - the client can resume execution without re-rendering, but they add ~14KB of overhead to the HTML output.
 
 ## Setup
 
@@ -44,6 +60,8 @@ npm run bench -- --runs=100
 
 ```bash
 npm run bench -- --only=react
+npm run bench -- --only=qwik
+npm run bench -- --only=template
 ```
 
 ### Combined options
@@ -82,6 +100,7 @@ npm run server:bun:react          # http://localhost:3002
 npm run server:bun:solid          # http://localhost:3003
 npm run server:bun:qwik           # http://localhost:3004
 npm run server:bun:vue            # http://localhost:3005
+npm run server:bun:template       # http://localhost:3006
 ```
 
 Results are saved to `benchmark-results-bun.json` when using Bun runtime.
@@ -94,8 +113,9 @@ You can run servers individually for manual testing:
 npm run server:stream-weaver  # http://localhost:3001
 npm run server:react          # http://localhost:3002
 npm run server:solid          # http://localhost:3003
-npm run server:qwik           # http://localhost:3004
+npm run server:qwik           # http://localhost:3004 (includes Vite build)
 npm run server:vue            # http://localhost:3005
+npm run server:template       # http://localhost:3006
 ```
 
 ## Metrics
@@ -110,23 +130,18 @@ Results are printed to console and saved to `benchmark-results.json`.
 
 Example output:
 ```
-=== STREAM-WEAVER ===
-Runs: 50
-Bytes per render: 12.34 KB
+============================================================
+COMPARISON (sorted by median full render time)
+============================================================
 
-TTFB (Time to First Byte):
-  Min:    0.50 ms
-  Max:    2.10 ms
-  Avg:    0.85 ms
-  Median: 0.78 ms
-  P95:    1.45 ms
-
-Full Render Time:
-  Min:    1.20 ms
-  Max:    3.50 ms
-  Avg:    1.80 ms
-  Median: 1.65 ms
-  P95:    2.80 ms
+Framework         | TTFB (ms) | Full (ms) | vs Baseline
+------------------------------------------------------------
+template          |      0.27 |      0.27 | baseline
+solid             |      0.29 |      0.29 | 6%
+vue               |      0.40 |      0.40 | 46%
+stream-weaver     |      0.62 |      0.63 | 128%
+qwik              |      0.84 |      0.84 | 206%
+react             |      1.43 |      1.43 | 419%
 ```
 
 ## Test Component
@@ -145,7 +160,7 @@ This provides a realistic benchmark of streaming SSR with moderate complexity.
 
 ## Architecture
 
-Each benchmark server is minimal and only calls the framework's streaming render function directly:
+Each benchmark server is in its own folder with all necessary files:
 
 ```
 benchmarks/
@@ -155,9 +170,20 @@ benchmarks/
 │   ├── types.ts           # Shared types and component data
 │   └── measure.ts         # TTFB/render time measurement
 └── servers/
-    ├── stream-weaver.ts   # Stream Weaver server
-    ├── react.tsx          # React server
-    ├── solid.tsx          # SolidJS server
-    ├── qwik.tsx           # Qwik server
-    └── vue.ts             # Vue server
+    ├── stream-weaver/
+    │   └── server.ts      # Stream Weaver SSR server
+    ├── react/
+    │   └── server.tsx     # React SSR server
+    ├── solid/
+    │   └── server.ts      # SolidJS SSR server
+    ├── qwik/
+    │   ├── server.ts      # Qwik SSR server (with build)
+    │   ├── vite.config.ts # Vite config for Qwik build
+    │   └── src/
+    │       ├── root.tsx       # App component using component$
+    │       └── entry.ssr.tsx  # SSR entry point
+    ├── vue/
+    │   └── server.ts      # Vue SSR server
+    └── template/
+        └── server.ts      # Template string control server
 ```

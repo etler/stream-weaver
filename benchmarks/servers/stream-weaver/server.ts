@@ -6,11 +6,11 @@
  */
 
 import { createServer } from "node:http";
-import { COMPONENT_DATA } from "../shared/types.ts";
+import { COMPONENT_DATA } from "../../shared/types.ts";
 
 // Import from built package
-import { StreamWeaver, WeaverRegistry } from "../../dist/index.js";
-import { jsx } from "../../dist/jsx/jsx-runtime.js";
+import { StreamWeaver, WeaverRegistry } from "../../../dist/index.js";
+import { jsx } from "../../../dist/jsx/jsx-runtime.js";
 
 const PORT = 3001;
 

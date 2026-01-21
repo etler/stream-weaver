@@ -8,7 +8,7 @@
 import { createServer } from "node:http";
 import React from "react";
 import { renderToReadableStream } from "react-dom/server";
-import { COMPONENT_DATA } from "../shared/types.ts";
+import { COMPONENT_DATA } from "../../shared/types.ts";
 
 const PORT = 3002;
 

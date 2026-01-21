@@ -26,6 +26,7 @@ interface BenchmarkOptions {
   warmup: boolean;
   only?: string;
   runtime: Runtime;
+  quiet: boolean;
 }
 
 function parseArgs(): BenchmarkOptions {
@@ -34,6 +35,7 @@ function parseArgs(): BenchmarkOptions {
     runs: DEFAULT_RUNS,
     warmup: false,
     runtime: "node",
+    quiet: false,
   };
 
   for (const arg of args) {
@@ -47,6 +49,8 @@ function parseArgs(): BenchmarkOptions {
       options.only = value;
     } else if (arg === "--runtime=bun") {
       options.runtime = "bun";
+    } else if (arg === "--quiet" || arg === "-q") {
+      options.quiet = true;
     }
   }
 
@@ -80,7 +84,7 @@ function getServerCommand(baseCommand: string, runtime: Runtime): string {
   return baseCommand;
 }
 
-async function startServer(command: string, runtime: Runtime): Promise<ChildProcess> {
+async function startServer(command: string, runtime: Runtime, quiet: boolean): Promise<ChildProcess> {
   const serverCommand = getServerCommand(command, runtime);
   const child = spawn("npm", ["run", serverCommand], {
     cwd: process.cwd(),
@@ -88,20 +92,22 @@ async function startServer(command: string, runtime: Runtime): Promise<ChildProc
     detached: false,
   });
 
-  // Capture output for debugging (stdout/stderr are Readable due to stdio: ["ignore", "pipe", "pipe"])
-  child.stdout.on("data", (data: Buffer) => {
-    const msg = data.toString().trim();
-    if (msg !== "") {
-      console.log(`  [server] ${msg}`);
-    }
-  });
+  // Capture output for debugging (suppress in quiet mode to reduce overhead)
+  if (!quiet) {
+    child.stdout.on("data", (data: Buffer) => {
+      const msg = data.toString().trim();
+      if (msg !== "") {
+        console.log(`  [server] ${msg}`);
+      }
+    });
 
-  child.stderr.on("data", (data: Buffer) => {
-    const msg = data.toString().trim();
-    if (msg !== "") {
-      console.error(`  [server error] ${msg}`);
-    }
-  });
+    child.stderr.on("data", (data: Buffer) => {
+      const msg = data.toString().trim();
+      if (msg !== "") {
+        console.error(`  [server error] ${msg}`);
+      }
+    });
+  }
 
   return child;
 }
@@ -179,7 +185,7 @@ async function main(): Promise<void> {
   for (const server of servers) {
     console.log(`\n[${server.name}] Starting server on port ${server.port}...`);
 
-    const child = await startServer(server.command, options.runtime);
+    const child = await startServer(server.command, options.runtime, options.quiet);
 
     // Wait for server to be ready
     const ready = await waitForServer(server.port);

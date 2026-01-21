@@ -37,10 +37,23 @@ export const SERVERS: ServerConfig[] = [
   { name: "solid", port: 3003, command: "server:solid" },
   { name: "qwik", port: 3004, command: "server:qwik" },
   { name: "vue", port: 3005, command: "server:vue" },
+  { name: "template", port: 3006, command: "server:template" },
 ];
 
+// Type for individual items
+export interface Item {
+  id: number;
+  name: string;
+  description: string;
+  tags: string[];
+}
+
 // Shared component data for all frameworks to render the same content
-export const COMPONENT_DATA = {
+export const COMPONENT_DATA: {
+  title: string;
+  items: Item[];
+  metadata: { author: string; timestamp: string; version: string };
+} = {
   title: "SSR Benchmark Test Page",
   items: Array.from({ length: 100 }, (_unused, index) => ({
     id: index + 1,
