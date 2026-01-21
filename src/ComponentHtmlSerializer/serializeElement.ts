@@ -300,9 +300,11 @@ const ATTR_ESCAPE_MAP: Record<string, string> = {
 };
 
 function escapeText(text: string): string {
-  return text.replace(TEXT_ESCAPE_RE, (char) => TEXT_ESCAPE_MAP[char]);
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  return text.replace(TEXT_ESCAPE_RE, (char) => TEXT_ESCAPE_MAP[char]!);
 }
 
 function escapeAttribute(text: string): string {
-  return text.replace(ATTR_ESCAPE_RE, (char) => ATTR_ESCAPE_MAP[char]);
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  return text.replace(ATTR_ESCAPE_RE, (char) => ATTR_ESCAPE_MAP[char]!);
 }
