@@ -14,23 +14,28 @@ import { Fragment } from "@/jsx/jsx-runtime";
 import { WeaverRegistry } from "@/registry/WeaverRegistry";
 import { AnySignal } from "@/signals/types";
 
-// Self-closing tags that don't need a closing tag
-const SELF_CLOSING_TAGS = new Set([
-  "area",
-  "base",
-  "br",
-  "col",
-  "embed",
-  "hr",
-  "img",
-  "input",
-  "link",
-  "meta",
-  "param",
-  "source",
-  "track",
-  "wbr",
-]);
+// Self-closing tag check using switch (faster than Set.has for small fixed sets)
+function isSelfClosingTag(tag: string): boolean {
+  switch (tag) {
+    case "area":
+    case "base":
+    case "br":
+    case "col":
+    case "embed":
+    case "hr":
+    case "img":
+    case "input":
+    case "link":
+    case "meta":
+    case "param":
+    case "source":
+    case "track":
+    case "wbr":
+      return true;
+    default:
+      return false;
+  }
+}
 
 /**
  * Directly serialize a JSX element tree to HTML string
@@ -74,7 +79,7 @@ export function serializeElement(node: Node, registry?: WeaverRegistry): string 
 
     // Regular HTML element
     const tag = type;
-    const isSelfClosing = SELF_CLOSING_TAGS.has(tag);
+    const isSelfClosing = isSelfClosingTag(tag);
 
     // Start with any signal definitions from attributes
     let html = "";
