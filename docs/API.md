@@ -2609,7 +2609,7 @@ const user = createComputed(import("./fetchUser"), [userId]);
 
 ### 11.2 Deferred Logic
 
-Deferred logic allows long-running operations to execute without blocking the stream. When logic is marked as deferred, the stream continues processing other events while the deferred operation completes in the background.
+Deferred logic allows long-running operations to execute without blocking the stream. The `timeout` property controls how long to wait before deferring—enabling fine-grained control over the latency/blocking tradeoff.
 
 **Problem Solved**:
 The DelegateStream enforces sequential ordering for determinism. When a slow operation executes, it blocks all downstream updates—even unrelated ones. Deferred logic opts out of this blocking behavior when the developer knows ordering doesn't matter.
@@ -2619,13 +2619,22 @@ The DelegateStream enforces sequential ordering for determinism. When a slow ope
 interface LogicSignal<F> extends Signal {
   src: string;
   ssrSrc?: string;
-  deferred?: boolean;  // When true, execution doesn't block the stream
+  timeout?: number;  // ms to wait before deferring; 0 = always defer; undefined = never defer
   kind: 'logic';
 }
 
 // Creating deferred logic
-const fetchLogic = createLogic(import("./slowFetch"), { deferred: true });
+const fetchLogic = createLogic(import("./slowFetch"), { timeout: 0 });      // Always defer
+const smartLogic = createLogic(import("./fetchData"), { timeout: 50 });     // Wait up to 50ms
+const blockingLogic = createLogic(import("./compute"));                      // Always inline (default)
 ```
+
+**Timeout Semantics**:
+- `undefined` (default): No timeout—wait forever, always inline (blocking)
+- `0`: Zero timeout—always defer immediately (never block)
+- `> 0`: Wait up to N milliseconds; inline if fast, defer if slow
+
+**Note**: The `timeout` option only affects async logic. Synchronous functions execute immediately and cannot be raced against a timer, so `timeout` has no effect on them.
 
 **PENDING Sentinel**:
 While deferred logic is executing, the signal's value is set to a special `PENDING` symbol:
@@ -2642,23 +2651,27 @@ type MaybePending<T> = T | typeof PENDING;
 
 **Execution Flow**:
 
-Without deferred:
+Without timeout (inline):
 1. Execute logic
 2. Await result (stream blocked)
 3. Emit signal-update
 4. Stream continues
 
-With deferred:
-1. Set signal value to `PENDING`
-2. Start execution (don't await)
-3. Stream continues immediately
-4. When execution completes, push signal-update to stream
+With timeout:
+1. Start execution
+2. Race against timeout
+3. If completes in time: emit result inline
+4. If timeout expires: set `PENDING`/init, continue stream, push result when ready
 
 **Example**:
 ```typescript
-// Any signal using deferred logic inherits the behavior
-const slowLogic = createLogic(import("./heavyComputation"), { deferred: true });
+// Always defer - never block the stream
+const slowLogic = createLogic(import("./heavyComputation"), { timeout: 0 });
 const result = createComputed(slowLogic, [inputData]);
+
+// Smart defer - block up to 50ms, then defer
+const smartLogic = createLogic(import("./fetchData"), { timeout: 50 });
+const data = createComputed(smartLogic, [userId]);
 
 // In a component, check for pending state
 function MyComponent({ data }) {
@@ -2693,7 +2706,7 @@ type ServerLogicFunction = (...args: SignalInterface[]) => Serializable | Promis
 // Create server logic (enforces serializable return type)
 function createServerLogic<F extends ServerLogicFunction>(
   module: Promise<{ default: F }>,
-  options?: { deferred?: boolean }
+  options?: { timeout?: number }
 ): LogicSignal<F>;
 ```
 
@@ -2702,8 +2715,8 @@ function createServerLogic<F extends ServerLogicFunction>(
 interface LogicSignal<F> extends Signal {
   src: string;
   ssrSrc?: string;
-  deferred?: boolean;
-  context?: 'server' | 'client';  // Execution environment restriction
+  timeout?: number;  // ms to wait before deferring
+  context?: 'server' | 'client';  // Execution context restriction
   kind: 'logic';
 }
 ```
@@ -2788,7 +2801,7 @@ export default function Suspense({
 
 **Usage**:
 ```tsx
-const slowLogic = createLogic(import("./SlowComponent"), { deferred: true });
+const slowLogic = createLogic(import("./SlowComponent"), { timeout: 0 });
 const SlowComponent = createComponent(slowLogic);
 const slowNode = createNode(SlowComponent, { userId });
 
@@ -2797,9 +2810,9 @@ const slowNode = createNode(SlowComponent, { userId });
 ```
 
 **Flow**:
-1. `slowNode`'s logic is deferred, so its value starts as `PENDING`
+1. `slowNode`'s logic has `timeout: 0`, so its value starts as `PENDING`
 2. Suspense sees `PENDING`, renders `<Loading />`
-3. Stream continues (deferred doesn't block)
+3. Stream continues (timeout: 0 doesn't block)
 4. `slowNode`'s logic completes, value updates
 5. Suspense depends on `slowNode`, so it re-executes
 6. Suspense now sees resolved value, returns actual content
@@ -2818,7 +2831,7 @@ Client logic is code that must only execute in the browser—for accessing brows
 // Create client-only logic
 function createClientLogic<F extends LogicFunction>(
   module: Promise<{ default: F }>,
-  options?: { deferred?: boolean }
+  options?: { timeout?: number }
 ): LogicSignal<F>;
 ```
 
@@ -2827,8 +2840,8 @@ function createClientLogic<F extends LogicFunction>(
 interface LogicSignal<F> extends Signal {
   src: string;
   ssrSrc?: string;
-  deferred?: boolean;
-  context?: 'server' | 'client';  // Execution environment restriction
+  timeout?: number;  // ms to wait before deferring
+  context?: 'server' | 'client';  // Execution context restriction
   kind: 'logic';
 }
 ```

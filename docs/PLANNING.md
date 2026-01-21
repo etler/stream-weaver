@@ -1103,15 +1103,20 @@ test('async handler awaits completion', async () => {
 
 ## Milestone 12: Deferred and Client Logic
 
-**Goal**: Allow logic to execute without blocking the stream (deferred) or only on client (clientside), using PENDING sentinel for pending state.
+**Goal**: Allow logic to execute without blocking the stream (via timeout) or only on client, using PENDING sentinel for pending state.
 
 **Implementation Tasks**:
-- Add `deferred?: boolean` option to `createLogic`
+- Add `timeout?: number` option to `createLogic`
+  - `undefined` = no timeout, always inline (blocking)
+  - `0` = always defer immediately (never block)
+  - `> 0` = wait up to N ms, then defer if not complete
+  - Note: `timeout` only affects async logic; sync functions execute immediately regardless
 - Export `PENDING` symbol constant from stream-weaver
-- Modify `executeLogic` to check `logicSignal.deferred` flag
-- When deferred: set value to `PENDING` (or `init` if specified), start execution, return immediately
+- Modify `executeLogic` to check `logicSignal.timeout`
+- Implement Promise.race for timeout-based deferral
+- When deferring: set value to `PENDING` (or `init` if specified), start execution, return immediately
 - When deferred execution completes, push signal-update to main stream
-- Update SignalDelegate to handle deferred execution flow
+- Update SignalDelegate to handle timeout-based deferred execution flow
 - Add `MaybePending<T>` type helper
 - Implement `createClientLogic` function with `context: 'client'` flag
 - When clientside on server: return `PENDING`/`init` immediately without loading module
@@ -1121,9 +1126,9 @@ test('async handler awaits completion', async () => {
 ```typescript
 import { PENDING } from 'stream-weaver';
 
-test('deferred logic sets PENDING immediately', async () => {
+test('timeout: 0 sets PENDING immediately', async () => {
   const count = createSignal(5);
-  const slowLogic = createLogic({ src: './tests/fixtures/slowDouble.js' }, { deferred: true });
+  const slowLogic = createLogic({ src: './tests/fixtures/slowDouble.js' }, { timeout: 0 });
   const result = createComputed(slowLogic, [count]);
 
   const registry = new WeaverRegistry();
@@ -1143,10 +1148,10 @@ test('deferred logic sets PENDING immediately', async () => {
   expect(registry.getValue(result.id)).toBe(10);
 });
 
-test('deferred logic does not block stream', async () => {
+test('timeout: 0 does not block stream', async () => {
   const count1 = createSignal(5);
   const count2 = createSignal(10);
-  const slowLogic = createLogic({ src: './tests/fixtures/slowDouble.js' }, { deferred: true });
+  const slowLogic = createLogic({ src: './tests/fixtures/slowDouble.js' }, { timeout: 0 });
   const fastLogic = createLogic({ src: './tests/fixtures/double.js' });
   const slow = createComputed(slowLogic, [count1]);
   const fast = createComputed(fastLogic, [count2]);
@@ -1176,8 +1181,48 @@ test('deferred logic does not block stream', async () => {
   await writer.write({ kind: 'signal-update', id: count2.id, value: 10 });
   await writer.close();
 
-  // Fast should complete before slow (deferred doesn't block)
+  // Fast should complete before slow (timeout: 0 doesn't block)
   expect(updates.indexOf(fast.id)).toBeLessThan(updates.indexOf(slow.id));
+});
+
+test('timeout races execution against timer', async () => {
+  const count = createSignal(5);
+  // Logic that takes 100ms
+  const slowLogic = createLogic({ src: './tests/fixtures/slow100ms.js' }, { timeout: 50 });
+  const result = createComputed(slowLogic, [count]);
+
+  const registry = new WeaverRegistry();
+  registry.registerSignal(count);
+  registry.registerSignal(slowLogic);
+  registry.registerSignal(result);
+  registry.setValue(count.id, 5);
+
+  const promise = executeComputed(registry, result.id);
+
+  // Should be PENDING after 50ms timeout
+  expect(registry.getValue(result.id)).toBe(PENDING);
+
+  // After full completion, value should be resolved
+  await promise;
+  expect(registry.getValue(result.id)).toBe(10);
+});
+
+test('fast logic completes inline when within timeout', async () => {
+  const count = createSignal(5);
+  // Logic that takes 10ms, timeout is 50ms
+  const fastLogic = createLogic({ src: './tests/fixtures/fast10ms.js' }, { timeout: 50 });
+  const result = createComputed(fastLogic, [count]);
+
+  const registry = new WeaverRegistry();
+  registry.registerSignal(count);
+  registry.registerSignal(fastLogic);
+  registry.registerSignal(result);
+  registry.setValue(count.id, 5);
+
+  await executeComputed(registry, result.id);
+
+  // Should have completed inline (not PENDING)
+  expect(registry.getValue(result.id)).toBe(10);
 });
 
 test('PENDING is a unique symbol', () => {
@@ -1350,7 +1395,7 @@ test('executeLogic calls executeRemote for server logic on client', async () => 
 
 ## Milestone 14: Suspense Component
 
-**Goal**: Provide a built-in Suspense component for showing fallback content during deferred loading.
+**Goal**: Provide a built-in Suspense component for showing fallback content while pending logic resolves.
 
 **Implementation Tasks**:
 - Create Suspense component logic module
@@ -1362,7 +1407,7 @@ test('executeLogic calls executeRemote for server logic on client', async () => 
 **Test Criteria**:
 ```typescript
 test('Suspense shows fallback when child is PENDING', async () => {
-  const slowLogic = createLogic(import('./slowComponent'), { deferred: true });
+  const slowLogic = createLogic(import('./slowComponent'), { timeout: 0 });
   const SlowComponent = createComponent(slowLogic);
   const slowNode = createNode(SlowComponent, {});
 
@@ -1401,7 +1446,7 @@ test('Suspense shows child when resolved', async () => {
 });
 
 test('Suspense re-renders when child transitions from PENDING to resolved', async () => {
-  const slowLogic = createLogic(import('./slowComponent'), { deferred: true });
+  const slowLogic = createLogic(import('./slowComponent'), { timeout: 0 });
   const SlowComponent = createComponent(slowLogic);
   const slowNode = createNode(SlowComponent, {});
 
@@ -1428,7 +1473,7 @@ test('Suspense re-renders when child transitions from PENDING to resolved', asyn
 
 test('Suspense integrates with SignalDelegate for reactive updates', async () => {
   // Full integration test with deferred logic triggering Suspense swap
-  const slowLogic = createLogic(import('./slowComponent'), { deferred: true });
+  const slowLogic = createLogic(import('./slowComponent'), { timeout: 0 });
   const SlowComponent = createComponent(slowLogic);
   const slowNode = createNode(SlowComponent, {});
 
@@ -1655,7 +1700,7 @@ M15 (Stream Signals)
 | M9 | High | High | Full client/server parity |
 | M10 | High | High | AST transformation, manifest generation, build system integration |
 | M11 | Low | Low | Extract executeLogic, add await |
-| M12 | Medium | Medium | PENDING sentinel, deferred + clientside execution modes |
+| M12 | Medium | Medium | PENDING sentinel, timeout-based deferral + clientside execution |
 | M13 | High | High | Chain serialization, server endpoint, client-server protocol |
 | M14 | Low | Low | Built-in component using existing primitives |
 | M15 | Medium | Medium | Stream subscription, repeated signal updates |
