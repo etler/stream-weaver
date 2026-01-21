@@ -19,9 +19,21 @@ import { executeHandler } from "@/logic/executeHandler";
  * 6. Cascades recursively through dependency graph
  */
 export class SignalDelegate extends DelegateStream<SignalEvent, SignalToken> {
-  constructor(registry: WeaverRegistry) {
-    // Capture registry in closure for use in transform function
+  private rootWriterRef?: WritableStreamDefaultWriter<SignalEvent>;
+
+  /**
+   * Set the root writer for deferred execution completions
+   * Called after construction since we need the writer from our own writable
+   */
+  setRootWriter(writer: WritableStreamDefaultWriter<SignalEvent>): void {
+    this.rootWriterRef = writer;
+  }
+
+  constructor(registry: WeaverRegistry, rootWriter?: WritableStreamDefaultWriter<SignalEvent>) {
+    // Capture registry and rootWriter reference in closure for use in transform function
     const reg = registry;
+    // Use a getter so child delegates can access the root writer set after construction
+    const getRootWriter = () => rootWriter ?? this.rootWriterRef;
 
     super({
       transform: (event, chain) => {
@@ -43,7 +55,7 @@ export class SignalDelegate extends DelegateStream<SignalEvent, SignalToken> {
             // Actions and handlers are manually invoked
             if (dependent?.kind === "computed") {
               // Create child delegate for recursive propagation
-              const childDelegate = new SignalDelegate(reg);
+              const childDelegate = new SignalDelegate(reg, getRootWriter());
               const childWriter = childDelegate.writable.getWriter();
 
               // Chain the child's readable stream
@@ -70,7 +82,7 @@ export class SignalDelegate extends DelegateStream<SignalEvent, SignalToken> {
               });
             } else if (dependent?.kind === "node") {
               // Node signal - re-execute component and emit update with Node tree
-              const childDelegate = new SignalDelegate(reg);
+              const childDelegate = new SignalDelegate(reg, getRootWriter());
               const childWriter = childDelegate.writable.getWriter();
 
               chain(childDelegate.readable);
@@ -102,32 +114,62 @@ export class SignalDelegate extends DelegateStream<SignalEvent, SignalToken> {
             return;
           }
 
-          // Create child delegate for propagating updates from handler execution
-          const childDelegate = new SignalDelegate(reg);
-          const childWriter = childDelegate.writable.getWriter();
+          // Check if this handler uses deferred logic (timeout: 0)
+          const logicSignal = reg.getSignal(handler.logic);
+          const isDeferred = logicSignal?.kind === "logic" && logicSignal.timeout === 0;
 
-          // Chain the child's readable stream
-          chain(childDelegate.readable);
+          if (isDeferred) {
+            // Deferred execution: don't chain to parent, write to root when complete
+            // This allows subsequent events to process without waiting
+            (async () => {
+              const result = await executeHandler(reg, event.id, event.event);
 
-          // Execute handler and propagate updates asynchronously
-          (async () => {
-            // Execute the handler
-            await executeHandler(reg, event.id, event.event);
+              if (result.deferred) {
+                const writer = getRootWriter();
+                if (writer) {
+                  await result.deferred;
+                  // Write signal-update events to root stream for deferred completion
+                  for (const depId of handler.deps) {
+                    const value = reg.getValue(depId);
+                    await writer.write({
+                      kind: "signal-update",
+                      id: depId,
+                      value,
+                    });
+                  }
+                }
+              }
+            })().catch((error: unknown) => {
+              console.error(new Error("Deferred handler execution error", { cause: error }));
+            });
+          } else {
+            // Non-deferred (async or sync): chain to parent, blocks until complete
+            const childDelegate = new SignalDelegate(reg, getRootWriter());
+            const childWriter = childDelegate.writable.getWriter();
 
-            // After handler execution, emit signal-update events for each dependency
-            // This triggers reactive propagation for any mutations the handler made
-            for (const depId of handler.deps) {
-              const value = reg.getValue(depId);
-              await childWriter.write({
-                kind: "signal-update",
-                id: depId,
-                value,
-              });
-            }
-            await childWriter.close();
-          })().catch((error: unknown) => {
-            console.error(new Error("Handler execution error", { cause: error }));
-          });
+            // Chain the child's readable stream synchronously - this blocks subsequent output
+            chain(childDelegate.readable);
+
+            // Execute handler and emit updates asynchronously
+            (async () => {
+              await executeHandler(reg, event.id, event.event);
+
+              // Emit signal-update events for each dependency
+              for (const depId of handler.deps) {
+                const value = reg.getValue(depId);
+                await childWriter.write({
+                  kind: "signal-update",
+                  id: depId,
+                  value,
+                });
+              }
+
+              // Close the child stream - this unblocks subsequent output
+              await childWriter.close();
+            })().catch((error: unknown) => {
+              console.error(new Error("Handler execution error", { cause: error }));
+            });
+          }
         }
       },
       finish: (chain) => {

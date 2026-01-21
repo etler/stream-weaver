@@ -1,5 +1,6 @@
 export { createSignal } from "./createSignal";
-export { createLogic } from "./createLogic";
+export { createLogic, createClientLogic } from "./createLogic";
+export type { CreateLogicOptions } from "./createLogic";
 export { createComputed } from "./createComputed";
 export { createAction } from "./createAction";
 export { createHandler } from "./createHandler";
@@ -31,3 +32,5 @@ export type {
   ValidateActionDeps,
 } from "./logicTypes";
 export type { JsonPrimitive, JsonObject, JsonArray, JsonValue, Serializable } from "./serializableTypes";
+export { PENDING } from "./pending";
+export type { MaybePending } from "./pending";

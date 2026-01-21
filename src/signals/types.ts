@@ -30,6 +30,21 @@ export interface LogicSignal<F extends LogicFunction = LogicFunction> extends Si
   src: string; // Client-side module path (absolute, for /@fs/ loading)
   ssrSrc?: string; // SSR module path (relative, for Node.js import)
   kind: "logic";
+  /**
+   * Timeout in milliseconds for deferred execution (M12)
+   * - undefined = no timeout, always inline (blocking)
+   * - 0 = always defer immediately (never block)
+   * - > 0 = wait up to N ms, then defer if not complete
+   * Note: timeout only affects async logic; sync functions execute immediately regardless
+   */
+  timeout?: number;
+  /**
+   * Execution context restriction (M12)
+   * - undefined = execute anywhere
+   * - 'client' = only execute on client (returns PENDING on server)
+   * - 'server' = only execute on server (M13)
+   */
+  context?: "server" | "client";
   /** @internal Phantom property for compile-time function signature tracking - never set at runtime */
   readonly _functionType?: F;
 }

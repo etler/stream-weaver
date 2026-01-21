@@ -50,6 +50,9 @@ export class ClientWeaver {
     // Initialize SignalDelegate for reactive updates
     this.delegate = new SignalDelegate(this.registry);
     this.delegateWriter = this.delegate.writable.getWriter();
+    // Set root writer for deferred execution completions
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+    this.delegate.setRootWriter(this.delegateWriter);
 
     // Connect SignalDelegate output to Sink for DOM updates
     this.consumeDelegateStream();

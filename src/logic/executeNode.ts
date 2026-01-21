@@ -9,6 +9,9 @@ import { isSignal } from "@/ComponentDelegate/signalDetection";
  * Executes a NodeSignal's component logic and returns the rendered Node
  * NodeSignals receive read-only access to their prop signal dependencies
  *
+ * Note: Components don't support deferred execution - they always execute inline
+ * because they need to return their Node tree for rendering.
+ *
  * @param registry - WeaverRegistry instance
  * @param nodeId - ID of the NodeSignal to execute
  * @returns The rendered Node tree from the component
@@ -45,6 +48,13 @@ export async function executeNode(registry: WeaverRegistry, nodeId: string): Pro
   // Execute the component (handles async logic automatically)
   const result = await executeLogic(logicSignal, [propsWithInterfaces]);
 
+  // If execution was deferred, wait for completion (shouldn't happen for components)
+  if (result.deferred) {
+    const deferredResult = await result.deferred;
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+    return deferredResult as Node;
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-  return result as Node;
+  return result.value as Node;
 }

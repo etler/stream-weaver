@@ -53,3 +53,22 @@ export function allocateDerivedId(logicId: string, depIds: string[]): string {
   const content = `${logicId}:${depIds.join(",")}`;
   return hashString(content);
 }
+
+/**
+ * Generates a content-addressable ID for logic signals with options
+ * The same src + options will always produce the same ID
+ *
+ * @param src - Source path of the logic module
+ * @param timeout - Timeout option (undefined, 0, or positive number)
+ * @param context - Context option ('server' | 'client' | undefined)
+ * @returns Content-addressable logic ID
+ */
+export function allocateLogicId(
+  src: string,
+  timeout: number | undefined,
+  context: "server" | "client" | undefined,
+): string {
+  // Include options in the hash to differentiate same module with different options
+  const content = `${src}:timeout=${timeout ?? ""}:context=${context ?? ""}`;
+  return `logic_${hashString(content)}`;
+}

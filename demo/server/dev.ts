@@ -68,6 +68,11 @@ async function startDevServer() {
             DynamicStateExample: () => JSX.Element;
           };
           html = await renderExample("Dynamic State", module.DynamicStateExample, vite);
+        } else if (url === "/deferred") {
+          const module = (await vite.ssrLoadModule("./src/pages/DeferredDemo.tsx")) as {
+            DeferredDemoExample: () => JSX.Element;
+          };
+          html = await renderExample("Deferred Logic", module.DeferredDemoExample, vite);
         } else {
           res.writeHead(404, { "Content-Type": "text/plain" });
           res.end("Not Found");
@@ -98,6 +103,7 @@ async function startDevServer() {
     console.log(`  http://localhost:${PORT}/async`);
     console.log(`  http://localhost:${PORT}/shared-state`);
     console.log(`  http://localhost:${PORT}/dynamic-state`);
+    console.log(`  http://localhost:${PORT}/deferred`);
   });
 }
 
@@ -248,6 +254,11 @@ async function indexPage(): Promise<string> {
     <a href="/dynamic-state" class="example-card">
       <h2>05. Dynamic State</h2>
       <p>State in loops and conditionals - breaking the "Rules of Hooks"</p>
+    </a>
+
+    <a href="/deferred" class="example-card">
+      <h2>06. Deferred Logic</h2>
+      <p>Non-blocking async with timeout: 0 - compare blocking vs deferred execution</p>
     </a>
   </div>
 </body>

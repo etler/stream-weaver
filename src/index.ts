@@ -11,11 +11,13 @@ export { WeaverRegistry } from "./registry/WeaverRegistry";
 export {
   createSignal,
   createLogic,
+  createClientLogic,
   createComputed,
   createAction,
   createHandler,
   createComponent,
   createNode,
+  PENDING,
 } from "./signals";
 
 export type {
@@ -40,6 +42,9 @@ export type {
   ValidateHandlerDeps,
   ValidateComputedDeps,
   ValidateActionDeps,
+  MaybePending,
+  CreateLogicOptions,
+  Serializable,
 } from "./signals";
 
 // Signal interfaces for logic modules
