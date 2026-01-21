@@ -145,11 +145,14 @@ function serializeAttributes(props: Record<string, unknown>, registry?: WeaverRe
   const parts: string[] = [];
   let signalDefs = "";
 
-  for (const [key, value] of Object.entries(props)) {
+  // Use for...in instead of Object.entries() to avoid array allocation
+  for (const key in props) {
     // Skip children and internal props
     if (key === "children" || key === "key" || key === "ref") {
       continue;
     }
+
+    const value = props[key];
 
     // Handle signal values in attributes
     if (isSignal(value)) {
