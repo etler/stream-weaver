@@ -2578,11 +2578,18 @@ All with surgical DOM updates and zero hydration cost.
 
 The following areas are intentionally deferred for later iterations:
 
-- **Bind Point Cleanup**: Memory optimization for removing bind points when DOM nodes are removed (MutationObserver-based GC)
+- **Bind Point Cleanup**: Memory optimization for removing bind points and signal chains when DOM nodes are removed (MutationObserver-based GC)
 - **Error Handling**: Standardized error boundaries and recovery strategies for action/computed failures
 - **Update Batching**: Coalescing multiple signal updates within a single event loop tick
 - **Race Condition Handling**: Cancellation and priority strategies for concurrent async actions
 - **Worker Pool Parallelism**: Distributed ComponentDelegates to pre-warmed worker pool
 - **UIntArray Optimization**: Optimized stream serialization representation
 - **SharedArrayBuffer**: Worker pool memory optimization
+- **Async Logic**: Allow logic to take async functions and return the results via promise
+- **Deferred Logic**: Provide a way to defer logic so it is removed from the stream, executed, then added back to the start of the stream when it is complete
 - **Server Only Logic**: Provide a way to flag logic that must be run on the server and send signals to the server for remote execution instead
+- **Suspense Component**: Utilize deferred logic to allow for deferred suspense components that show a loading component until completed
+- **Serializable JSON Signals**: Add type support for JSON types to signals
+- **Stream Signals**: Add a signal type that supports putting a stream in the value
+- **Native Sink**: A sink adapter for native apps
+- **Embedded Weavers**: Support for putting weavers in weavers as bind points
