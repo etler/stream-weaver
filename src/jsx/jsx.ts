@@ -27,14 +27,14 @@ export function jsx(type: Element["type"] | ComponentSignal, props: UnknownRecor
     return {
       type,
       props: undefined,
-      children: [normalizeChild(children)].flat(),
+      children: normalizeChildren(children),
     };
   } else if (typeof type === "string") {
     const { children, ...attributeProps } = props;
     return {
       type,
       props: attributeProps,
-      children: [normalizeChild(children)].flat(),
+      children: normalizeChildren(children),
     };
   } else {
     // Function component
@@ -46,7 +46,32 @@ export function jsx(type: Element["type"] | ComponentSignal, props: UnknownRecor
   }
 }
 
-function normalizeChild(child: unknown): Node {
+// Normalize children to a flat array without using .flat()
+function normalizeChildren(children: unknown): Node[] {
+  if (children == null) {
+    return [];
+  }
+  if (Array.isArray(children)) {
+    // Flatten one level while normalizing
+    const result: Node[] = [];
+    for (const child of children) {
+      if (Array.isArray(child)) {
+        // Nested array - flatten one level
+        for (const nested of child) {
+          result.push(normalizeNode(nested));
+        }
+      } else {
+        result.push(normalizeNode(child));
+      }
+    }
+    return result;
+  }
+  // Single child
+  return [normalizeNode(children)];
+}
+
+// Normalize a single node (not an array)
+function normalizeNode(child: unknown): Node {
   if (child == null) {
     return null;
   }
@@ -57,7 +82,8 @@ function normalizeChild(child: unknown): Node {
     return child;
   }
   if (Array.isArray(child)) {
-    return child.map(normalizeChild);
+    // Recursively handle nested arrays (rare case)
+    return child.map(normalizeNode);
   }
   switch (typeof child) {
     case "string":
@@ -66,6 +92,11 @@ function normalizeChild(child: unknown): Node {
     default:
       throw new Error("Error: Invalid value for child");
   }
+}
+
+// Keep for backward compatibility with createNode
+function normalizeChild(child: unknown): Node {
+  return normalizeNode(child);
 }
 
 function isElement(node: unknown): node is Element {
