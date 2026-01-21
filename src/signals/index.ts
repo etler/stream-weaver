@@ -30,3 +30,4 @@ export type {
   ValidateComputedDeps,
   ValidateActionDeps,
 } from "./logicTypes";
+export type { JsonPrimitive, JsonObject, JsonArray, JsonValue, Serializable } from "./serializableTypes";

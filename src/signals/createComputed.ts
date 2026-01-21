@@ -1,6 +1,7 @@
 import { ComputedSignal, LogicSignal, AnySignal } from "./types";
 import { LogicFunction, ValidateComputedDeps } from "./logicTypes";
 import { allocateDerivedId } from "./idAllocation";
+import type { Serializable } from "./serializableTypes";
 
 /**
  * Creates a computed signal definition with full type safety
@@ -13,6 +14,9 @@ import { allocateDerivedId } from "./idAllocation";
  * - Return type is inferred from the logic function
  *
  * The ID is content-addressable: same logic + deps = same ID (idempotent)
+ *
+ * The init value must be JSON-serializable so it can be transmitted
+ * between server and client during SSR/resumption.
  *
  * @example
  * // With typed logic (full type checking)
@@ -27,10 +31,11 @@ import { allocateDerivedId } from "./idAllocation";
  */
 
 // Single signature with validation - const Deps ensures tuple inference
+// Init must be both the correct return type AND Serializable for SSR transmission
 export function createComputed<F extends LogicFunction, const Deps extends readonly AnySignal[]>(
   logic: LogicSignal<F>,
   deps: ValidateComputedDeps<F, Deps>,
-  init?: ReturnType<F>,
+  init?: ReturnType<F> & Serializable,
 ): ComputedSignal<ReturnType<F>>;
 
 // Implementation

@@ -1,4 +1,5 @@
 export { loadLogic } from "./loadLogic";
+export { executeLogic } from "./executeLogic";
 export { createReadOnlySignalInterface, createWritableSignalInterface } from "./signalInterfaces";
 export type { SignalInterface, WritableSignalInterface } from "./signalInterfaces";
 export { executeComputed } from "./executeComputed";

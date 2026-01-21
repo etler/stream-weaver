@@ -1,6 +1,8 @@
 import { describe, test, expect } from "vitest";
 import { StreamWeaver } from "@/StreamWeaver";
 import { createSignal } from "@/signals/createSignal";
+import { createHandler } from "@/signals/createHandler";
+import { createLogic } from "@/signals/createLogic";
 import { WeaverRegistry } from "@/registry/WeaverRegistry";
 import { jsx } from "@/jsx/jsx";
 
@@ -61,11 +63,11 @@ describe("Milestone 5: Server Bind Markers", () => {
     expect(html).toContain(`data-w-classname="${className.id}"`);
   });
 
-  test("signal prop as event handler produces data-w-* attribute and signal definition", async () => {
+  test("handler signal as event handler produces data-w-* attribute and signal definition", async () => {
     const registry = new WeaverRegistry();
-    const handleClick = createSignal(() => {
-      console.log("clicked");
-    });
+    // Create a handler signal using the proper pattern
+    const clickLogic = createLogic("/test/handleClick.js");
+    const handleClick = createHandler(clickLogic, []);
 
     const app = jsx("button", { onClick: handleClick, children: ["Click me"] });
     const weaver = new StreamWeaver({ root: app, registry });

@@ -1,6 +1,6 @@
 /**
  * Example 3: Async Components
- * Demonstrates async functional components with inline data fetching
+ * Demonstrates both async functional components AND async logic signals
  *
  * IMPOSSIBLE IN OTHER FRAMEWORKS:
  * - React requires Suspense boundaries for async components
@@ -8,7 +8,12 @@
  * - Solid requires createResource() for async data
  *
  * Stream Weaver streams HTML as data arrives - just use await!
+ *
+ * This demo shows TWO approaches:
+ * 1. Async components (UserDashboard, RecentActivity) - await directly in component
+ * 2. Async logic signals (UserStats) - async handler with M11 executeLogic
  */
+import { createSignal, createHandler, createLogic } from "stream-weaver";
 
 // Simulated API calls with delays to demonstrate streaming
 async function fetchUser(id: number): Promise<{ id: number; name: string; email: string }> {
@@ -17,15 +22,6 @@ async function fetchUser(id: number): Promise<{ id: number; name: string; email:
     id,
     name: "Jane Developer",
     email: "jane@example.com",
-  };
-}
-
-async function fetchStats(): Promise<{ commits: number; prs: number; reviews: number }> {
-  await new Promise((resolve) => setTimeout(resolve, 150));
-  return {
-    commits: 1247,
-    prs: 89,
-    reviews: 156,
   };
 }
 
@@ -38,25 +34,57 @@ async function fetchRecentActivity(): Promise<{ id: number; action: string; time
   ];
 }
 
-/**
- * Async component that fetches user stats
- */
-async function UserStats(_props: { userId: number }): Promise<JSX.Element> {
-  const stats = await fetchStats();
+// --- Async Logic Signals (M11) ---
+// UserStats uses separate state signals + async handler to fetch data
 
+// Individual state signals for each stat (enables reactive updates per field)
+const commits = createSignal(0);
+const prs = createSignal(0);
+const reviews = createSignal(0);
+
+// Async action logic that fetches and updates all stats
+const fetchStatsLogic = createLogic(import("../logic/fetchStatsAction"));
+const fetchStats = createHandler(fetchStatsLogic, [commits, prs, reviews]);
+
+/**
+ * UserStats - powered by async logic signal (M11)
+ *
+ * Unlike the other components, this one does NOT await in the component body.
+ * Instead, it uses a state signal + async handler pattern:
+ * - State signal holds the data
+ * - Async handler fetches data (simulates API call)
+ * - Click button triggers the async handler
+ * - executeLogic() awaits the Promise before updating state
+ *
+ * This demonstrates the M11 async logic pattern in action!
+ */
+function UserStats(): JSX.Element {
   return (
-    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin: 1rem 0;">
-      <div style="background: #e3f2fd; padding: 1rem; border-radius: 8px; text-align: center;">
-        <div style="font-size: 2rem; font-weight: bold; color: #1976d2;">{String(stats.commits)}</div>
-        <div style="color: #666; font-size: 0.9rem;">Commits</div>
+    <div style="margin: 1rem 0;">
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
+        <div style="background: #e3f2fd; padding: 1rem; border-radius: 8px; text-align: center;">
+          <div style="font-size: 2rem; font-weight: bold; color: #1976d2;">{commits}</div>
+          <div style="color: #666; font-size: 0.9rem;">Commits</div>
+        </div>
+        <div style="background: #e8f5e9; padding: 1rem; border-radius: 8px; text-align: center;">
+          <div style="font-size: 2rem; font-weight: bold; color: #388e3c;">{prs}</div>
+          <div style="color: #666; font-size: 0.9rem;">Pull Requests</div>
+        </div>
+        <div style="background: #fff3e0; padding: 1rem; border-radius: 8px; text-align: center;">
+          <div style="font-size: 2rem; font-weight: bold; color: #f57c00;">{reviews}</div>
+          <div style="color: #666; font-size: 0.9rem;">Reviews</div>
+        </div>
       </div>
-      <div style="background: #e8f5e9; padding: 1rem; border-radius: 8px; text-align: center;">
-        <div style="font-size: 2rem; font-weight: bold; color: #388e3c;">{String(stats.prs)}</div>
-        <div style="color: #666; font-size: 0.9rem;">Pull Requests</div>
-      </div>
-      <div style="background: #fff3e0; padding: 1rem; border-radius: 8px; text-align: center;">
-        <div style="font-size: 2rem; font-weight: bold; color: #f57c00;">{String(stats.reviews)}</div>
-        <div style="color: #666; font-size: 0.9rem;">Reviews</div>
+      <div style="text-align: center; margin-top: 1rem;">
+        <button
+          onClick={fetchStats}
+          style="padding: 0.5rem 1.5rem; font-size: 1rem; cursor: pointer; background: #1976d2; color: white; border: none; border-radius: 4px;"
+        >
+          Fetch Stats (async)
+        </button>
+        <div style="font-size: 0.8rem; color: #999; margin-top: 0.5rem;">
+          ⚡ Click to trigger async logic signal (500ms delay)
+        </div>
       </div>
     </div>
   );
@@ -104,8 +132,9 @@ async function UserDashboard({ userId }: { userId: number }): Promise<JSX.Elemen
         </div>
       </div>
 
-      {/* Nested async components - they stream independently! */}
-      {await UserStats({ userId: user.id })}
+      {/* UserStats: sync component with async logic signal (M11) */}
+      {UserStats()}
+      {/* RecentActivity: async component with direct await */}
       {await RecentActivity({ userId: user.id })}
     </div>
   );
@@ -124,12 +153,16 @@ export async function AsyncComponentsExample(): Promise<JSX.Element> {
       </p>
 
       <div style="background: #fff8e1; padding: 1rem; border-radius: 8px; margin-bottom: 2rem; max-width: 600px; margin-left: auto; margin-right: auto;">
-        <strong>What makes this special:</strong>
+        <strong>Two async patterns in one demo:</strong>
         <ul style="margin: 0.5rem 0 0 0; padding-left: 1.5rem;">
-          <li>UserDashboard is an async function that awaits fetchUser()</li>
-          <li>UserStats is a nested async component that awaits fetchStats()</li>
-          <li>RecentActivity is another nested async component</li>
-          <li>No Suspense boundaries, no special wrappers needed</li>
+          <li>
+            <strong>Async components:</strong> UserDashboard and RecentActivity use <code>await</code> directly in the
+            component
+          </li>
+          <li>
+            <strong>Async logic signals:</strong> UserStats uses an async handler - click the button to see M11's{" "}
+            <code>executeLogic</code> await the Promise
+          </li>
         </ul>
       </div>
 

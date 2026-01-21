@@ -1,5 +1,5 @@
 import { WeaverRegistry } from "@/registry/WeaverRegistry";
-import { loadLogic } from "./loadLogic";
+import { executeLogic } from "./executeLogic";
 import { createWritableSignalInterface } from "./signalInterfaces";
 
 /**
@@ -23,12 +23,9 @@ export async function executeHandler(registry: WeaverRegistry, handlerId: string
     throw new Error(`Logic signal ${handler.logic} not found`);
   }
 
-  // Load the logic function
-  const logicFn = await loadLogic(logicSignal);
-
   // Wrap dependencies as writable interfaces
   const depInterfaces = handler.deps.map((depId) => createWritableSignalInterface(registry, depId));
 
-  // Execute the logic function with event as first parameter
-  logicFn(event, ...depInterfaces);
+  // Execute the logic function with event as first parameter (handles async logic automatically)
+  await executeLogic(logicSignal, [event, ...depInterfaces]);
 }

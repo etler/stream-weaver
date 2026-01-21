@@ -1,5 +1,5 @@
 import { WeaverRegistry } from "@/registry/WeaverRegistry";
-import { loadLogic } from "./loadLogic";
+import { executeLogic } from "./executeLogic";
 import { createReadOnlySignalInterface } from "./signalInterfaces";
 import type { Node } from "@/jsx/types/Node";
 import type { NodeSignal, LogicSignal } from "@/signals/types";
@@ -30,12 +30,6 @@ export async function executeNode(registry: WeaverRegistry, nodeId: string): Pro
     throw new Error(`Logic signal ${node.logic} not found for node ${nodeId}`);
   }
 
-  // Load the component function
-  const componentFn = await loadLogic(logicSignal);
-  if (typeof componentFn !== "function") {
-    throw new Error(`Component module ${logicSignal.src} does not export a function`);
-  }
-
   // Build props object with signal interfaces for signal props
   const propsWithInterfaces: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(node.props)) {
@@ -48,14 +42,9 @@ export async function executeNode(registry: WeaverRegistry, nodeId: string): Pro
     }
   }
 
-  // Execute the component
+  // Execute the component (handles async logic automatically)
+  const result = await executeLogic(logicSignal, [propsWithInterfaces]);
+
   // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-  const result = componentFn(propsWithInterfaces) as Node | Promise<Node>;
-
-  // Handle async components
-  if (result instanceof Promise) {
-    return await result;
-  }
-
-  return result;
+  return result as Node;
 }

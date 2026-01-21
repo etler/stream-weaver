@@ -1,5 +1,5 @@
 import { WeaverRegistry } from "@/registry/WeaverRegistry";
-import { loadLogic } from "./loadLogic";
+import { executeLogic } from "./executeLogic";
 import { createReadOnlySignalInterface } from "./signalInterfaces";
 
 /**
@@ -22,14 +22,11 @@ export async function executeComputed(registry: WeaverRegistry, computedId: stri
     throw new Error(`Logic signal ${computed.logic} not found`);
   }
 
-  // Load the logic function
-  const logicFn = await loadLogic(logicSignal);
-
   // Wrap dependencies as read-only interfaces
   const depInterfaces = computed.deps.map((depId) => createReadOnlySignalInterface(registry, depId));
 
-  // Execute the logic function
-  const result = logicFn(...depInterfaces);
+  // Execute the logic function (handles async logic automatically)
+  const result = await executeLogic(logicSignal, depInterfaces);
 
   // Cache the result in the registry
   registry.setValue(computedId, result);
