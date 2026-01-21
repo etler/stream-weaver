@@ -278,15 +278,23 @@ function normalizeAttributeName(jsxName: string): string {
   }
 }
 
+// Optimized single-pass escape functions (inspired by SolidJS)
+const TEXT_ESCAPE_RE = /[&<>]/g;
+const TEXT_ESCAPE_MAP: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;" };
+
+const ATTR_ESCAPE_RE = /[&<>"']/g;
+const ATTR_ESCAPE_MAP: Record<string, string> = {
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': "&quot;",
+  "'": "&apos;",
+};
+
 function escapeText(text: string): string {
-  return text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+  return text.replace(TEXT_ESCAPE_RE, (char) => TEXT_ESCAPE_MAP[char]);
 }
 
 function escapeAttribute(text: string): string {
-  return text
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&apos;");
+  return text.replace(ATTR_ESCAPE_RE, (char) => ATTR_ESCAPE_MAP[char]);
 }
