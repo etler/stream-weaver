@@ -2973,6 +2973,5 @@ The following areas are intentionally deferred for later iterations:
 - **Worker Pool Logic Signals**: Allow logic signals to spawn work on a worker pool
 - **WASM Logic Sources**: Add support for letting logic signals execute wasm
 - **Logic Module Pre-fetching**: Create a logic module pre-fetch algorithm to lazily load logic and prioritize logic chains of handlers more likely to execute
-- **Serializable JSON Signal Types**: Add type strictness for state signal inits to be JSON only
 - **Native Sink**: A sink adapter for native apps
 - **Embedded Weavers**: Support for putting weavers in weavers as bind points
