@@ -28,16 +28,16 @@ describe("Milestone 12: Deferred and Client Logic", () => {
       registry.setValue(count.id, 5);
 
       // Start execution (don't await yet)
-      const promise = executeComputed(registry, result.id);
+      const execResult = await executeComputed(registry, result.id);
 
-      // Allow one microtask for the async function to start
-      await Promise.resolve();
-
-      // Value should be PENDING after microtask
+      // Value should be PENDING immediately
+      expect(execResult.value).toBe(PENDING);
       expect(registry.getValue(result.id)).toBe(PENDING);
 
-      // After completion, value should be resolved
-      await promise;
+      // After deferred completion, value should be resolved
+      if (execResult.deferred) {
+        await execResult.deferred;
+      }
       expect(registry.getValue(result.id)).toBe(10);
     });
 
@@ -53,16 +53,16 @@ describe("Milestone 12: Deferred and Client Logic", () => {
       registry.setValue(count.id, 5);
 
       // Start execution
-      const promise = executeComputed(registry, result.id);
-
-      // Allow one microtask for the async function to start
-      await Promise.resolve();
+      const execResult = await executeComputed(registry, result.id);
 
       // Value should be init value (0) immediately, not PENDING
+      expect(execResult.value).toBe(0);
       expect(registry.getValue(result.id)).toBe(0);
 
-      // After completion, value should be resolved
-      await promise;
+      // After deferred completion, value should be resolved
+      if (execResult.deferred) {
+        await execResult.deferred;
+      }
       expect(registry.getValue(result.id)).toBe(10);
     });
   });
@@ -80,16 +80,16 @@ describe("Milestone 12: Deferred and Client Logic", () => {
       registry.registerSignal(result);
       registry.setValue(count.id, 5);
 
-      const promise = executeComputed(registry, result.id);
+      const execResult = await executeComputed(registry, result.id);
 
-      // Wait for the timeout to trigger (50ms + buffer)
-      await new Promise((resolve) => setTimeout(resolve, 60));
-
-      // Should be PENDING after 50ms timeout
+      // Should be PENDING after 50ms timeout (timer won the race)
+      expect(execResult.value).toBe(PENDING);
       expect(registry.getValue(result.id)).toBe(PENDING);
 
-      // After full completion, value should be resolved
-      await promise;
+      // After deferred completion, value should be resolved
+      if (execResult.deferred) {
+        await execResult.deferred;
+      }
       expect(registry.getValue(result.id)).toBe(10);
     });
 
@@ -163,9 +163,13 @@ describe("Milestone 12: Deferred and Client Logic", () => {
       registry.registerSignal(result);
       registry.setValue(count.id, 5);
 
-      await executeComputed(registry, result.id);
+      const execResult = await executeComputed(registry, result.id);
 
-      // Should have executed immediately (sync functions ignore timeout)
+      // Sync functions complete immediately, so value should be resolved
+      // (but may still return as deferred for consistency)
+      if (execResult.deferred) {
+        await execResult.deferred;
+      }
       expect(registry.getValue(result.id)).toBe(10);
     });
   });
