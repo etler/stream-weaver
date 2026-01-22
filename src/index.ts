@@ -23,6 +23,7 @@ export {
   createComponent,
   createNode,
   createSuspense,
+  createStream,
   PENDING,
 } from "./signals";
 
@@ -36,6 +37,7 @@ export type {
   ComponentSignal,
   NodeSignal,
   SuspenseSignal,
+  StreamSignal,
   AnySignal,
   LogicFunction,
   ExtractLogicFunction,
@@ -65,6 +67,9 @@ export type { ModuleLoader } from "./ssr";
 export { serializeSignalChain, executeFromChain, executeRemote } from "./logic/remoteExecution";
 export type { SignalChain, SerializedSignal } from "./logic/remoteExecution";
 export { preExecuteServerLogic } from "./logic/preExecuteServerLogic";
+
+// Stream execution
+export { executeStream } from "./logic/executeStream";
 
 // Polyfills (side-effect import)
 import "./polyfills/readableStreamFrom";

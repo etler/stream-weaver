@@ -7,6 +7,7 @@ export { createHandler } from "./createHandler";
 export { createComponent } from "./createComponent";
 export { createNode } from "./createNode";
 export { createSuspense } from "./createSuspense";
+export { createStream } from "./createStream";
 export type {
   Signal,
   StateSignal,
@@ -17,6 +18,7 @@ export type {
   ComponentSignal,
   NodeSignal,
   SuspenseSignal,
+  StreamSignal,
   AnySignal,
 } from "./types";
 export type {

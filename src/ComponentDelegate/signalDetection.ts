@@ -1,4 +1,4 @@
-import { AnySignal, ComponentSignal, NodeSignal, SuspenseSignal } from "@/signals/types";
+import { AnySignal, ComponentSignal, NodeSignal, SuspenseSignal, StreamSignal } from "@/signals/types";
 
 /**
  * Type guard to check if a value is a signal definition object
@@ -22,7 +22,8 @@ export function isSignal(value: unknown): value is AnySignal {
       obj["kind"] === "handler" ||
       obj["kind"] === "component" ||
       obj["kind"] === "node" ||
-      obj["kind"] === "suspense")
+      obj["kind"] === "suspense" ||
+      obj["kind"] === "stream")
   );
 }
 
@@ -68,4 +69,11 @@ export function isNodeSignal(value: unknown): value is NodeSignal {
  */
 export function isSuspenseSignal(value: unknown): value is SuspenseSignal {
   return isSignal(value) && value.kind === "suspense";
+}
+
+/**
+ * Type guard to check if a value is a StreamSignal (stream reducer)
+ */
+export function isStreamSignal(value: unknown): value is StreamSignal {
+  return isSignal(value) && value.kind === "stream";
 }

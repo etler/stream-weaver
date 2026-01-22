@@ -6,6 +6,7 @@ import { AnySignal, SuspenseSignal, ComputedSignal } from "@/signals/types";
 import { nodeToHtml } from "./nodeToHtml";
 import { executeNode } from "@/logic/executeNode";
 import { executeComputed } from "@/logic/executeComputed";
+import { executeStream } from "@/logic/executeStream";
 import type { Node } from "@/jsx/types/Node";
 import { PENDING } from "@/signals/pending";
 
@@ -40,6 +41,8 @@ export class ClientWeaver {
   private pendingNodeSignals = new Set<string>();
   // Computed signals with deferred logic that need execution
   private pendingDeferredComputed = new Set<string>();
+  // Stream signals that need execution
+  private pendingStreamSignals = new Set<string>();
   // Map: signal ID -> set of suspense IDs waiting on that signal
   private suspenseWaiters = new Map<string, Set<string>>();
 
@@ -72,6 +75,7 @@ export class ClientWeaver {
       setTimeout(() => {
         this.executePendingNodeSignals();
         this.executePendingDeferredComputed();
+        this.executePendingStreamSignals();
       }, 0);
     }
   }
@@ -110,6 +114,27 @@ export class ClientWeaver {
         waiters.add(suspense.id);
       }
     }
+
+    // Track stream signals that need execution
+    if (message.signal.kind === "stream") {
+      this.pendingStreamSignals.add(message.signal.id);
+
+      // Register nested signals from stream definition
+      const stream = message.signal;
+      if (stream.sourceRef) {
+        this.registry.registerSignal(stream.sourceRef);
+        // Also register the computed's logic signal if present
+        if (stream.sourceRef.kind === "computed" && "logicRef" in stream.sourceRef) {
+          const computed = stream.sourceRef as ComputedSignal;
+          if (computed.logicRef) {
+            this.registry.registerSignal(computed.logicRef);
+          }
+        }
+      }
+      if (stream.reducerRef) {
+        this.registry.registerSignal(stream.reducerRef);
+      }
+    }
   }
 
   /**
@@ -139,6 +164,85 @@ export class ClientWeaver {
       this.executeAndUpdateComputed(computedId);
     }
     this.pendingDeferredComputed.clear();
+  }
+
+  /**
+   * Execute pending stream signals
+   */
+  private executePendingStreamSignals(): void {
+    for (const streamId of this.pendingStreamSignals) {
+      this.executeAndUpdateStream(streamId);
+    }
+    this.pendingStreamSignals.clear();
+  }
+
+  /**
+   * Execute a stream signal and emit updates as items arrive
+   */
+  private executeAndUpdateStream(streamId: string): void {
+    const signal = this.registry.getSignal(streamId);
+    if (signal?.kind !== "stream") {
+      return;
+    }
+    const stream = signal;
+
+    // First, execute the source signal's computed to create the ReadableStream
+    const sourceId = stream.source;
+    const sourceSignal = this.registry.getSignal(sourceId);
+
+    // If source is a computed signal, ensure it's executed first
+    if (sourceSignal?.kind === "computed") {
+      (async () => {
+        // Execute source computed to get the ReadableStream
+        await executeComputed(this.registry, sourceId);
+
+        // Now execute the stream (which will read from the ReadableStream)
+        this.runStreamExecution(streamId);
+      })().catch((error: unknown) => {
+        console.error(new Error(`Failed to execute stream source ${sourceId}`, { cause: error }));
+      });
+    } else {
+      // Source already has a value, just execute the stream
+      this.runStreamExecution(streamId);
+    }
+  }
+
+  /**
+   * Run stream execution and emit updates
+   */
+  private runStreamExecution(streamId: string): void {
+    // Create a wrapper that emits signal-update for each stream item
+    const originalSetValue = this.registry.setValue.bind(this.registry);
+    const writer = this.delegateWriter;
+
+    // Guard to prevent infinite loop: SignalDelegate calls setValue when processing
+    // signal-update events, which would trigger another write without this guard
+    let isEmitting = false;
+
+    // Temporarily override setValue to emit updates
+    this.registry.setValue = (id: string, value: unknown) => {
+      originalSetValue(id, value);
+      if (id === streamId && !isEmitting) {
+        isEmitting = true;
+        writer
+          .write({ kind: "signal-update", id, value })
+          .catch((error: unknown) => {
+            console.error(new Error(`Failed to emit stream update for ${id}`, { cause: error }));
+          })
+          .finally(() => {
+            isEmitting = false;
+          });
+      }
+    };
+
+    executeStream(this.registry, streamId)
+      .catch((error: unknown) => {
+        console.error(new Error(`Failed to execute stream ${streamId}`, { cause: error }));
+      })
+      .finally(() => {
+        // Restore original setValue
+        this.registry.setValue = originalSetValue;
+      });
   }
 
   /**

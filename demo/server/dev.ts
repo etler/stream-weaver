@@ -83,6 +83,11 @@ async function startDevServer() {
             SuspenseExample: () => JSX.Element;
           };
           html = await renderExample("Suspense", module.SuspenseExample, vite);
+        } else if (url === "/stream") {
+          const module = (await vite.ssrLoadModule("./src/pages/StreamDemo.tsx")) as {
+            StreamExample: () => JSX.Element;
+          };
+          html = await renderExample("Stream Signals", module.StreamExample, vite);
         } else if (url === "/weaver/execute" && req.method === "POST") {
           // Handle server logic RPC endpoint
           await handleWeaverExecute(req, res, vite);
@@ -120,6 +125,7 @@ async function startDevServer() {
     console.log(`  http://localhost:${PORT}/deferred`);
     console.log(`  http://localhost:${PORT}/server-logic`);
     console.log(`  http://localhost:${PORT}/suspense`);
+    console.log(`  http://localhost:${PORT}/stream`);
   });
 }
 
@@ -336,6 +342,11 @@ async function indexPage(): Promise<string> {
     <a href="/suspense" class="example-card">
       <h2>08. Suspense</h2>
       <p>Loading boundaries with fallback content - shows skeleton while data loads</p>
+    </a>
+
+    <a href="/stream" class="example-card">
+      <h2>09. Stream Signals</h2>
+      <p>Reduce ReadableStreams into reactive values - for WebSockets, SSE, streaming APIs</p>
     </a>
   </div>
 </body>
