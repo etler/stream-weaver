@@ -78,9 +78,13 @@ export function serializeToken(token: Token): string {
 }
 
 function serializeSignalDefinition(signal: AnySignal): string {
-  // Create a serializable version of the signal, filtering out SSR-only fields
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { logicRef, ...serializableSignal } = signal as AnySignal & { logicRef?: unknown };
+  // Create a serializable version of the signal, filtering out non-serializable references
+  const serializableSignal = { ...signal } as Record<string, unknown>;
+  delete serializableSignal["logicRef"];
+  delete serializableSignal["depsRef"];
+  delete serializableSignal["_logicRef"];
+  delete serializableSignal["_componentRef"];
+  // Note: _childrenHtml is kept for Suspense client-side resolution
   const signalData = JSON.stringify({ kind: "signal-definition", signal: serializableSignal });
   return `<script>weaver.push(${signalData})</script>`;
 }

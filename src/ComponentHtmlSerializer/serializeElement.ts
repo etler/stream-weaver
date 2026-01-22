@@ -256,6 +256,12 @@ function serializeSignalNode(signal: AnySignal, registry?: WeaverRegistry): stri
     return null;
   }
 
+  // Handle NodeSignal - always fall back to streaming path
+  // NodeSignals require component execution which needs the delegate stream
+  if (signal.kind === "node") {
+    return null;
+  }
+
   // Get current value
   let value = registry.getValue(signal.id);
   if (value === undefined && "init" in signal) {

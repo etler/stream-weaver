@@ -336,17 +336,26 @@ function handleNodeSignal(node: NodeSignal, registry?: WeaverRegistry): (TokenOr
     registry.registerSignal(node);
   }
 
-  // Also register any signals in the node's props
+  // Also register any signals in the node's props and set their values
+  // Collect prop signal definitions to emit
+  const propSignalDefs: TokenOrExecutable[] = [];
   for (const propValue of Object.values(node.props)) {
     if (isSignal(propValue)) {
       if (!registry.getSignal(propValue.id)) {
         registry.registerSignal(propValue);
       }
-      // If this signal references a logic signal, register that too
+      // Set the value from init if not already set (needed for executeNodeSignal proxy)
+      if (registry.getValue(propValue.id) === undefined && "init" in propValue) {
+        registry.setValue(propValue.id, propValue.init);
+      }
+      // Emit signal definition for prop signals so they're available on client
+      propSignalDefs.push({ kind: "signal-definition", signal: propValue });
+      // If this signal references a logic signal, register and emit that too
       if ("logicRef" in propValue && isSignal(propValue.logicRef)) {
         if (!registry.getSignal(propValue.logicRef.id)) {
           registry.registerSignal(propValue.logicRef);
         }
+        propSignalDefs.push({ kind: "signal-definition", signal: propValue.logicRef });
       }
     }
   }
@@ -365,6 +374,7 @@ function handleNodeSignal(node: NodeSignal, registry?: WeaverRegistry): (TokenOr
   };
 
   return [
+    ...propSignalDefs,
     { kind: "signal-definition", signal: logicSignal },
     { kind: "signal-definition", signal: componentSignal },
     { kind: "signal-definition", signal: node },
