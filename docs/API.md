@@ -3109,7 +3109,6 @@ The following areas are intentionally deferred for later iterations:
 - **Bind Point Cleanup**: Memory optimization for removing bind points and signal chains when DOM nodes are removed (MutationObserver-based GC)
 - **Error Handling**: Standardized error boundaries and recovery strategies for action/computed failures
 - **Race Condition Handling**: Cancellation and priority strategies for concurrent async actions
-- **WASM Logic Sources**: Add support for letting logic signals execute wasm
 - **Logic Module Pre-fetching**: Create a logic module pre-fetch algorithm to lazily load logic and prioritize logic chains of handlers more likely to execute
 - **Native Sink**: A sink adapter for native apps
 - **Embedded Weavers**: Support for putting weavers in weavers as bind points
