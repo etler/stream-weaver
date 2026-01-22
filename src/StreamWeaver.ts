@@ -1,11 +1,7 @@
 import { ComponentDelegate } from "@/ComponentDelegate/ComponentDelegate";
 import { ComponentSerializer } from "@/ComponentHtmlSerializer/ComponentSerializer";
-import { serializeElement } from "@/ComponentHtmlSerializer/serializeElement";
 import { Element } from "@/jsx/types/Element";
 import { WeaverRegistry } from "@/registry/WeaverRegistry";
-
-// Buffer target size for fast path
-const BUFFER_TARGET_SIZE = 2048;
 
 export interface StreamWeaverOptions {
   root: Element | Promise<Element>;
@@ -15,83 +11,27 @@ export interface StreamWeaverOptions {
 /**
  * StreamWeaver
  *
- * Proof of Concept Scope
- *
- * [ ] Server Weaver
- *   [ ] Hydration Delegate
- *   [x] Component Delegate
- *   [ ] Fallback Component Delegate
- * [ ] Server Stream HTML Serializer
- *   [ ] Hydration Stream HTML Serializer
- *   [x] Component Stream HTML Serializer
- *   [ ] Fallback Component Stream HTML Serializer
- * [x] Browser Stream Deserializer (Inherent)
- * [ ] Browser Client Weaver
- *   [ ] Interaction Delegate
- *   [ ] State Delegate
- *   [ ] Component Delegate
- *   [ ] Component Stream DOM serializer
- *   [ ] Lifecycle Delegate
- *
- * Goals:
- * No Magic, lead devs to write valid code via rails
- * Serializable streams with isomorphic reducers to a dom/state sink
- *
+ * Server-side streaming renderer that processes JSX through ComponentDelegate.
+ * The fast path optimization for sync subtrees is handled inside ComponentDelegate,
+ * allowing sync portions to be serialized directly even within async pages.
  */
 export class StreamWeaver {
   public readable: ReadableStream<string>;
+
   constructor({ root, registry }: StreamWeaverOptions) {
-    // Handle Promise root by deferring to async path
+    // Handle Promise root by deferring resolution
     if (root instanceof Promise) {
       this.readable = this.createAsyncStream(root, registry);
       return;
     }
 
-    // Try direct serialization (returns null if content has async components)
-    const html = serializeElement(root, registry);
-
-    if (html !== null) {
-      // Fast path: direct serialization succeeded
-      this.readable = this.createDirectStream(html);
-    } else {
-      // Slow path: has async components, use DelegateStream
-      this.readable = this.createDelegateStream(root, registry);
-    }
+    // All content goes through ComponentDelegate which handles fast path internally
+    this.readable = this.createDelegateStream(root, registry);
   }
 
   /**
-   * Fast path for static content - direct string output
-   */
-  private createDirectStream(html: string): ReadableStream<string> {
-    let offset = 0;
-    let firstChunkSent = false;
-
-    return new ReadableStream<string>({
-      pull: (controller) => {
-        if (offset >= html.length) {
-          controller.close();
-          return;
-        }
-
-        // Flush immediately on first chunk for TTFB
-        if (!firstChunkSent) {
-          const firstChunk = html.slice(0, BUFFER_TARGET_SIZE);
-          controller.enqueue(firstChunk);
-          offset = firstChunk.length;
-          firstChunkSent = true;
-          return;
-        }
-
-        // Emit subsequent chunks
-        const chunk = html.slice(offset, offset + BUFFER_TARGET_SIZE);
-        controller.enqueue(chunk);
-        offset += chunk.length;
-      },
-    });
-  }
-
-  /**
-   * Slow path using DelegateStream for async component support
+   * Create a delegate stream for processing content
+   * ComponentDelegate handles fast path optimization for sync subtrees internally
    */
   private createDelegateStream(root: Element, registry?: WeaverRegistry): ReadableStream<string> {
     const delegate = new ComponentDelegate(registry);
@@ -109,7 +49,7 @@ export class StreamWeaver {
   }
 
   /**
-   * Handle Promise<Element> root - must use async path
+   * Handle Promise<Element> root - wait for resolution before processing
    */
   private createAsyncStream(root: Promise<Element>, registry?: WeaverRegistry): ReadableStream<string> {
     const delegate = new ComponentDelegate(registry);

@@ -9,6 +9,7 @@ import {
   eventPropToDataAttribute,
   propToDataAttribute,
 } from "@/ComponentDelegate/signalDetection";
+import { isSuspenseResolutionNode } from "@/ComponentDelegate/tokenize";
 import { Node } from "@/jsx/types/Node";
 import { Fragment } from "@/jsx/jsx-runtime";
 import { WeaverRegistry } from "@/registry/WeaverRegistry";
@@ -47,6 +48,19 @@ export function serializeElement(node: Node, registry?: WeaverRegistry): string 
     return "";
   }
 
+  // Array - try to serialize each element
+  if (Array.isArray(node)) {
+    let html = "";
+    for (const child of node) {
+      const childHtml = serializeElement(child, registry);
+      if (childHtml === null) {
+        return null; // Child contains async content
+      }
+      html += childHtml;
+    }
+    return html;
+  }
+
   // String - escape and return
   if (typeof node === "string") {
     return escapeText(node);
@@ -60,6 +74,11 @@ export function serializeElement(node: Node, registry?: WeaverRegistry): string 
   // Signal - serialize with bind markers
   if (isSignal(node)) {
     return serializeSignalNode(node, registry);
+  }
+
+  // SuspenseResolutionNode - requires tokenize handling
+  if (isSuspenseResolutionNode(node)) {
+    return null;
   }
 
   // Element
@@ -238,13 +257,19 @@ function serializeSignalNode(signal: AnySignal, registry?: WeaverRegistry): stri
     registry.registerSignal(signal);
   }
 
-  // Check for server-context computed signals that need async execution
-  // These must fall back to the streaming path for proper execution
+  // Check for computed signals that need special handling
   if (signal.kind === "computed") {
     const computed = signal as ComputedSignal;
     const logicSignal = computed.logicRef;
+
+    // Server-context computed signals need async execution
     if (logicSignal?.context === "server" && registry.getValue(signal.id) === undefined) {
-      // Server-context logic needs async execution - fall back to streaming path
+      return null;
+    }
+
+    // Deferred computed signals (timeout: 0) need the streaming path
+    // so Suspense can detect PENDING via signal-definition tokens
+    if (logicSignal?.timeout === 0) {
       return null;
     }
   }

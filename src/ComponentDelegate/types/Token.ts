@@ -33,6 +33,15 @@ export interface SignalDefinitionToken {
 }
 
 /**
+ * RawHtmlToken represents pre-serialized HTML from the fast path
+ * Used when a sync subtree can be serialized directly without tokenization
+ */
+export interface RawHtmlToken {
+  kind: "raw-html";
+  content: string;
+}
+
+/**
  * NodeExecutable represents a component node that needs to be executed
  * Contains all the information needed to load and run the component
  */
@@ -70,6 +79,7 @@ export type Token =
   | TextToken
   | BindMarkerOpenToken
   | BindMarkerCloseToken
-  | SignalDefinitionToken;
+  | SignalDefinitionToken
+  | RawHtmlToken;
 
 export type TokenOrExecutable = Token | NodeExecutable | ComputedExecutable | SuspenseExecutable;

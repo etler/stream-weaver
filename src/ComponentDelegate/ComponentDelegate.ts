@@ -9,6 +9,7 @@ import { loadSSRModule } from "@/ssr";
 import { executeComputed } from "@/logic/executeComputed";
 import { PENDING } from "@/signals/pending";
 import { tokensToHtml } from "@/ComponentHtmlSerializer";
+import { serializeElement } from "@/ComponentHtmlSerializer/serializeElement";
 
 export class ComponentDelegate extends DelegateStream<Node, Token> {
   constructor(registry?: WeaverRegistry) {
@@ -17,6 +18,15 @@ export class ComponentDelegate extends DelegateStream<Node, Token> {
 
     super({
       transform: (node, chain) => {
+        // Fast path: try direct serialization for sync subtrees
+        const html = serializeElement(node, reg);
+        if (html !== null) {
+          // Sync subtree - emit pre-serialized HTML directly
+          chain([{ kind: "raw-html", content: html }]);
+          return;
+        }
+
+        // Slow path: tokenize and process chunks (has async content)
         const chunks = chunkify(tokenize(node, reg));
         for (const chunk of chunks) {
           if (Array.isArray(chunk)) {
@@ -185,12 +195,14 @@ function executeSuspenseSignal(
     suspense._childrenHtml = childrenHtml;
 
     // Write a SuspenseResolutionNode that tokenize will handle
+    // Include the suspense signal so its definition can be emitted AFTER _childrenHtml is set
     const resolutionNode: SuspenseResolutionNode = {
       __suspenseResolution: true,
       suspenseId: suspense.id,
       showFallback: pendingSignals.length > 0,
       fallback,
       childrenTokens: flattenedTokens,
+      suspenseSignal: suspense,
     };
 
     // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion

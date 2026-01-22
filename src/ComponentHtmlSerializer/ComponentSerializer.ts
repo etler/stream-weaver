@@ -74,6 +74,9 @@ export function serializeToken(token: Token): string {
       return `<!--/${token.id}-->`;
     case "signal-definition":
       return serializeSignalDefinition(token.signal);
+    case "raw-html":
+      // Pre-serialized HTML from fast path - pass through directly
+      return token.content;
   }
 }
 

@@ -25,6 +25,8 @@ export interface SuspenseResolutionNode {
   fallback: Node;
   // Pre-collected tokens from children processing
   childrenTokens: TokenOrExecutable[];
+  // The suspense signal (for emitting signal-definition after _childrenHtml is set)
+  suspenseSignal: SuspenseSignal;
 }
 
 export function isSuspenseResolutionNode(node: unknown): node is SuspenseResolutionNode {
@@ -45,11 +47,15 @@ export function tokenize(node: Node, registry?: WeaverRegistry): (TokenOrExecuta
       return typeof token === "object" && token !== null && "kind" in token && token.kind === "signal-definition";
     });
 
+    // Emit the suspense signal-definition HERE, after _childrenHtml has been set by executeSuspenseSignal
+    const suspenseSignalDef: TokenOrExecutable = { kind: "signal-definition", signal: node.suspenseSignal };
+
     if (node.showFallback) {
       // Show fallback, but emit children's signal definitions first
       // This allows the client to track the pending signals and swap later
       return [
         ...childSignalDefs,
+        suspenseSignalDef,
         { kind: "bind-marker-open", id: node.suspenseId },
         ...tokenize(node.fallback, registry),
         { kind: "bind-marker-close", id: node.suspenseId },
@@ -57,6 +63,7 @@ export function tokenize(node: Node, registry?: WeaverRegistry): (TokenOrExecuta
     } else {
       // Show children - use pre-collected tokens
       return [
+        suspenseSignalDef,
         { kind: "bind-marker-open", id: node.suspenseId },
         ...node.childrenTokens,
         { kind: "bind-marker-close", id: node.suspenseId },
@@ -237,6 +244,8 @@ function handleSuspenseSignal(
 
   if (hasComponentElements) {
     // Children have function components - defer to ComponentDelegate for execution
+    // Note: signal-definition is NOT emitted here - it will be emitted when processing
+    // SuspenseResolutionNode after _childrenHtml has been set by executeSuspenseSignal
     const executable: SuspenseExecutable = {
       kind: "suspense-executable",
       suspense,
@@ -245,7 +254,7 @@ function handleSuspenseSignal(
       // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       fallback: suspense.fallback as Node,
     };
-    return [{ kind: "signal-definition", signal: suspense }, executable];
+    return [executable];
   }
 
   // No function components - we can check for PENDING signals directly
