@@ -1632,6 +1632,225 @@ test('stream signal handles stream errors', async () => {
 
 ---
 
+## Milestone 16: Worker Logic
+
+**Goal**: Enable CPU-intensive logic to execute in worker threads across all runtimes (browser, Bun, Node.js), keeping the main thread responsive.
+
+**Isomorphic Support**:
+- **Browser**: Web Workers API
+- **Bun**: Web Workers API (same as browser)
+- **Node.js**: `worker_threads` module
+
+**Key Insight**: The existing logic module system already works for workers. Logic modules are ES modules that workers can import directly. Browser and Bun use `src` URLs, Node uses `ssrSrc` paths. No special bundling needed.
+
+**Implementation Tasks**:
+- Add `'worker'` to the `context` type in `LogicSignal` interface
+- Implement `createWorkerLogic(mod)` factory function (wrapper around `createLogic` with `context: 'worker'`)
+- Create two worker scripts:
+  - `worker.ts` for browser/Bun (Web Worker API)
+  - `nodeWorker.ts` for Node.js (worker_threads API)
+- Implement `WorkerPool` class with runtime detection
+- Implement `executeInWorker(src, args)` function for message passing
+- Modify `executeComputed` to detect worker context and route to worker pool
+- Use `src` for browser/Bun, `ssrSrc` for Node.js
+
+**Runtime Detection**:
+```typescript
+// Returns true only for Node.js (not Bun, not browser)
+function isNodeOnly(): boolean {
+  return typeof process !== 'undefined'
+    && process.versions?.node
+    && typeof Bun === 'undefined';
+}
+```
+
+**Worker Pool Design**:
+```typescript
+class WorkerPool {
+  private workers: Worker[] = [];
+  private available: Worker[] = [];
+  private pending: Array<{ resolve, reject, src, args }> = [];
+  private maxWorkers: number;
+
+  constructor(maxWorkers = navigator?.hardwareConcurrency || 4) {}
+
+  private createWorker(): Worker {
+    if (isNodeOnly()) {
+      const { Worker } = require('worker_threads');
+      return new Worker('./nodeWorker.js');
+    }
+    // Works for both browser and Bun
+    return new Worker('/src/worker/worker.js', { type: 'module' });
+  }
+
+  async execute(src: string, args: unknown[]): Promise<unknown> {
+    const worker = this.acquire();
+    return new Promise((resolve, reject) => {
+      const handler = ({ data }) => {
+        this.release(worker);
+        if (data.error) reject(new Error(data.error));
+        else resolve(data.result);
+      };
+      // Handle both Web Worker and worker_threads APIs
+      if (worker.on) worker.on('message', handler);
+      else worker.onmessage = (e) => handler(e);
+
+      worker.postMessage({ src, args });
+    });
+  }
+
+  private acquire(): Worker { /* get or create worker */ }
+  private release(worker: Worker): void { /* return to pool */ }
+}
+```
+
+**Worker Scripts**:
+```typescript
+// src/worker/worker.ts - Browser & Bun (Web Worker API)
+self.onmessage = async ({ data: { src, args } }) => {
+  try {
+    const mod = await import(src);
+    const result = await mod.default(...args);
+    self.postMessage({ result });
+  } catch (error) {
+    self.postMessage({ error: error.message });
+  }
+};
+
+// src/worker/nodeWorker.ts - Node.js (worker_threads API)
+import { parentPort } from 'worker_threads';
+
+parentPort.on('message', async ({ src, args }) => {
+  try {
+    const mod = await import(src);
+    const result = await mod.default(...args);
+    parentPort.postMessage({ result });
+  } catch (error) {
+    parentPort.postMessage({ error: error.message });
+  }
+});
+```
+
+**Test Criteria**:
+```typescript
+test('createWorkerLogic creates logic signal with worker context', () => {
+  const logic = createWorkerLogic(import('./heavyCompute'));
+
+  expect(logic.kind).toBe('logic');
+  expect(logic.context).toBe('worker');
+});
+
+test('worker logic executes in worker thread', async () => {
+  // Create a logic that returns thread info
+  const logic = createWorkerLogic(import('./fixtures/threadInfo'));
+  const computed = createComputed(logic, []);
+
+  const registry = new WeaverRegistry();
+  registry.registerSignal(logic);
+  registry.registerSignal(computed);
+
+  await executeComputed(registry, computed.id);
+
+  const result = registry.getValue(computed.id);
+  // Worker self !== window (browser) or isMainThread === false (Node)
+  expect(result.isWorker).toBe(true);
+});
+
+test('worker pool detects runtime correctly', () => {
+  const pool = new WorkerPool();
+
+  // In test environment (Node), should detect as Node
+  // Mock Bun global to test Bun detection
+  expect(pool.isNodeOnly()).toBe(true);
+
+  globalThis.Bun = {};
+  expect(pool.isNodeOnly()).toBe(false);
+  delete globalThis.Bun;
+});
+
+test('worker pool reuses workers', async () => {
+  const pool = new WorkerPool(2);
+
+  // Execute multiple tasks
+  const results = await Promise.all([
+    pool.execute('/src/logic/compute.js', [1]),
+    pool.execute('/src/logic/compute.js', [2]),
+    pool.execute('/src/logic/compute.js', [3]),
+  ]);
+
+  expect(results).toHaveLength(3);
+  // Pool should have created at most 2 workers
+  expect(pool.workerCount).toBeLessThanOrEqual(2);
+});
+
+test('worker logic handles errors', async () => {
+  const logic = createWorkerLogic(import('./fixtures/throwError'));
+  const computed = createComputed(logic, []);
+
+  const registry = new WeaverRegistry();
+  registry.registerSignal(logic);
+  registry.registerSignal(computed);
+
+  await expect(executeComputed(registry, computed.id))
+    .rejects.toThrow('Intentional error');
+});
+
+test('worker logic uses correct path per runtime', async () => {
+  const logic = createWorkerLogic(import('./fixtures/compute'));
+
+  // Browser/Bun should use src
+  // Node should use ssrSrc
+  const pool = new WorkerPool();
+  const pathUsed = pool.isNodeOnly() ? logic.ssrSrc : logic.src;
+
+  expect(pathUsed).toBeDefined();
+});
+
+test('worker logic with deferred timeout', async () => {
+  // Worker logic can also use timeout for smart deferral
+  const logic = createWorkerLogic(import('./fixtures/slowCompute'), { timeout: 0 });
+  const computed = createComputed(logic, [], { init: 'loading' });
+
+  const registry = new WeaverRegistry();
+  registry.registerSignal(logic);
+  registry.registerSignal(computed);
+
+  // Initial execution returns init value
+  await executeComputed(registry, computed.id);
+  expect(registry.getValue(computed.id)).toBe('loading');
+
+  // After worker completes, value updates
+  await new Promise(r => setTimeout(r, 100));
+  expect(registry.getValue(computed.id)).not.toBe('loading');
+});
+```
+
+**Demo**:
+```typescript
+// demo/src/pages/WorkerDemo.tsx
+import { createWorkerLogic, createComputed, createSignal } from "stream-weaver";
+
+// CPU-intensive Fibonacci calculation - works on browser, Bun, and Node
+const fibLogic = createWorkerLogic(import("../logic/fibonacci"));
+const n = createSignal(40);
+const result = createComputed(fibLogic, [n], { init: "Calculating..." });
+
+export function WorkerExample() {
+  return (
+    <div>
+      <h1>Worker Logic Demo</h1>
+      <p>Fibonacci({n}) = {result}</p>
+      <p>Main thread stays responsive during calculation</p>
+      <p>Works on browser, Bun, and Node.js</p>
+    </div>
+  );
+}
+```
+
+**Deliverable**: Isomorphic worker logic that executes CPU-intensive operations in worker threads (Web Workers for browser/Bun, worker_threads for Node.js) without blocking the main thread.
+
+---
+
 ## Implementation Strategy
 
 ### Approach for AI Agent

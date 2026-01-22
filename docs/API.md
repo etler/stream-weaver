@@ -2576,7 +2576,7 @@ All with surgical DOM updates and zero hydration cost.
 
 ## 11. Advanced Logic
 
-This section covers advanced logic execution features that extend the core signal system with async handling, deferred execution, server-side execution, suspense boundaries, and stream processing.
+This section covers advanced logic execution features that extend the core signal system with async handling, deferred execution, server-side execution, worker threads, suspense boundaries, and stream processing.
 
 ### 11.1 Async Logic
 
@@ -2963,6 +2963,145 @@ For the initial implementation, stream signals are client-only:
 - Client starts the stream subscription after resumption
 - All stream updates happen client-side
 
+### 11.7 Worker Logic
+
+Worker logic executes in a separate thread, keeping the main thread responsive during CPU-intensive operations. Unlike server logic which requires network round-trips, worker logic runs locally with minimal overhead.
+
+**Isomorphic Support**: Worker logic runs on all platforms:
+- **Browser**: Web Workers
+- **Bun**: Web Workers (same API as browser)
+- **Node.js**: `worker_threads` module
+
+**Key Insight**: The existing logic module system already works for workers. Logic modules are ES modules with default exports. Browser and Bun use the same `src` URLs, while Node uses `ssrSrc` paths. No special bundling or transformation is needed.
+
+**API**:
+```typescript
+// Create worker logic
+function createWorkerLogic<F extends LogicFunction>(
+  module: Promise<{ default: F }>,
+  options?: { timeout?: number }
+): LogicSignal<F>;
+```
+
+**Signal Definition**:
+```typescript
+interface LogicSignal<F> extends Signal {
+  src: string;
+  ssrSrc?: string;
+  timeout?: number;  // ms to wait before deferring
+  context?: 'server' | 'client' | 'worker';  // Execution context
+  kind: 'logic';
+}
+```
+
+**Execution Flow**:
+When `executeLogic` encounters a worker logic signal:
+1. Get or create a worker from the pool
+2. Send message: `{ src: signal.src (or ssrSrc for Node), args: serializedArgs }`
+3. Worker imports the module and executes: `mod.default(...args)`
+4. Worker posts result back
+5. Return result to caller
+
+**Worker Pool**:
+```typescript
+class WorkerPool {
+  // Detect runtime environment
+  private isNodeOnly(): boolean {
+    return typeof process !== 'undefined'
+      && process.versions?.node
+      && typeof Bun === 'undefined';
+  }
+
+  // Create worker for current runtime
+  private createWorker(): Worker {
+    if (this.isNodeOnly()) {
+      const { Worker } = require('worker_threads');
+      return new Worker('./nodeWorker.js');
+    }
+    // Works for both browser and Bun
+    return new Worker('/src/worker/worker.js', { type: 'module' });
+  }
+
+  // Execute logic in a worker
+  execute(src: string, args: unknown[]): Promise<unknown>;
+}
+```
+
+**Worker Scripts**:
+Two worker scripts handle the API differences between runtimes:
+
+```typescript
+// src/worker/worker.ts - Browser & Bun (Web Worker API)
+self.onmessage = async ({ data: { src, args } }) => {
+  try {
+    const mod = await import(src);
+    const result = await mod.default(...args);
+    self.postMessage({ result });
+  } catch (error) {
+    self.postMessage({ error: error.message });
+  }
+};
+
+// src/worker/nodeWorker.ts - Node.js (worker_threads API)
+import { parentPort } from 'worker_threads';
+
+parentPort.on('message', async ({ src, args }) => {
+  try {
+    const mod = await import(src);
+    const result = await mod.default(...args);
+    parentPort.postMessage({ result });
+  } catch (error) {
+    parentPort.postMessage({ error: error.message });
+  }
+});
+```
+
+**Runtime Compatibility**:
+| Runtime | Worker API | Module Path | Script |
+|---------|-----------|-------------|--------|
+| Browser | `new Worker(url)` | `src` | worker.ts |
+| Bun | `new Worker(url)` | `src` | worker.ts |
+| Node.js | `worker_threads` | `ssrSrc` | nodeWorker.ts |
+
+**Serialization Requirement**:
+Worker logic arguments and return values must be structured-cloneable (transferable via `postMessage`). This excludes functions, DOM nodes, and certain other types.
+
+**Example**:
+```typescript
+// workerLogic/processImage.ts (runs in worker thread)
+export default (imageData: ImageData, filter: string) => {
+  // CPU-intensive image processing
+  const pixels = imageData.data;
+  for (let i = 0; i < pixels.length; i += 4) {
+    // Apply filter...
+  }
+  return imageData;
+};
+
+// workerLogic/parseCSV.ts
+export default (csvText: string) => {
+  // Parse large CSV without blocking main thread
+  return csvText.split('\n').map(line => line.split(','));
+};
+
+// Usage - works on browser, Bun, and Node.js
+const processLogic = createWorkerLogic(import("./workerLogic/processImage"));
+const processed = createComputed(processLogic, [imageData, filter]);
+// Executes in worker, main thread stays responsive
+
+const parseLogic = createWorkerLogic(import("./workerLogic/parseCSV"));
+const data = createComputed(parseLogic, [csvContent]);
+// Large CSV parsing doesn't freeze the UI
+```
+
+**Comparison with Other Contexts**:
+| Context | Runs On | Use Case |
+|---------|---------|----------|
+| (none) | Everywhere | Default, simple logic |
+| `client` | Browser only | Browser APIs (localStorage, DOM) |
+| `server` | Server only | Database, secrets, filesystem |
+| `worker` | Worker thread (all runtimes) | CPU-intensive, keep main thread responsive |
+
 ## 12. Future Work
 
 The following areas are intentionally deferred for later iterations:
@@ -2970,7 +3109,6 @@ The following areas are intentionally deferred for later iterations:
 - **Bind Point Cleanup**: Memory optimization for removing bind points and signal chains when DOM nodes are removed (MutationObserver-based GC)
 - **Error Handling**: Standardized error boundaries and recovery strategies for action/computed failures
 - **Race Condition Handling**: Cancellation and priority strategies for concurrent async actions
-- **Worker Pool Logic Signals**: Allow logic signals to spawn work on a worker pool
 - **WASM Logic Sources**: Add support for letting logic signals execute wasm
 - **Logic Module Pre-fetching**: Create a logic module pre-fetch algorithm to lazily load logic and prioritize logic chains of handlers more likely to execute
 - **Native Sink**: A sink adapter for native apps
