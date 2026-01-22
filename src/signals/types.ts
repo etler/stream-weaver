@@ -43,8 +43,9 @@ export interface LogicSignal<F extends LogicFunction = LogicFunction> extends Si
    * - undefined = execute anywhere
    * - 'client' = only execute on client (returns PENDING on server)
    * - 'server' = only execute on server (M13)
+   * - 'worker' = execute in worker thread (M16)
    */
-  context?: "server" | "client";
+  context?: "server" | "client" | "worker";
   /** @internal Phantom property for compile-time function signature tracking - never set at runtime */
   readonly _functionType?: F;
 }

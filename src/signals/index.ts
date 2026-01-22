@@ -1,5 +1,5 @@
 export { createSignal } from "./createSignal";
-export { createLogic, createClientLogic, createServerLogic } from "./createLogic";
+export { createLogic, createClientLogic, createServerLogic, createWorkerLogic } from "./createLogic";
 export type { CreateLogicOptions } from "./createLogic";
 export { createComputed } from "./createComputed";
 export { createAction } from "./createAction";

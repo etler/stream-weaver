@@ -16,6 +16,7 @@ const TARGET_FUNCTIONS = new Set([
   "createLogic",
   "createClientLogic",
   "createServerLogic",
+  "createWorkerLogic",
 ]);
 
 /**

@@ -251,13 +251,16 @@ export class ClientWeaver {
   private executeAndUpdateComputed(computedId: string): void {
     (async () => {
       // Execute the computed signal
-      await executeComputed(this.registry, computedId);
+      const result = await executeComputed(this.registry, computedId);
 
-      // Get the result
-      const value = this.registry.getValue(computedId);
+      // Emit signal-update for the immediate value (may be PENDING)
+      await this.delegateWriter.write({ kind: "signal-update", id: computedId, value: result.value });
 
-      // Emit signal-update to trigger DOM updates and suspense resolution
-      await this.delegateWriter.write({ kind: "signal-update", id: computedId, value });
+      // If execution was deferred, wait for completion and emit another update
+      if (result.deferred) {
+        const deferredValue = await result.deferred;
+        await this.delegateWriter.write({ kind: "signal-update", id: computedId, value: deferredValue });
+      }
     })().catch((error: unknown) => {
       console.error(new Error(`Failed to execute deferred computed ${computedId}`, { cause: error }));
     });

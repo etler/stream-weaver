@@ -88,6 +88,11 @@ async function startDevServer() {
             StreamExample: () => JSX.Element;
           };
           html = await renderExample("Stream Signals", module.StreamExample, vite);
+        } else if (url === "/worker") {
+          const module = (await vite.ssrLoadModule("./src/pages/WorkerDemo.tsx")) as {
+            WorkerExample: () => JSX.Element;
+          };
+          html = await renderExample("Worker Threads", module.WorkerExample, vite);
         } else if (url === "/weaver/execute" && req.method === "POST") {
           // Handle server logic RPC endpoint
           await handleWeaverExecute(req, res, vite);
@@ -126,6 +131,7 @@ async function startDevServer() {
     console.log(`  http://localhost:${PORT}/server-logic`);
     console.log(`  http://localhost:${PORT}/suspense`);
     console.log(`  http://localhost:${PORT}/stream`);
+    console.log(`  http://localhost:${PORT}/worker`);
   });
 }
 
@@ -347,6 +353,11 @@ async function indexPage(): Promise<string> {
     <a href="/stream" class="example-card">
       <h2>09. Stream Signals</h2>
       <p>Reduce ReadableStreams into reactive values - for WebSockets, SSE, streaming APIs</p>
+    </a>
+
+    <a href="/worker" class="example-card">
+      <h2>10. Worker Threads</h2>
+      <p>Offload CPU-intensive computations to worker threads - keeps UI responsive</p>
     </a>
   </div>
 </body>

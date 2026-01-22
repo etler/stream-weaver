@@ -93,11 +93,17 @@ export function tokenize(node: Node, registry?: WeaverRegistry): (TokenOrExecuta
       registry.registerSignal(node);
     }
 
-    // Check for server-context computed signals that need async execution
+    // Check for server-context or worker-context computed signals that need async execution
     if (node.kind === "computed") {
       const computed = node as ComputedSignal;
       const logicSignal = computed.logicRef;
-      if (logicSignal?.context === "server" && registry.getValue(node.id) === undefined) {
+
+      // Both server and worker contexts need async execution during SSR
+      const needsAsyncExec =
+        logicSignal !== undefined &&
+        (logicSignal.context === "server" || logicSignal.context === "worker") &&
+        registry.getValue(node.id) === undefined;
+      if (needsAsyncExec) {
         // Register the logic signal
         if (!registry.getSignal(logicSignal.id)) {
           registry.registerSignal(logicSignal);

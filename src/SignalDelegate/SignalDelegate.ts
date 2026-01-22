@@ -64,19 +64,29 @@ export class SignalDelegate extends DelegateStream<SignalEvent, SignalToken> {
               // Execute computed and propagate asynchronously
               (async () => {
                 // Execute the computed signal
-                await executeComputed(reg, dependentId);
+                const execResult = await executeComputed(reg, dependentId);
 
-                // Get the computed result
-                const result = reg.getValue(dependentId);
-
-                // Emit a new signal-update event for the computed signal
+                // Emit a signal-update event for the immediate result
                 // This will recursively trigger updates for its dependents
                 await childWriter.write({
                   kind: "signal-update",
                   id: dependentId,
-                  value: result,
+                  value: execResult.value,
                 });
                 await childWriter.close();
+
+                // If execution was deferred, wait for completion and emit to root
+                if (execResult.deferred) {
+                  const deferredValue = await execResult.deferred;
+                  const writer = getRootWriter();
+                  if (writer) {
+                    await writer.write({
+                      kind: "signal-update",
+                      id: dependentId,
+                      value: deferredValue,
+                    });
+                  }
+                }
               })().catch((error: unknown) => {
                 console.error(new Error("Computed execution error", { cause: error }));
               });

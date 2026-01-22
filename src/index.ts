@@ -17,6 +17,7 @@ export {
   createLogic,
   createClientLogic,
   createServerLogic,
+  createWorkerLogic,
   createComputed,
   createAction,
   createHandler,
@@ -70,6 +71,10 @@ export { preExecuteServerLogic } from "./logic/preExecuteServerLogic";
 
 // Stream execution
 export { executeStream } from "./logic/executeStream";
+
+// Worker execution (M16)
+export { WorkerPool } from "./worker";
+export { executeInWorker } from "./logic/workerExecution";
 
 // Polyfills (side-effect import)
 import "./polyfills/readableStreamFrom";

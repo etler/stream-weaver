@@ -60,13 +60,13 @@ export function allocateDerivedId(logicId: string, depIds: string[]): string {
  *
  * @param src - Source path of the logic module
  * @param timeout - Timeout option (undefined, 0, or positive number)
- * @param context - Context option ('server' | 'client' | undefined)
+ * @param context - Context option ('server' | 'client' | 'worker' | undefined)
  * @returns Content-addressable logic ID
  */
 export function allocateLogicId(
   src: string,
   timeout: number | undefined,
-  context: "server" | "client" | undefined,
+  context: "server" | "client" | "worker" | undefined,
 ): string {
   // Include options in the hash to differentiate same module with different options
   const content = `${src}:timeout=${timeout ?? ""}:context=${context ?? ""}`;

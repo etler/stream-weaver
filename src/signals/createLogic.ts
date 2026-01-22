@@ -26,8 +26,9 @@ export interface CreateLogicOptions {
    * - undefined = execute anywhere
    * - 'client' = only execute on client (returns PENDING on server)
    * - 'server' = only execute on server (M13)
+   * - 'worker' = execute in worker thread (M16)
    */
-  context?: "server" | "client";
+  context?: "server" | "client" | "worker";
 }
 
 /**
@@ -175,4 +176,33 @@ export function createServerLogic(src: string): LogicSignal;
 export function createServerLogic(input: unknown): LogicSignal {
   // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
   return createLogic(input as string | { src: string }, { context: "server" });
+}
+
+/**
+ * Creates a worker logic signal
+ *
+ * Worker logic executes in a separate thread (Web Worker in browser/Bun,
+ * worker_threads in Node.js), keeping the main thread responsive during
+ * CPU-intensive operations.
+ *
+ * Use this for heavy computation like image processing, data parsing, etc.
+ *
+ * @example
+ * const fibLogic = createWorkerLogic(import("./fibonacci"));
+ * const result = createComputed(fibLogic, [n]);
+ */
+
+// Overload 1: Type-safe import() syntax
+export function createWorkerLogic<M extends { default: LogicFunction }>(mod: Promise<M>): LogicSignal<M["default"]>;
+
+// Overload 2: Pre-transformed LogicSignal object from plugin
+export function createWorkerLogic<F extends LogicFunction>(input: LogicSignal<F>): LogicSignal<F>;
+
+// Overload 3: Legacy string path
+export function createWorkerLogic(src: string): LogicSignal;
+
+// Implementation
+export function createWorkerLogic(input: unknown): LogicSignal {
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+  return createLogic(input as string | { src: string }, { context: "worker" });
 }

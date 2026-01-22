@@ -262,8 +262,11 @@ function serializeSignalNode(signal: AnySignal, registry?: WeaverRegistry): stri
     const computed = signal as ComputedSignal;
     const logicSignal = computed.logicRef;
 
-    // Server-context computed signals need async execution
-    if (logicSignal?.context === "server" && registry.getValue(signal.id) === undefined) {
+    // Server-context and worker-context computed signals need async execution
+    if (
+      (logicSignal?.context === "server" || logicSignal?.context === "worker") &&
+      registry.getValue(signal.id) === undefined
+    ) {
       return null;
     }
 

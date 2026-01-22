@@ -99,7 +99,7 @@ function executeComputedSignal(
 
     const { computed } = executable;
 
-    // Execute the computed signal (this handles server-context logic)
+    // Execute the computed signal (this handles server-context and worker-context logic)
     await executeComputed(registry, computed.id);
 
     // Get the result
