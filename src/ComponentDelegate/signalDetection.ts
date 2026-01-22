@@ -1,4 +1,4 @@
-import { AnySignal, ComponentSignal, NodeSignal, SuspenseSignal, ReducerSignal } from "@/signals/types";
+import { AnySignal, ComponentSignal, NodeSignal, SuspenseSignal } from "@/signals/types";
 
 /**
  * Type guard to check if a value is a signal definition object
@@ -69,11 +69,4 @@ export function isNodeSignal(value: unknown): value is NodeSignal {
  */
 export function isSuspenseSignal(value: unknown): value is SuspenseSignal {
   return isSignal(value) && value.kind === "suspense";
-}
-
-/**
- * Type guard to check if a value is a ReducerSignal (iterable reducer)
- */
-export function isReducerSignal(value: unknown): value is ReducerSignal {
-  return isSignal(value) && value.kind === "reducer";
 }

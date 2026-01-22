@@ -49,13 +49,6 @@ export function clearSSRModuleLoader(): void {
 }
 
 /**
- * Get the current SSR module loader
- */
-export function getSSRModuleLoader(): ModuleLoader | undefined {
-  return ssrContext.moduleLoader;
-}
-
-/**
  * Load a module for SSR using the configured loader
  * Falls back to direct import if no loader is configured
  */

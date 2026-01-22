@@ -1,4 +1,3 @@
-import { WeaverRegistry } from "@/registry/WeaverRegistry";
 import { WorkerPool } from "@/worker";
 import { isNodeOnly } from "@/utils/environment";
 import type { LogicSignal } from "@/signals/types";
@@ -30,32 +29,4 @@ export async function executeInWorker(logicSignal: LogicSignal, args: unknown[])
 
   // Execute in worker pool
   return WorkerPool.execute(finalPath, args);
-}
-
-/**
- * Executes a computed signal with worker logic
- *
- * @param registry - WeaverRegistry instance
- * @param computedId - ID of the ComputedSignal to execute
- * @param logicSignal - The worker logic signal
- * @returns Promise resolving to the computed result
- */
-export async function executeComputedInWorker(
-  registry: WeaverRegistry,
-  computedId: string,
-  logicSignal: LogicSignal,
-): Promise<unknown> {
-  const computed = registry.getSignal(computedId);
-  if (computed?.kind !== "computed") {
-    throw new Error(`Signal ${computedId} is not a computed signal`);
-  }
-
-  // Get dependency values (already resolved)
-  const depValues = computed.deps.map((depId) => {
-    const value = registry.getValue(depId);
-    return value;
-  });
-
-  // Execute in worker
-  return executeInWorker(logicSignal, depValues);
 }
