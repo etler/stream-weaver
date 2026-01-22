@@ -1,4 +1,4 @@
-import { AnySignal, ComponentSignal, NodeSignal } from "@/signals/types";
+import { AnySignal, ComponentSignal, NodeSignal, SuspenseSignal } from "@/signals/types";
 
 /**
  * Type guard to check if a value is a signal definition object
@@ -21,7 +21,8 @@ export function isSignal(value: unknown): value is AnySignal {
       obj["kind"] === "action" ||
       obj["kind"] === "handler" ||
       obj["kind"] === "component" ||
-      obj["kind"] === "node")
+      obj["kind"] === "node" ||
+      obj["kind"] === "suspense")
   );
 }
 
@@ -60,4 +61,11 @@ export function isComponentSignal(value: unknown): value is ComponentSignal {
  */
 export function isNodeSignal(value: unknown): value is NodeSignal {
   return isSignal(value) && value.kind === "node";
+}
+
+/**
+ * Type guard to check if a value is a SuspenseSignal (boundary)
+ */
+export function isSuspenseSignal(value: unknown): value is SuspenseSignal {
+  return isSignal(value) && value.kind === "suspense";
 }

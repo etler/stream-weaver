@@ -116,6 +116,22 @@ export interface NodeSignal extends Signal {
 }
 
 /**
+ * SuspenseSignal represents a suspense boundary that shows fallback while children are pending
+ * Used to handle async loading states in React-style JSX
+ */
+export interface SuspenseSignal extends Signal {
+  kind: "suspense";
+  fallback: unknown; // Fallback JSX content to show while pending (Node type)
+  children: unknown; // Children JSX content (Node type)
+  pendingDeps: string[]; // Signal IDs that are currently PENDING
+  // Non-serializable reference to children for re-rendering
+  _childrenRef?: unknown;
+  _fallbackRef?: unknown;
+  // Pre-rendered children HTML for client-side resolution
+  _childrenHtml?: string;
+}
+
+/**
  * Discriminated union of all signal types
  */
 export type AnySignal =
@@ -125,4 +141,5 @@ export type AnySignal =
   | ActionSignal
   | HandlerSignal
   | ComponentSignal
-  | NodeSignal;
+  | NodeSignal
+  | SuspenseSignal;

@@ -249,6 +249,13 @@ function serializeSignalNode(signal: AnySignal, registry?: WeaverRegistry): stri
     }
   }
 
+  // Handle SuspenseSignal - always fall back to streaming path
+  // Suspense requires executing children to check for PENDING signals,
+  // which is complex in the fast path and usually involves function components anyway
+  if (signal.kind === "suspense") {
+    return null;
+  }
+
   // Get current value
   let value = registry.getValue(signal.id);
   if (value === undefined && "init" in signal) {

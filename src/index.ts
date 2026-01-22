@@ -7,6 +7,10 @@ export { ClientWeaver } from "./client/ClientWeaver";
 // Registry
 export { WeaverRegistry } from "./registry/WeaverRegistry";
 
+// Components
+export { Suspense } from "./components";
+export type { SuspenseProps } from "./components";
+
 // Signals
 export {
   createSignal,
@@ -18,6 +22,7 @@ export {
   createHandler,
   createComponent,
   createNode,
+  createSuspense,
   PENDING,
 } from "./signals";
 
@@ -30,6 +35,7 @@ export type {
   HandlerSignal,
   ComponentSignal,
   NodeSignal,
+  SuspenseSignal,
   AnySignal,
   LogicFunction,
   ExtractLogicFunction,

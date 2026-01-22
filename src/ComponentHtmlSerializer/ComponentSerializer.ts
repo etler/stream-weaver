@@ -34,6 +34,21 @@ export class ComponentSerializer extends TransformStream<Token, string> {
   }
 }
 
+/**
+ * Convert an array of tokens to HTML string
+ * Optionally skip signal-definition tokens (for content-only HTML)
+ */
+export function tokensToHtml(tokens: Token[], skipSignalDefs = false): string {
+  let html = "";
+  for (const token of tokens) {
+    if (skipSignalDefs && token.kind === "signal-definition") {
+      continue;
+    }
+    html += serializeToken(token);
+  }
+  return html;
+}
+
 export function serializeToken(token: Token): string {
   switch (token.kind) {
     case "open": {

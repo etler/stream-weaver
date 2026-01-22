@@ -78,6 +78,11 @@ async function startDevServer() {
             ServerLogicExample: () => JSX.Element;
           };
           html = await renderExample("Server Logic", module.ServerLogicExample, vite);
+        } else if (url === "/suspense") {
+          const module = (await vite.ssrLoadModule("./src/pages/SuspenseDemo.tsx")) as {
+            SuspenseExample: () => JSX.Element;
+          };
+          html = await renderExample("Suspense", module.SuspenseExample, vite);
         } else if (url === "/weaver/execute" && req.method === "POST") {
           // Handle server logic RPC endpoint
           await handleWeaverExecute(req, res, vite);
@@ -114,6 +119,7 @@ async function startDevServer() {
     console.log(`  http://localhost:${PORT}/dynamic-state`);
     console.log(`  http://localhost:${PORT}/deferred`);
     console.log(`  http://localhost:${PORT}/server-logic`);
+    console.log(`  http://localhost:${PORT}/suspense`);
   });
 }
 
@@ -325,6 +331,11 @@ async function indexPage(): Promise<string> {
     <a href="/server-logic" class="example-card">
       <h2>07. Server Logic</h2>
       <p>Server-only execution via RPC - database access, secrets, server-side computations</p>
+    </a>
+
+    <a href="/suspense" class="example-card">
+      <h2>08. Suspense</h2>
+      <p>Loading boundaries with fallback content - shows skeleton while data loads</p>
     </a>
   </div>
 </body>

@@ -2,10 +2,12 @@ import { WeaverRegistry } from "@/registry/WeaverRegistry";
 import { Sink } from "@/sink/Sink";
 import { SignalDelegate } from "@/SignalDelegate/SignalDelegate";
 import { setupEventDelegation } from "@/events/setupEventDelegation";
-import { AnySignal } from "@/signals/types";
+import { AnySignal, SuspenseSignal, ComputedSignal } from "@/signals/types";
 import { nodeToHtml } from "./nodeToHtml";
 import { executeNode } from "@/logic/executeNode";
+import { executeComputed } from "@/logic/executeComputed";
 import type { Node } from "@/jsx/types/Node";
+import { PENDING } from "@/signals/pending";
 
 /**
  * Signal definition message format from server HTML
@@ -36,6 +38,10 @@ export class ClientWeaver {
   private delegate: SignalDelegate;
   public delegateWriter: WritableStreamDefaultWriter;
   private pendingNodeSignals = new Set<string>();
+  // Computed signals with deferred logic that need execution
+  private pendingDeferredComputed = new Set<string>();
+  // Map: signal ID -> set of suspense IDs waiting on that signal
+  private suspenseWaiters = new Map<string, Set<string>>();
 
   constructor() {
     // Initialize registry
@@ -60,11 +66,12 @@ export class ClientWeaver {
     // Setup global event delegation (pass writer to avoid locking stream twice)
     setupEventDelegation(this.delegateWriter);
 
-    // Schedule initial NodeSignal execution after all push() calls
+    // Schedule initial signal execution after all push() calls
     if (typeof document !== "undefined") {
       // Use setTimeout to let all inline script push() calls complete
       setTimeout(() => {
         this.executePendingNodeSignals();
+        this.executePendingDeferredComputed();
       }, 0);
     }
   }
@@ -80,6 +87,28 @@ export class ClientWeaver {
     // Track NodeSignals that need to be executed on initial load
     if (message.signal.kind === "node") {
       this.pendingNodeSignals.add(message.signal.id);
+    }
+
+    // Track computed signals with deferred logic (timeout: 0)
+    if (message.signal.kind === "computed") {
+      const computed = message.signal as ComputedSignal;
+      const logicSignal = this.registry.getSignal(computed.logic);
+      if (logicSignal && "timeout" in logicSignal && logicSignal.timeout === 0) {
+        this.pendingDeferredComputed.add(message.signal.id);
+      }
+    }
+
+    // Track SuspenseSignals and their pending dependencies
+    if (message.signal.kind === "suspense") {
+      const suspense = message.signal;
+      for (const pendingId of suspense.pendingDeps) {
+        let waiters = this.suspenseWaiters.get(pendingId);
+        if (!waiters) {
+          waiters = new Set();
+          this.suspenseWaiters.set(pendingId, waiters);
+        }
+        waiters.add(suspense.id);
+      }
     }
   }
 
@@ -100,6 +129,34 @@ export class ClientWeaver {
       }
     }
     this.pendingNodeSignals.clear();
+  }
+
+  /**
+   * Execute pending computed signals with deferred logic
+   */
+  private executePendingDeferredComputed(): void {
+    for (const computedId of this.pendingDeferredComputed) {
+      this.executeAndUpdateComputed(computedId);
+    }
+    this.pendingDeferredComputed.clear();
+  }
+
+  /**
+   * Execute a computed signal with deferred logic and trigger updates
+   */
+  private executeAndUpdateComputed(computedId: string): void {
+    (async () => {
+      // Execute the computed signal
+      await executeComputed(this.registry, computedId);
+
+      // Get the result
+      const value = this.registry.getValue(computedId);
+
+      // Emit signal-update to trigger DOM updates and suspense resolution
+      await this.delegateWriter.write({ kind: "signal-update", id: computedId, value });
+    })().catch((error: unknown) => {
+      console.error(new Error(`Failed to execute deferred computed ${computedId}`, { cause: error }));
+    });
   }
 
   /**
@@ -152,9 +209,80 @@ export class ClientWeaver {
           // eslint-disable-next-line @typescript-eslint/no-base-to-string
           this.sink.sync(value.id, String(currentValue ?? ""));
         }
+
+        // Check if this signal resolving affects any suspense boundaries
+        if (currentValue !== PENDING) {
+          this.checkSuspenseResolution(value.id);
+        }
       }
     })().catch((error: unknown) => {
       console.error(new Error("Error consuming delegate stream", { cause: error }));
     });
+  }
+
+  /**
+   * Check if a signal resolving causes any suspense boundaries to resolve
+   */
+  private checkSuspenseResolution(resolvedId: string): void {
+    const waitingSuspenses = this.suspenseWaiters.get(resolvedId);
+    if (!waitingSuspenses) {
+      return;
+    }
+
+    for (const suspenseId of waitingSuspenses) {
+      const signal = this.registry.getSignal(suspenseId);
+      if (signal?.kind !== "suspense") {
+        continue;
+      }
+      const suspense = signal;
+
+      // Remove this signal from the suspense's pending deps
+      const idx = suspense.pendingDeps.indexOf(resolvedId);
+      if (idx !== -1) {
+        suspense.pendingDeps.splice(idx, 1);
+      }
+
+      // If all deps resolved, render the children
+      if (suspense.pendingDeps.length === 0) {
+        this.resolveSuspense(suspenseId, suspense);
+      }
+    }
+
+    // Clean up the waiters map
+    this.suspenseWaiters.delete(resolvedId);
+  }
+
+  /**
+   * Resolve a suspense boundary by rendering its children
+   */
+  private resolveSuspense(suspenseId: string, suspense: SuspenseSignal): void {
+    // Use pre-rendered children HTML from SSR if available
+    // eslint-disable-next-line no-underscore-dangle, @typescript-eslint/strict-boolean-expressions
+    if (suspense._childrenHtml) {
+      // eslint-disable-next-line no-underscore-dangle
+      this.sink.sync(suspenseId, suspense._childrenHtml);
+
+      // After swapping in children HTML, sync the resolved signal values
+      // The pre-rendered HTML has empty bind markers that need to be filled
+      // Get all signals that were pending and sync their current values
+      const allSignals = this.registry.getAllSignals();
+      for (const [signalId, signal] of allSignals) {
+        // Only sync computed signals that have bind points in the new HTML
+        if (signal.kind === "computed" && this.sink.hasBindPoint(signalId)) {
+          const value = this.registry.getValue(signalId);
+          if (value !== undefined && value !== PENDING) {
+            // eslint-disable-next-line @typescript-eslint/no-base-to-string
+            this.sink.sync(signalId, String(value ?? ""));
+          }
+        }
+      }
+      return;
+    }
+
+    // Fallback: try to render children (may not work if type was lost in serialization)
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+    const children = suspense.children as Node;
+    const html = nodeToHtml(children, this.registry);
+    this.sink.sync(suspenseId, html);
   }
 }

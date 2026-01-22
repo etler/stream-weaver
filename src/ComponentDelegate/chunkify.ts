@@ -1,8 +1,8 @@
 import { ComponentElement } from "@/jsx/types/Element";
 import { Chunk } from "./types/Chunk";
-import { TokenOrExecutable, NodeExecutable, ComputedExecutable } from "./types/Token";
+import { TokenOrExecutable, NodeExecutable, ComputedExecutable, SuspenseExecutable } from "./types/Token";
 
-type ChunkItem = Chunk | ComponentElement | NodeExecutable | ComputedExecutable;
+type ChunkItem = Chunk | ComponentElement | NodeExecutable | ComputedExecutable | SuspenseExecutable;
 
 export function chunkify(list: (TokenOrExecutable | ComponentElement)[]): ChunkItem[] {
   return list.reduce<ChunkItem[]>((acc, item): ChunkItem[] => {
@@ -14,6 +14,12 @@ export function chunkify(list: (TokenOrExecutable | ComponentElement)[]): ChunkI
 
     // ComputedExecutable - keep separate for async processing
     if ("kind" in item && item.kind === "computed-executable") {
+      acc.push(item);
+      return acc;
+    }
+
+    // SuspenseExecutable - keep separate for async processing
+    if ("kind" in item && item.kind === "suspense-executable") {
       acc.push(item);
       return acc;
     }

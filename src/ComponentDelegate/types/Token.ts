@@ -1,4 +1,5 @@
-import { AnySignal, NodeSignal, LogicSignal, ComponentSignal, ComputedSignal } from "@/signals/types";
+import { AnySignal, NodeSignal, LogicSignal, ComponentSignal, ComputedSignal, SuspenseSignal } from "@/signals/types";
+import { Node } from "@/jsx/types/Node";
 
 export interface OpenTagToken {
   kind: "open";
@@ -52,6 +53,17 @@ export interface ComputedExecutable {
   logic: LogicSignal;
 }
 
+/**
+ * SuspenseExecutable represents a Suspense boundary that needs special handling
+ * ComponentDelegate will execute children, check for PENDING, then decide fallback vs children
+ */
+export interface SuspenseExecutable {
+  kind: "suspense-executable";
+  suspense: SuspenseSignal;
+  children: Node;
+  fallback: Node;
+}
+
 export type Token =
   | OpenTagToken
   | CloseTagToken
@@ -60,4 +72,4 @@ export type Token =
   | BindMarkerCloseToken
   | SignalDefinitionToken;
 
-export type TokenOrExecutable = Token | NodeExecutable | ComputedExecutable;
+export type TokenOrExecutable = Token | NodeExecutable | ComputedExecutable | SuspenseExecutable;

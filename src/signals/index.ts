@@ -6,6 +6,7 @@ export { createAction } from "./createAction";
 export { createHandler } from "./createHandler";
 export { createComponent } from "./createComponent";
 export { createNode } from "./createNode";
+export { createSuspense } from "./createSuspense";
 export type {
   Signal,
   StateSignal,
@@ -15,6 +16,7 @@ export type {
   HandlerSignal,
   ComponentSignal,
   NodeSignal,
+  SuspenseSignal,
   AnySignal,
 } from "./types";
 export type {
