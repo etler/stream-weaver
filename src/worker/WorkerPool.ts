@@ -41,9 +41,9 @@ interface PooledWorker {
 /**
  * Singleton WorkerPool for executing logic in worker threads
  *
- * Handles runtime differences between:
- * - Browser/Bun: Web Workers API
- * - Node.js: worker_threads module
+ * Uses:
+ * - Browser/Bun: web-worker npm package (unified Web Workers API)
+ * - Node.js: worker_threads directly (to support tsx loader for TypeScript)
  *
  * Workers are reused to avoid creation overhead.
  * Pool size is limited to available CPU cores.
@@ -54,8 +54,6 @@ class WorkerPoolImpl {
   private taskIdCounter = 0;
   private maxWorkers: number;
   private workerUrl: string | null = null;
-  private nodeWorkerPath: string | null = null;
-  private nodeWorkerModule: typeof import("worker_threads") | null = null;
 
   constructor(maxWorkers?: number) {
     // Default to CPU core count, with fallback of 4
@@ -70,17 +68,10 @@ class WorkerPoolImpl {
   }
 
   /**
-   * Set the worker script URL for browser/Bun
+   * Set the worker script URL
    */
   setWorkerUrl(url: string): void {
     this.workerUrl = url;
-  }
-
-  /**
-   * Set the worker script path for Node.js
-   */
-  setNodeWorkerPath(path: string): void {
-    this.nodeWorkerPath = path;
   }
 
   /**
@@ -117,31 +108,19 @@ class WorkerPoolImpl {
   }
 
   /**
-   * Get the Node.js worker_threads module (lazy loaded)
-   */
-  private async getNodeWorkerModule(): Promise<typeof import("worker_threads")> {
-    this.nodeWorkerModule ??= await import("worker_threads");
-    return this.nodeWorkerModule;
-  }
-
-  /**
    * Create a new worker for the current runtime
    */
   private async createWorker(): Promise<PooledWorker> {
     let worker: Worker;
 
     if (isNodeOnly()) {
-      // Node.js: use worker_threads (dynamic import for ESM compatibility)
-      const { Worker: NodeWorker } = await this.getNodeWorkerModule();
+      // Node.js: use worker_threads directly (supports execArgv for tsx)
+      const { Worker: NodeWorker } = await import("worker_threads");
 
-      // Determine worker path - prefer .ts in development (tsx), .js in production
-      let workerPath = this.nodeWorkerPath;
-      if (workerPath === null) {
-        // Check if we're running in tsx/ts-node development mode
-        const isTsRuntime = process.execArgv.some((arg) => arg.includes("tsx") || arg.includes("ts-node"));
-        const ext = isTsRuntime ? ".ts" : ".js";
-        workerPath = new URL(`./nodeWorker${ext}`, import.meta.url).pathname;
-      }
+      // Determine worker path - use .ts in development (tsx), .js in production
+      const isTsRuntime = process.execArgv.some((arg) => arg.includes("tsx") || arg.includes("ts-node"));
+      const ext = isTsRuntime ? ".ts" : ".js";
+      const workerPath = this.workerUrl ?? new URL(`./nodeWorker${ext}`, import.meta.url).pathname;
 
       // For tsx, we need to use the tsx loader in execArgv
       const isTsFile = workerPath.endsWith(".ts");
@@ -149,36 +128,37 @@ class WorkerPoolImpl {
 
       // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       worker = new NodeWorker(workerPath, workerOptions) as unknown as Worker;
-    } else {
-      // Browser/Bun: use Web Workers
-      const workerUrl = this.workerUrl ?? new URL("./worker.js", import.meta.url).href;
-      worker = new Worker(workerUrl, { type: "module" });
-    }
 
-    const pooledWorker: PooledWorker = { worker, busy: false };
-
-    // Set up message handler
-    if (isNodeOnly()) {
       // Node.js worker_threads uses .on('message')
       // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       const nodeWorker = worker as unknown as import("worker_threads").Worker;
+      const pooledWorker: PooledWorker = { worker, busy: false };
+
       nodeWorker.on("message", (data: WorkerResponse) => {
         this.handleWorkerMessage(pooledWorker, data);
       });
       nodeWorker.on("error", (error: Error) => {
         this.handleWorkerError(pooledWorker, error);
       });
+
+      return pooledWorker;
     } else {
-      // Browser/Bun uses onmessage
+      // Browser/Bun: use web-worker for unified API
+      const WebWorker = (await import("web-worker")).default;
+      const workerUrl = this.workerUrl ?? new URL("./worker.js", import.meta.url).href;
+      worker = new WebWorker(workerUrl, { type: "module" });
+
+      const pooledWorker: PooledWorker = { worker, busy: false };
+
       worker.onmessage = (event: MessageEvent<WorkerResponse>) => {
         this.handleWorkerMessage(pooledWorker, event.data);
       };
       worker.onerror = (error: ErrorEvent) => {
         this.handleWorkerError(pooledWorker, new Error(error.message));
       };
-    }
 
-    return pooledWorker;
+      return pooledWorker;
+    }
   }
 
   /**
@@ -186,8 +166,6 @@ class WorkerPoolImpl {
    */
   private runTask(pooledWorker: PooledWorker, task: PendingTask): void {
     pooledWorker.busy = true;
-
-    // Store task info on the worker for response matching
     pooledWorker.currentTask = task;
 
     const request: WorkerRequest = {
@@ -256,7 +234,7 @@ class WorkerPoolImpl {
    */
   terminate(): void {
     for (const { worker } of this.workers) {
-      if (isNodeOnly() && this.nodeWorkerModule !== null) {
+      if (isNodeOnly()) {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
         const nodeWorker = worker as unknown as import("worker_threads").Worker;
         void nodeWorker.terminate();
