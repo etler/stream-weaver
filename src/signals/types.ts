@@ -61,6 +61,7 @@ export interface ComputedSignal<T = unknown> extends Signal {
   kind: "computed";
   init?: T; // Optional initial value
   logicRef?: LogicSignal; // Reference for SSR tokenization
+  depsRef?: AnySignal[]; // References to dependency signals for SSR serialization
 }
 
 /**
@@ -72,6 +73,7 @@ export interface ActionSignal extends Signal {
   deps: string[]; // Array of dependency signal IDs
   kind: "action";
   logicRef?: LogicSignal; // Reference for SSR tokenization
+  depsRef?: AnySignal[]; // References to dependency signals for SSR serialization
 }
 
 /**
@@ -84,6 +86,7 @@ export interface HandlerSignal<TEvent extends Event = Event> extends Signal {
   deps: string[]; // Array of dependency signal IDs
   kind: "handler";
   logicRef?: LogicSignal; // Reference for SSR tokenization
+  depsRef?: AnySignal[]; // References to dependency signals for SSR serialization
   /** @internal Phantom property for compile-time event type tracking - never set at runtime */
   readonly _eventType?: TEvent;
 }

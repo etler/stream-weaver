@@ -73,6 +73,15 @@ async function startDevServer() {
             DeferredDemoExample: () => JSX.Element;
           };
           html = await renderExample("Deferred Logic", module.DeferredDemoExample, vite);
+        } else if (url === "/server-logic") {
+          const module = (await vite.ssrLoadModule("./src/pages/ServerLogic.tsx")) as {
+            ServerLogicExample: () => JSX.Element;
+          };
+          html = await renderExample("Server Logic", module.ServerLogicExample, vite);
+        } else if (url === "/weaver/execute" && req.method === "POST") {
+          // Handle server logic RPC endpoint
+          await handleWeaverExecute(req, res, vite);
+          return;
         } else {
           res.writeHead(404, { "Content-Type": "text/plain" });
           res.end("Not Found");
@@ -104,6 +113,7 @@ async function startDevServer() {
     console.log(`  http://localhost:${PORT}/shared-state`);
     console.log(`  http://localhost:${PORT}/dynamic-state`);
     console.log(`  http://localhost:${PORT}/deferred`);
+    console.log(`  http://localhost:${PORT}/server-logic`);
   });
 }
 
@@ -183,6 +193,57 @@ async function renderExample(
 }
 
 /**
+ * Handle /weaver/execute RPC endpoint for server logic
+ */
+async function handleWeaverExecute(
+  req: import("http").IncomingMessage,
+  res: import("http").ServerResponse,
+  vite: ViteDevServer,
+): Promise<void> {
+  // Read request body
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) {
+    chunks.push(chunk as Buffer);
+  }
+  const body = Buffer.concat(chunks).toString("utf-8");
+
+  try {
+    // Parse the signal chain
+    const chain = JSON.parse(body) as import("../../src/logic/remoteExecution").SignalChain;
+
+    // Import executeFromChain and set up SSR module loader
+    const { executeFromChain } = await import("../../src/logic/remoteExecution");
+    const { setSSRModuleLoader, clearSSRModuleLoader } = await import("../../src/index.js");
+
+    // Configure SSR module loader for logic execution
+    setSSRModuleLoader(async (src: string) => {
+      let vitePath = src;
+      if (src.startsWith("/")) {
+        if (src.startsWith(demoRoot)) {
+          vitePath = "./" + src.slice(demoRoot.length + 1);
+        } else {
+          vitePath = src;
+        }
+      }
+      return await vite.ssrLoadModule(vitePath);
+    });
+
+    // Execute the signal chain
+    const result = await executeFromChain(chain);
+
+    clearSSRModuleLoader();
+
+    // Return the result
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ value: result }));
+  } catch (error) {
+    console.error("Error executing server logic:", error);
+    res.writeHead(500, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: error instanceof Error ? error.message : "Internal Server Error" }));
+  }
+}
+
+/**
  * Index page with links to examples
  */
 async function indexPage(): Promise<string> {
@@ -259,6 +320,11 @@ async function indexPage(): Promise<string> {
     <a href="/deferred" class="example-card">
       <h2>06. Deferred Logic</h2>
       <p>Non-blocking async with timeout: 0 - compare blocking vs deferred execution</p>
+    </a>
+
+    <a href="/server-logic" class="example-card">
+      <h2>07. Server Logic</h2>
+      <p>Server-only execution via RPC - database access, secrets, server-side computations</p>
     </a>
   </div>
 </body>

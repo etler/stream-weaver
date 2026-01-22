@@ -1,4 +1,4 @@
-import { AnySignal, NodeSignal, LogicSignal, ComponentSignal } from "@/signals/types";
+import { AnySignal, NodeSignal, LogicSignal, ComponentSignal, ComputedSignal } from "@/signals/types";
 
 export interface OpenTagToken {
   kind: "open";
@@ -42,6 +42,16 @@ export interface NodeExecutable {
   component: ComponentSignal;
 }
 
+/**
+ * ComputedExecutable represents a computed signal with server-context logic
+ * that needs to be executed asynchronously during SSR
+ */
+export interface ComputedExecutable {
+  kind: "computed-executable";
+  computed: ComputedSignal;
+  logic: LogicSignal;
+}
+
 export type Token =
   | OpenTagToken
   | CloseTagToken
@@ -50,4 +60,4 @@ export type Token =
   | BindMarkerCloseToken
   | SignalDefinitionToken;
 
-export type TokenOrExecutable = Token | NodeExecutable;
+export type TokenOrExecutable = Token | NodeExecutable | ComputedExecutable;

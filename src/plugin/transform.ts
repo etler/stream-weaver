@@ -8,7 +8,15 @@ import type { TransformResult, LogicModuleInfo } from "./types";
 /**
  * Function names that should have their import() arguments transformed
  */
-const TARGET_FUNCTIONS = new Set(["createComputed", "createAction", "createHandler", "createComponent", "createLogic"]);
+const TARGET_FUNCTIONS = new Set([
+  "createComputed",
+  "createAction",
+  "createHandler",
+  "createComponent",
+  "createLogic",
+  "createClientLogic",
+  "createServerLogic",
+]);
 
 /**
  * Extended node type with position info from acorn

@@ -12,7 +12,7 @@ import {
 import { Node } from "@/jsx/types/Node";
 import { Fragment } from "@/jsx/jsx-runtime";
 import { WeaverRegistry } from "@/registry/WeaverRegistry";
-import { AnySignal } from "@/signals/types";
+import { AnySignal, ComputedSignal } from "@/signals/types";
 
 // Self-closing tag check using switch (faster than Set.has for small fixed sets)
 function isSelfClosingTag(tag: string): boolean {
@@ -238,6 +238,17 @@ function serializeSignalNode(signal: AnySignal, registry?: WeaverRegistry): stri
     registry.registerSignal(signal);
   }
 
+  // Check for server-context computed signals that need async execution
+  // These must fall back to the streaming path for proper execution
+  if (signal.kind === "computed") {
+    const computed = signal as ComputedSignal;
+    const logicSignal = computed.logicRef;
+    if (logicSignal?.context === "server" && registry.getValue(signal.id) === undefined) {
+      // Server-context logic needs async execution - fall back to streaming path
+      return null;
+    }
+  }
+
   // Get current value
   let value = registry.getValue(signal.id);
   if (value === undefined && "init" in signal) {
@@ -256,6 +267,18 @@ function serializeSignalNode(signal: AnySignal, registry?: WeaverRegistry): stri
     html += serializeSignalDefinition(logicSignal);
   }
 
+  // Emit dependency signal definitions for computed/action/handler/node signals
+  // This ensures state signals used as dependencies are available on the client
+  if ("depsRef" in signal && Array.isArray(signal.depsRef)) {
+    for (const depSignal of signal.depsRef) {
+      // Register the dependency signal in the registry
+      if (!registry.getSignal(depSignal.id)) {
+        registry.registerSignal(depSignal);
+      }
+      html += serializeSignalDefinition(depSignal);
+    }
+  }
+
   // Emit signal definition
   html += serializeSignalDefinition(signal);
 
@@ -269,8 +292,12 @@ function serializeSignalNode(signal: AnySignal, registry?: WeaverRegistry): stri
 }
 
 function serializeSignalDefinition(signal: AnySignal): string {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { logicRef, ...serializableSignal } = signal as AnySignal & { logicRef?: unknown };
+  // Create a shallow copy and remove non-serializable references
+  const serializableSignal = { ...signal } as Record<string, unknown>;
+  delete serializableSignal["logicRef"];
+  delete serializableSignal["depsRef"];
+  delete serializableSignal["_logicRef"];
+  delete serializableSignal["_componentRef"];
   const signalData = JSON.stringify({ kind: "signal-definition", signal: serializableSignal });
   return `<script>weaver.push(${signalData})</script>`;
 }

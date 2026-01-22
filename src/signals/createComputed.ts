@@ -50,5 +50,6 @@ export function createComputed(logic: LogicSignal, deps: AnySignal[], init?: unk
     deps: depIds,
     init,
     logicRef: logic,
+    depsRef: deps,
   };
 }

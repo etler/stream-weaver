@@ -121,4 +121,14 @@ export class WeaverRegistry {
     }
     return [];
   }
+
+  /**
+   * Returns an iterator over all registered signals
+   * Used for pre-execution of server-context signals during SSR
+   *
+   * @returns Iterator of [id, signal] pairs
+   */
+  getAllSignals(): IterableIterator<[string, AnySignal]> {
+    return this.signals.entries();
+  }
 }

@@ -1,4 +1,6 @@
 import { LogicSignal } from "@/signals/types";
+import { loadSSRModule } from "@/ssr/ssrContext";
+import { isServer } from "@/utils/environment";
 
 /**
  * Module interface for dynamically imported logic
@@ -11,10 +13,26 @@ interface LogicModule {
  * Loads a logic module and returns the default export function
  * Uses dynamic import to load the module at runtime
  *
+ * On the server, uses the SSR module loader (configured via setSSRModuleLoader)
+ * On the client, uses Vite's /@fs/ prefix for absolute paths
+ *
  * @param logicSignal - LogicSignal definition containing the module URL
  * @returns Promise that resolves to the logic function
  */
 export async function loadLogic(logicSignal: LogicSignal): Promise<(...args: unknown[]) => unknown> {
+  // On server, use SSR module loader
+  // Prefer src (absolute path) over ssrSrc (relative path) for reliability
+  if (isServer()) {
+    const src = logicSignal.src !== "" ? logicSignal.src : logicSignal.ssrSrc;
+    if (src === undefined || src === "") {
+      throw new Error(`Logic signal ${logicSignal.id} has no src path`);
+    }
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+    const module = (await loadSSRModule(src)) as LogicModule;
+    return module.default;
+  }
+
+  // On client, use src with /@fs/ prefix for absolute paths
   let { src } = logicSignal;
 
   // In development, Vite serves files outside the root via /@fs/ prefix

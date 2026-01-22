@@ -1,11 +1,12 @@
 import { chunkify } from "@/ComponentDelegate/chunkify";
 import { tokenize } from "@/ComponentDelegate/tokenize";
-import { Token, NodeExecutable } from "@/ComponentDelegate/types/Token";
+import { Token, NodeExecutable, ComputedExecutable } from "@/ComponentDelegate/types/Token";
 import { DelegateStream } from "delegate-stream";
 import { Node } from "@/jsx/types/Node";
 import { WeaverRegistry } from "@/registry/WeaverRegistry";
 import { ComponentElement } from "@/jsx/types/Element";
 import { loadSSRModule } from "@/ssr";
+import { executeComputed } from "@/logic/executeComputed";
 
 export class ComponentDelegate extends DelegateStream<Node, Token> {
   constructor(registry?: WeaverRegistry) {
@@ -20,11 +21,19 @@ export class ComponentDelegate extends DelegateStream<Node, Token> {
             // Token array - emit directly
             chain(chunk);
           } else if ("kind" in chunk) {
-            // NodeExecutable - load and execute component
-            const delegate = new ComponentDelegate(reg);
-            const writer = delegate.writable.getWriter();
-            chain(delegate.readable);
-            executeNodeSignal(chunk, writer, reg);
+            if (chunk.kind === "node-executable") {
+              // NodeExecutable - load and execute component
+              const delegate = new ComponentDelegate(reg);
+              const writer = delegate.writable.getWriter();
+              chain(delegate.readable);
+              executeNodeSignal(chunk, writer, reg);
+            } else {
+              // ComputedExecutable - execute server-context computed signal
+              const delegate = new ComponentDelegate(reg);
+              const writer = delegate.writable.getWriter();
+              chain(delegate.readable);
+              executeComputedSignal(chunk, writer, reg);
+            }
           } else {
             // ComponentElement (function component) - execute directly
             const delegate = new ComponentDelegate(reg);
@@ -53,6 +62,40 @@ function executeComponentElement(component: ComponentElement, writer: WritableSt
     await writer.close();
   })().catch((error: unknown) => {
     console.error(new Error("Component Render Error", { cause: error }));
+  });
+}
+
+/**
+ * Execute a server-context computed signal and emit the result as text
+ */
+function executeComputedSignal(
+  executable: ComputedExecutable,
+  writer: WritableStreamDefaultWriter<Node>,
+  registry?: WeaverRegistry,
+): void {
+  (async () => {
+    if (!registry) {
+      await writer.close();
+      return;
+    }
+
+    const { computed } = executable;
+
+    // Execute the computed signal (this handles server-context logic)
+    await executeComputed(registry, computed.id);
+
+    // Get the result
+    const value = registry.getValue(computed.id);
+
+    // Emit the value as text
+    // eslint-disable-next-line @typescript-eslint/no-base-to-string
+    await writer.write(String(value ?? ""));
+    await writer.close();
+  })().catch((error: unknown) => {
+    console.error(new Error("ComputedSignal Execution Error", { cause: error }));
+    writer.close().catch(() => {
+      // Ignore close errors
+    });
   });
 }
 

@@ -148,3 +148,31 @@ export function createClientLogic(input: unknown): LogicSignal {
   // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
   return createLogic(input as string | { src: string }, { context: "client" });
 }
+
+/**
+ * Creates a server-only logic signal
+ *
+ * Server logic only executes on the server. On the client, it triggers an RPC call
+ * to the server endpoint which executes the logic and returns the result.
+ *
+ * Use this for server-side operations like database access, file system, etc.
+ *
+ * @example
+ * const fetchUserLogic = createServerLogic(import("./fetchUser"));
+ * const user = createComputed(fetchUserLogic, [userId]);
+ */
+
+// Overload 1: Type-safe import() syntax
+export function createServerLogic<M extends { default: LogicFunction }>(mod: Promise<M>): LogicSignal<M["default"]>;
+
+// Overload 2: Pre-transformed LogicSignal object from plugin
+export function createServerLogic<F extends LogicFunction>(input: LogicSignal<F>): LogicSignal<F>;
+
+// Overload 3: Legacy string path
+export function createServerLogic(src: string): LogicSignal;
+
+// Implementation
+export function createServerLogic(input: unknown): LogicSignal {
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+  return createLogic(input as string | { src: string }, { context: "server" });
+}

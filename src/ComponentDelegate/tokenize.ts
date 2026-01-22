@@ -1,7 +1,7 @@
 import { Fragment } from "@/jsx/Fragment";
 import { ComponentElement, Element } from "@/jsx/types/Element";
 import { Node } from "@/jsx/types/Node";
-import { OpenTagToken, TokenOrExecutable, NodeExecutable } from "./types/Token";
+import { OpenTagToken, TokenOrExecutable, NodeExecutable, ComputedExecutable } from "./types/Token";
 import { WeaverRegistry } from "@/registry/WeaverRegistry";
 import {
   isSignal,
@@ -10,7 +10,7 @@ import {
   propToDataAttribute,
   isNodeSignal,
 } from "./signalDetection";
-import { LogicSignal, ComponentSignal, NodeSignal } from "@/signals/types";
+import { LogicSignal, ComponentSignal, NodeSignal, ComputedSignal } from "@/signals/types";
 
 export function tokenize(node: Node, registry?: WeaverRegistry): (TokenOrExecutable | ComponentElement)[] {
   // Check if node is a NodeSignal - needs special handling for component execution
@@ -28,6 +28,31 @@ export function tokenize(node: Node, registry?: WeaverRegistry): (TokenOrExecuta
     // Register the signal if not already registered
     if (!registry.getSignal(node.id)) {
       registry.registerSignal(node);
+    }
+
+    // Check for server-context computed signals that need async execution
+    if (node.kind === "computed") {
+      const computed = node as ComputedSignal;
+      const logicSignal = computed.logicRef;
+      if (logicSignal?.context === "server" && registry.getValue(node.id) === undefined) {
+        // Register the logic signal
+        if (!registry.getSignal(logicSignal.id)) {
+          registry.registerSignal(logicSignal);
+        }
+        // Return executable for async execution
+        const executable: ComputedExecutable = {
+          kind: "computed-executable",
+          computed,
+          logic: logicSignal,
+        };
+        return [
+          { kind: "signal-definition", signal: logicSignal },
+          { kind: "signal-definition", signal: node },
+          { kind: "bind-marker-open", id: node.id },
+          executable,
+          { kind: "bind-marker-close", id: node.id },
+        ];
+      }
     }
 
     // Get the current value from the registry, or use init value for computed signals

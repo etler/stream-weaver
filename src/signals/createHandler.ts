@@ -49,5 +49,6 @@ export function createHandler(logic: LogicSignal, deps: AnySignal[]): HandlerSig
     logic: logic.id,
     deps: depIds,
     logicRef: logic,
+    depsRef: deps,
   };
 }

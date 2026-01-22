@@ -12,6 +12,7 @@ export {
   createSignal,
   createLogic,
   createClientLogic,
+  createServerLogic,
   createComputed,
   createAction,
   createHandler,
@@ -53,6 +54,11 @@ export type { SignalInterface, WritableSignalInterface } from "./logic/signalInt
 // SSR utilities
 export { setSSRModuleLoader, clearSSRModuleLoader } from "./ssr";
 export type { ModuleLoader } from "./ssr";
+
+// Server logic execution (M13)
+export { serializeSignalChain, executeFromChain, executeRemote } from "./logic/remoteExecution";
+export type { SignalChain, SerializedSignal } from "./logic/remoteExecution";
+export { preExecuteServerLogic } from "./logic/preExecuteServerLogic";
 
 // Polyfills (side-effect import)
 import "./polyfills/readableStreamFrom";
