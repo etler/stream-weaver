@@ -124,9 +124,6 @@ export interface SuspenseSignal extends Signal {
   fallback: unknown; // Fallback JSX content to show while pending (Node type)
   children: unknown; // Children JSX content (Node type)
   pendingDeps: string[]; // Signal IDs that are currently PENDING
-  // Non-serializable reference to children for re-rendering
-  _childrenRef?: unknown;
-  _fallbackRef?: unknown;
   // Pre-rendered children HTML for client-side resolution
   _childrenHtml?: string;
 }

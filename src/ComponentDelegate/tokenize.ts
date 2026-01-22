@@ -32,6 +32,11 @@ export function isSuspenseResolutionNode(node: unknown): node is SuspenseResolut
 }
 
 export function tokenize(node: Node, registry?: WeaverRegistry): (TokenOrExecutable | ComponentElement)[] {
+  // Handle arrays of nodes (e.g., multiple children in Suspense)
+  if (Array.isArray(node)) {
+    return node.flatMap((child) => tokenize(child, registry));
+  }
+
   // Check for SuspenseResolutionNode (result of suspense execution)
   if (isSuspenseResolutionNode(node)) {
     // Extract signal-definition tokens from children (needed for client-side tracking)

@@ -22,7 +22,5 @@ export function createSuspense(fallback: unknown, children: unknown): SuspenseSi
     fallback,
     children,
     pendingDeps: [],
-    _fallbackRef: fallback,
-    _childrenRef: children,
   };
 }
