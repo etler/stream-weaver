@@ -5,12 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server/dev.ts",
-    "build": "vite build",
-    "preview": "vite preview",
+    "build": "npm run build:client && npm run build:fix-paths && npm run build:server",
+    "build:client": "vite build",
+    "build:fix-paths": "node scripts/fix-paths.js",
+    "build:server": "vite build --ssr src/pages.ts --outDir dist/server",
+    "preview": "tsx server/prod.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "stream-weaver": "*"
+    "stream-weaver": "file:.."
   },
   "devDependencies": {
     "@types/node": "^24.0.6",

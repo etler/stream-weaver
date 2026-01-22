@@ -7,6 +7,10 @@
 import "stream-weaver/polyfills";
 
 import { ClientWeaver } from "stream-weaver/client";
+import { WorkerPool } from "stream-weaver";
+
+// Configure worker URL for production build
+WorkerPool.setWorkerUrl("/assets/worker.js");
 
 // Extend Window interface for our weaver property
 declare global {

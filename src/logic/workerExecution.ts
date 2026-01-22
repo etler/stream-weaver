@@ -23,7 +23,8 @@ export async function executeInWorker(logicSignal: LogicSignal, args: unknown[])
   let finalPath = src;
 
   // For browser, add /@fs/ prefix for absolute paths (Vite dev server)
-  if (!isNodeOnly() && finalPath.startsWith("/") && !finalPath.startsWith("/@")) {
+  // Exclude /assets/ paths (production build) and /@ paths (already prefixed)
+  if (!isNodeOnly() && finalPath.startsWith("/") && !finalPath.startsWith("/@") && !finalPath.startsWith("/assets/")) {
     finalPath = `/@fs${finalPath}`;
   }
 

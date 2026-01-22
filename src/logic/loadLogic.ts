@@ -32,12 +32,13 @@ export async function loadLogic(logicSignal: LogicSignal): Promise<(...args: unk
     return module.default;
   }
 
-  // On client, use src with /@fs/ prefix for absolute paths
+  // On client, use src with /@fs/ prefix for absolute filesystem paths
   let { src } = logicSignal;
 
   // In development, Vite serves files outside the root via /@fs/ prefix
-  // Absolute paths need this prefix for client-side dynamic imports
-  if (src.startsWith("/") && !src.startsWith("/@")) {
+  // Absolute filesystem paths (not web paths like /assets/) need this prefix
+  // Only add /@fs for paths that look like filesystem paths (contain system path separators)
+  if (src.startsWith("/") && !src.startsWith("/@") && !src.startsWith("/assets/")) {
     src = `/@fs${src}`;
   }
 

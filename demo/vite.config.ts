@@ -27,14 +27,51 @@ export default defineConfig({
     noExternal: ["stream-weaver"],
   },
   build: {
-    outDir: path.resolve(__dirname, "dist"),
+    outDir: path.resolve(__dirname, "dist/client"),
     rollupOptions: {
       input: {
         client: path.resolve(__dirname, "src/client.ts"),
+        // Include all logic modules as separate entries
+        ...Object.fromEntries(
+          [
+            "increment",
+            "decrement",
+            "double",
+            "incrementFibInput",
+            "incrementPrimeLimit",
+            "fibonacciWorker",
+            "primeCountWorker",
+            "fetchUserDeferred",
+            "fetchPostsDeferred",
+            "fetchUserFromDb",
+            "fetchStatsAction",
+            "slowIncrement",
+            "toggle",
+            "setUserId1",
+            "setUserId2",
+            "setUserId3",
+            "incrementRefresh",
+            "addToCart",
+            "clearCart",
+            "append",
+            "checkmark",
+            "countingStream",
+            "latest",
+            "getServerTime",
+          ].map((name) => [name, path.resolve(__dirname, `src/logic/${name}.ts`)]),
+        ),
+        // Include components
+        ConditionalFeature: path.resolve(__dirname, "src/components/ConditionalFeature.tsx"),
+        // Include worker script for Web Workers
+        worker: path.resolve(__dirname, "../src/worker/worker.ts"),
       },
       output: {
-        entryFileNames: "[name].js",
+        entryFileNames: "assets/[name].js",
+        chunkFileNames: "assets/[name]-[hash].js",
+        assetFileNames: "assets/[name]-[hash][extname]",
+        preserveModules: false,
       },
+      preserveEntrySignatures: "strict",
     },
   },
   server: {
