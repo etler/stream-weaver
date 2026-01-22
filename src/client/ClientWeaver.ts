@@ -6,7 +6,7 @@ import { AnySignal, SuspenseSignal, ComputedSignal } from "@/signals/types";
 import { nodeToHtml } from "./nodeToHtml";
 import { executeNode } from "@/logic/executeNode";
 import { executeComputed } from "@/logic/executeComputed";
-import { executeStream } from "@/logic/executeStream";
+import { executeReducer } from "@/logic/executeReducer";
 import type { Node } from "@/jsx/types/Node";
 import { PENDING } from "@/signals/pending";
 
@@ -41,8 +41,8 @@ export class ClientWeaver {
   private pendingNodeSignals = new Set<string>();
   // Computed signals with deferred logic that need execution
   private pendingDeferredComputed = new Set<string>();
-  // Stream signals that need execution
-  private pendingStreamSignals = new Set<string>();
+  // Reducer signals that need execution
+  private pendingReducerSignals = new Set<string>();
   // Map: signal ID -> set of suspense IDs waiting on that signal
   private suspenseWaiters = new Map<string, Set<string>>();
 
@@ -75,7 +75,7 @@ export class ClientWeaver {
       setTimeout(() => {
         this.executePendingNodeSignals();
         this.executePendingDeferredComputed();
-        this.executePendingStreamSignals();
+        this.executePendingReducerSignals();
       }, 0);
     }
   }
@@ -115,24 +115,24 @@ export class ClientWeaver {
       }
     }
 
-    // Track stream signals that need execution
-    if (message.signal.kind === "stream") {
-      this.pendingStreamSignals.add(message.signal.id);
+    // Track reducer signals that need execution
+    if (message.signal.kind === "reducer") {
+      this.pendingReducerSignals.add(message.signal.id);
 
-      // Register nested signals from stream definition
-      const stream = message.signal;
-      if (stream.sourceRef) {
-        this.registry.registerSignal(stream.sourceRef);
+      // Register nested signals from reducer definition
+      const reducer = message.signal;
+      if (reducer.sourceRef) {
+        this.registry.registerSignal(reducer.sourceRef);
         // Also register the computed's logic signal if present
-        if (stream.sourceRef.kind === "computed" && "logicRef" in stream.sourceRef) {
-          const computed = stream.sourceRef as ComputedSignal;
+        if (reducer.sourceRef.kind === "computed" && "logicRef" in reducer.sourceRef) {
+          const computed = reducer.sourceRef as ComputedSignal;
           if (computed.logicRef) {
             this.registry.registerSignal(computed.logicRef);
           }
         }
       }
-      if (stream.reducerRef) {
-        this.registry.registerSignal(stream.reducerRef);
+      if (reducer.reducerRef) {
+        this.registry.registerSignal(reducer.reducerRef);
       }
     }
   }
@@ -167,51 +167,51 @@ export class ClientWeaver {
   }
 
   /**
-   * Execute pending stream signals
+   * Execute pending reducer signals
    */
-  private executePendingStreamSignals(): void {
-    for (const streamId of this.pendingStreamSignals) {
-      this.executeAndUpdateStream(streamId);
+  private executePendingReducerSignals(): void {
+    for (const reducerId of this.pendingReducerSignals) {
+      this.executeAndUpdateReducer(reducerId);
     }
-    this.pendingStreamSignals.clear();
+    this.pendingReducerSignals.clear();
   }
 
   /**
-   * Execute a stream signal and emit updates as items arrive
+   * Execute a reducer signal and emit updates as items arrive
    */
-  private executeAndUpdateStream(streamId: string): void {
-    const signal = this.registry.getSignal(streamId);
-    if (signal?.kind !== "stream") {
+  private executeAndUpdateReducer(reducerId: string): void {
+    const signal = this.registry.getSignal(reducerId);
+    if (signal?.kind !== "reducer") {
       return;
     }
-    const stream = signal;
+    const reducer = signal;
 
-    // First, execute the source signal's computed to create the ReadableStream
-    const sourceId = stream.source;
+    // First, execute the source signal's computed to create the iterable
+    const sourceId = reducer.source;
     const sourceSignal = this.registry.getSignal(sourceId);
 
     // If source is a computed signal, ensure it's executed first
     if (sourceSignal?.kind === "computed") {
       (async () => {
-        // Execute source computed to get the ReadableStream
+        // Execute source computed to get the iterable
         await executeComputed(this.registry, sourceId);
 
-        // Now execute the stream (which will read from the ReadableStream)
-        this.runStreamExecution(streamId);
+        // Now execute the reducer (which will iterate over the iterable)
+        this.runReducerExecution(reducerId);
       })().catch((error: unknown) => {
-        console.error(new Error(`Failed to execute stream source ${sourceId}`, { cause: error }));
+        console.error(new Error(`Failed to execute reducer source ${sourceId}`, { cause: error }));
       });
     } else {
-      // Source already has a value, just execute the stream
-      this.runStreamExecution(streamId);
+      // Source already has a value, just execute the reducer
+      this.runReducerExecution(reducerId);
     }
   }
 
   /**
-   * Run stream execution and emit updates
+   * Run reducer execution and emit updates
    */
-  private runStreamExecution(streamId: string): void {
-    // Create a wrapper that emits signal-update for each stream item
+  private runReducerExecution(reducerId: string): void {
+    // Create a wrapper that emits signal-update for each iterable item
     const originalSetValue = this.registry.setValue.bind(this.registry);
     const writer = this.delegateWriter;
 
@@ -222,12 +222,12 @@ export class ClientWeaver {
     // Temporarily override setValue to emit updates
     this.registry.setValue = (id: string, value: unknown) => {
       originalSetValue(id, value);
-      if (id === streamId && !isEmitting) {
+      if (id === reducerId && !isEmitting) {
         isEmitting = true;
         writer
           .write({ kind: "signal-update", id, value })
           .catch((error: unknown) => {
-            console.error(new Error(`Failed to emit stream update for ${id}`, { cause: error }));
+            console.error(new Error(`Failed to emit reducer update for ${id}`, { cause: error }));
           })
           .finally(() => {
             isEmitting = false;
@@ -235,9 +235,9 @@ export class ClientWeaver {
       }
     };
 
-    executeStream(this.registry, streamId)
+    executeReducer(this.registry, reducerId)
       .catch((error: unknown) => {
-        console.error(new Error(`Failed to execute stream ${streamId}`, { cause: error }));
+        console.error(new Error(`Failed to execute reducer ${reducerId}`, { cause: error }));
       })
       .finally(() => {
         // Restore original setValue

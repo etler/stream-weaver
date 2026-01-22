@@ -1574,6 +1574,79 @@ The dependency graph enables reactive propagation: changing a signal triggers al
 **De-duplication**:
 Multiple registration events for the same ID are handled gracefully (Map.set is idempotent). Whether de-duplication happens during event emission or during registry insertion is an implementation detail - both approaches work correctly.
 
+### 6.3 Server Initialization
+
+Before rendering components during SSR, the server must properly initialize the registry and pre-execute server-context logic. Stream Weaver provides utilities to handle this initialization pattern.
+
+**Initialization Pattern**:
+```typescript
+import {
+  StreamWeaver,
+  WeaverRegistry,
+  registerSignalsInTree,
+  preExecuteServerLogic,
+  setSSRModuleLoader,
+  clearSSRModuleLoader
+} from 'stream-weaver';
+
+async function renderToHTML(Component: () => JSX.Element): Promise<string> {
+  // 1. Configure module loader for SSR
+  setSSRModuleLoader(async (src: string) => {
+    // Map client URLs to server paths
+    return await import(src);
+  });
+
+  // 2. Create registry and execute component
+  const registry = new WeaverRegistry();
+  const root = await Component();
+
+  // 3. Register all signals in the tree before pre-execution
+  registerSignalsInTree(root, registry);
+
+  // 4. Pre-execute server-context computed signals
+  await preExecuteServerLogic(registry);
+
+  // 5. Stream the HTML
+  const weaver = new StreamWeaver({ root, registry });
+  const chunks: string[] = [];
+  for await (const chunk of weaver.readable) {
+    chunks.push(chunk as string);
+  }
+
+  clearSSRModuleLoader();
+  return chunks.join('');
+}
+```
+
+**Key Functions**:
+
+**`registerSignalsInTree(root: Node, registry: WeaverRegistry): void`**
+- Recursively walks the JSX tree and registers all signals in the registry
+- Must be called before `preExecuteServerLogic` to ensure signals are available
+- Registers signals and their referenced signals (logicRef, depsRef, sourceRef, reducerRef)
+- Makes signals discoverable for pre-execution
+
+**`preExecuteServerLogic(registry: WeaverRegistry): Promise<void>`**
+- Executes all computed signals that should run during SSR
+- Executes signals with these contexts:
+  - `undefined` (isomorphic): runs on both server and client
+  - `"server"`: runs only on server
+  - `"worker"`: runs in worker threads
+- Skips signals with context `"client"` (client-only)
+- Only executes signals that don't already have values
+- Runs executions in parallel for performance
+
+**Execution Contexts**:
+- **Isomorphic logic** (`createLogic`): Executes during SSR and re-executes on client if needed
+- **Server logic** (`createServerLogic`): Executes during SSR, client makes RPC calls
+- **Client logic** (`createClientLogic`): Skipped during SSR, executes only on client
+- **Worker logic** (`createWorkerLogic`): Executes in worker threads
+
+**Why This Pattern?**
+1. **Signal Registration**: Signals are only registered when encountered during tokenization. `registerSignalsInTree` pre-registers them so `preExecuteServerLogic` can find them.
+2. **Pre-Execution**: Computed signals need values before HTML serialization. `preExecuteServerLogic` ensures these values are available in the initial HTML.
+3. **Blocking vs Streaming**: Use `createComputed` for blocking server-side stream consumption, `createReducer` for incremental client updates.
+
 ## 7. Serialization
 
 ### 7.1 Server HTML Output
@@ -2888,25 +2961,31 @@ const userPrefs = createComputed(prefsLogic, []);
 
 **Note**: Unlike serverside logic, client logic return values do not need to be serializable—they never travel over the wire.
 
-### 11.6 Stream Signals
+### 11.6 Reducer Signals
 
-Stream signals provide a convenient way to reduce ECMA Web Streams (ReadableStream) into reactive signal values. As items arrive from the stream, the signal value is updated via a reducer function.
+Reducer signals provide a convenient way to reduce async iterables (including ReadableStream, AsyncGenerator, etc.) into reactive signal values. As items arrive from the iterable, the signal value is updated via a reducer function.
+
+**Key Feature**: Works with any async iterable, including:
+- `ReadableStream<T>` (Web Streams API)
+- `AsyncGenerator<T>` (async generators)
+- Custom async iterables
+- Even synchronous iterables (arrays, generators)
 
 **API**:
 ```typescript
-interface StreamSignal<T> extends Signal {
-  kind: 'stream';
-  source: string;    // Signal ID whose value is a ReadableStream
+interface ReducerSignal<T> extends Signal {
+  kind: 'reducer';
+  source: string;    // Signal ID whose value is an async iterable
   reducer: string;   // LogicSignal ID for reducer function
   init: T;           // Initial accumulator value
 }
 
 // Signature matches standard reduce: (source, reducer, init)
-function createStream<T, I>(
-  sourceSignal: Signal,           // Signal whose value is ReadableStream<T>
+function createReducer<T, I>(
+  sourceSignal: Signal,           // Signal whose value is AsyncIterable<T> or Iterable<T>
   reducerLogic: LogicSignal,      // (accumulator: I, item: T) => I
   init: I                         // Initial value
-): StreamSignal<I>;
+): ReducerSignal<I>;
 ```
 
 **Reducer Logic**:
@@ -2944,24 +3023,26 @@ const wsLogic = createLogic(import("./streams/websocket"));
 const wsStream = createComputed(wsLogic, [channel]);  // Value is ReadableStream
 
 const appendLogic = createLogic(import("./reducers/append"));
-const messages = createStream(wsStream, appendLogic, []);
+const messages = createReducer(wsStream, appendLogic, []);
 
 // messages.value is Message[], updates as items arrive
 ```
 
 **Execution Behavior**:
-Stream signals behave like repeated deferred updates:
-1. Subscribe to the ReadableStream
+Reducer signals behave like repeated deferred updates:
+1. Iterate over the async iterable using `for await...of`
 2. For each item, apply reducer: `newValue = reducer(currentValue, item)`
 3. Update registry with new value
 4. Emit signal-update (triggers dependent re-renders)
-5. Repeat until stream closes
+5. Repeat until iteration completes
 
 **SSR Considerations**:
-For the initial implementation, stream signals are client-only:
+Reducer signals are typically client-only for incremental updates:
 - SSR emits the initial value
-- Client starts the stream subscription after resumption
-- All stream updates happen client-side
+- Client starts the iteration after resumption
+- All iterable updates happen client-side
+
+However, for server-side stream consumption during SSR, use `createComputed` with logic that consumes the entire iterable and returns the final result (blocking).
 
 ### 11.7 Worker Logic
 

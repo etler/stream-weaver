@@ -8,7 +8,14 @@ import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { join, dirname, basename } from "node:path";
 import { fileURLToPath } from "node:url";
-import { StreamWeaver, WeaverRegistry, setSSRModuleLoader, clearSSRModuleLoader } from "stream-weaver";
+import {
+  StreamWeaver,
+  WeaverRegistry,
+  setSSRModuleLoader,
+  clearSSRModuleLoader,
+  preExecuteServerLogic,
+  registerSignalsInTree,
+} from "stream-weaver";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const clientDir = join(__dirname, "../dist/client");
@@ -221,6 +228,13 @@ async function renderComponent(Component: () => JSX.Element): Promise<string> {
 
   const registry = new WeaverRegistry();
   const root = await Component();
+
+  // Register all signals in the tree first
+  registerSignalsInTree(root, registry);
+
+  // Pre-execute server-context computed signals before streaming
+  await preExecuteServerLogic(registry);
+
   const weaver = new StreamWeaver({ root, registry });
 
   // Collect HTML chunks

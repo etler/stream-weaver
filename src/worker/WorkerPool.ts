@@ -143,10 +143,17 @@ class WorkerPoolImpl {
 
       return pooledWorker;
     } else {
-      // Browser/Bun: use web-worker for unified API
-      const WebWorker = (await import("web-worker")).default;
+      // Browser/Bun: use native Worker if available, fall back to web-worker package
       const workerUrl = this.workerUrl ?? new URL("./worker.js", import.meta.url).href;
-      worker = new WebWorker(workerUrl, { type: "module" });
+
+      // In browsers, use native Worker for better module worker support
+      if (typeof Worker !== "undefined") {
+        worker = new Worker(workerUrl, { type: "module" });
+      } else {
+        // Fallback to web-worker package (for environments without native Worker)
+        const WebWorker = (await import("web-worker")).default;
+        worker = new WebWorker(workerUrl, { type: "module" });
+      }
 
       const pooledWorker: PooledWorker = { worker, busy: false };
 
@@ -154,7 +161,10 @@ class WorkerPoolImpl {
         this.handleWorkerMessage(pooledWorker, event.data);
       };
       worker.onerror = (error: ErrorEvent) => {
-        this.handleWorkerError(pooledWorker, new Error(error.message));
+        // Extract as much info as possible from the error event
+        const message = error.message || error.filename || "Worker error";
+        const details = error.filename ? ` (${error.filename}:${String(error.lineno)}:${String(error.colno)})` : "";
+        this.handleWorkerError(pooledWorker, new Error(message + details));
       };
 
       return pooledWorker;

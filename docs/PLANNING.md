@@ -1495,34 +1495,35 @@ test('Suspense integrates with SignalDelegate for reactive updates', async () =>
 
 ---
 
-## Milestone 15: Stream Signals
+## Milestone 15: Reducer Signals
 
-**Goal**: Provide a convenient way to reduce ECMA Web Streams into reactive signal values.
+**Goal**: Provide a convenient way to reduce async iterables (including ReadableStream, AsyncGenerator, etc.) into reactive signal values.
 
 **Implementation Tasks**:
-- Define `StreamSignal` interface with `source`, `reducer`, and `init` fields
-- Implement `createStream(sourceSignal, reducerLogic, init)` function
-- Implement stream subscription in `executeStream`
-- On each stream item: apply reducer, update registry, emit signal-update
-- Handle stream completion and errors
-- Streams are client-only for initial implementation (SSR emits init value)
+- Define `ReducerSignal` interface with `source`, `reducer`, and `init` fields
+- Implement `createReducer(sourceSignal, reducerLogic, init)` function
+- Implement iterable consumption in `executeReducer` using `for await...of`
+- On each item: apply reducer, update registry, emit signal-update
+- Handle iteration completion and errors
+- Support both async and sync iterables
+- Reducers are typically client-only for incremental updates (SSR emits init value)
 
 **Test Criteria**:
 ```typescript
-test('createStream creates a StreamSignal', () => {
+test('createReducer creates a ReducerSignal', () => {
   const wsLogic = createLogic(import('./websocket'));
   const wsStream = createComputed(wsLogic, [channel]);
   const appendLogic = createLogic(import('./append'));
 
-  const messages = createStream(wsStream, appendLogic, []);
+  const messages = createReducer(wsStream, appendLogic, []);
 
-  expect(messages.kind).toBe('stream');
+  expect(messages.kind).toBe('reducer');
   expect(messages.source).toBe(wsStream.id);
   expect(messages.reducer).toBe(appendLogic.id);
   expect(messages.init).toEqual([]);
 });
 
-test('stream signal accumulates values via reducer', async () => {
+test('reducer signal accumulates values via reducer', async () => {
   // Create a mock ReadableStream
   const mockStream = new ReadableStream({
     start(controller) {
@@ -1534,7 +1535,7 @@ test('stream signal accumulates values via reducer', async () => {
 
   const sourceSignal = createSignal(mockStream);
   const appendLogic = createLogic(import('./append'));
-  const messages = createStream(sourceSignal, appendLogic, []);
+  const messages = createReducer(sourceSignal, appendLogic, []);
 
   const registry = new WeaverRegistry();
   registry.registerSignal(sourceSignal);
@@ -1542,7 +1543,7 @@ test('stream signal accumulates values via reducer', async () => {
   registry.registerSignal(messages);
   registry.setValue(sourceSignal.id, mockStream);
 
-  await executeStream(registry, messages.id);
+  await executeReducer(registry, messages.id);
 
   const value = registry.getValue(messages.id);
   expect(value).toEqual([
@@ -1551,7 +1552,7 @@ test('stream signal accumulates values via reducer', async () => {
   ]);
 });
 
-test('stream signal with latest reducer keeps only last value', async () => {
+test('reducer signal with latest reducer keeps only last value', async () => {
   const mockStream = new ReadableStream({
     start(controller) {
       controller.enqueue(1);
@@ -1563,17 +1564,17 @@ test('stream signal with latest reducer keeps only last value', async () => {
 
   const sourceSignal = createSignal(mockStream);
   const latestLogic = createLogic(import('./latest')); // (_, item) => item
-  const current = createStream(sourceSignal, latestLogic, null);
+  const current = createReducer(sourceSignal, latestLogic, null);
 
   const registry = new WeaverRegistry();
   // ... register all ...
 
-  await executeStream(registry, current.id);
+  await executeReducer(registry, current.id);
 
   expect(registry.getValue(current.id)).toBe(3);
 });
 
-test('stream signal emits signal-update for each item', async () => {
+test('reducer signal emits signal-update for each item', async () => {
   const mockStream = new ReadableStream({
     start(controller) {
       controller.enqueue('a');
@@ -1584,7 +1585,7 @@ test('stream signal emits signal-update for each item', async () => {
 
   const sourceSignal = createSignal(mockStream);
   const appendLogic = createLogic(import('./append'));
-  const items = createStream(sourceSignal, appendLogic, []);
+  const items = createReducer(sourceSignal, appendLogic, []);
 
   const registry = new WeaverRegistry();
   // ... register all ...
@@ -1600,7 +1601,7 @@ test('stream signal emits signal-update for each item', async () => {
     }
   })();
 
-  await executeStream(registry, items.id);
+  await executeReducer(registry, items.id);
 
   // Should have emitted update for each item
   expect(updates).toEqual([
@@ -1609,7 +1610,7 @@ test('stream signal emits signal-update for each item', async () => {
   ]);
 });
 
-test('stream signal handles stream errors', async () => {
+test('reducer signal handles iteration errors', async () => {
   const errorStream = new ReadableStream({
     start(controller) {
       controller.enqueue('ok');
@@ -1619,16 +1620,16 @@ test('stream signal handles stream errors', async () => {
 
   const sourceSignal = createSignal(errorStream);
   const appendLogic = createLogic(import('./append'));
-  const items = createStream(sourceSignal, appendLogic, []);
+  const items = createReducer(sourceSignal, appendLogic, []);
 
   const registry = new WeaverRegistry();
   // ... register all ...
 
-  await expect(executeStream(registry, items.id)).rejects.toThrow('Stream failed');
+  await expect(executeReducer(registry, items.id)).rejects.toThrow('Stream failed');
 });
 ```
 
-**Deliverable**: Stream signals that reduce ReadableStream items into reactive signal values.
+**Deliverable**: Reducer signals that reduce async iterable items into reactive signal values.
 
 ---
 

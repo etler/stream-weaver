@@ -1,7 +1,7 @@
 import { describe, test, expect, vi } from "vitest";
-import { createSignal, createLogic, createStream, AnySignal } from "@/signals";
+import { createSignal, createLogic, createReducer, AnySignal } from "@/signals";
 import { WeaverRegistry } from "@/registry/WeaverRegistry";
-import { executeStream } from "@/logic/executeStream";
+import { executeReducer } from "@/logic/executeReducer";
 import path from "node:path";
 
 // Get absolute path to fixtures
@@ -13,16 +13,16 @@ vi.mock("@/utils/environment", () => ({
   isClient: () => true,
 }));
 
-describe("Stream Signals", () => {
-  describe("createStream", () => {
-    test("creates a StreamSignal with correct properties", () => {
+describe("Reducer Signals", () => {
+  describe("createReducer", () => {
+    test("creates a ReducerSignal with correct properties", () => {
       // Use a plain signal as source (in practice, would be a computed signal with client logic)
       const sourceSignal = createSignal(null);
       const appendLogic = createLogic({ src: `${fixturesPath}/append.js` });
 
-      const messages = createStream(sourceSignal, appendLogic, []);
+      const messages = createReducer(sourceSignal, appendLogic, []);
 
-      expect(messages.kind).toBe("stream");
+      expect(messages.kind).toBe("reducer");
       expect(messages.source).toBe(sourceSignal.id);
       expect(messages.reducer).toBe(appendLogic.id);
       expect(messages.init).toEqual([]);
@@ -32,10 +32,10 @@ describe("Stream Signals", () => {
       const sourceSignal = createSignal(null);
       const appendLogic = createLogic({ src: `${fixturesPath}/append.js` });
 
-      const stream1 = createStream(sourceSignal, appendLogic, []);
-      const stream2 = createStream(sourceSignal, appendLogic, []);
+      const reducer1 = createReducer(sourceSignal, appendLogic, []);
+      const reducer2 = createReducer(sourceSignal, appendLogic, []);
 
-      expect(stream1.id).toBe(stream2.id);
+      expect(reducer1.id).toBe(reducer2.id);
     });
 
     test("creates different IDs for different sources", () => {
@@ -43,10 +43,10 @@ describe("Stream Signals", () => {
       const source2 = createSignal(null);
       const appendLogic = createLogic({ src: `${fixturesPath}/append.js` });
 
-      const stream1 = createStream(source1, appendLogic, []);
-      const stream2 = createStream(source2, appendLogic, []);
+      const reducer1 = createReducer(source1, appendLogic, []);
+      const reducer2 = createReducer(source2, appendLogic, []);
 
-      expect(stream1.id).not.toBe(stream2.id);
+      expect(reducer1.id).not.toBe(reducer2.id);
     });
 
     test("creates different IDs for different reducers", () => {
@@ -54,25 +54,25 @@ describe("Stream Signals", () => {
       const appendLogic = createLogic({ src: `${fixturesPath}/append.js` });
       const latestLogic = createLogic({ src: `${fixturesPath}/latest.js` });
 
-      const stream1 = createStream(sourceSignal, appendLogic, []);
-      const stream2 = createStream(sourceSignal, latestLogic, null);
+      const reducer1 = createReducer(sourceSignal, appendLogic, []);
+      const reducer2 = createReducer(sourceSignal, latestLogic, null);
 
-      expect(stream1.id).not.toBe(stream2.id);
+      expect(reducer1.id).not.toBe(reducer2.id);
     });
 
     test("stores runtime references", () => {
       const sourceSignal = createSignal(null);
       const appendLogic = createLogic({ src: `${fixturesPath}/append.js` });
 
-      const stream = createStream(sourceSignal, appendLogic, []);
+      const reducer = createReducer(sourceSignal, appendLogic, []);
 
-      expect(stream.sourceRef).toBe(sourceSignal);
-      expect(stream.reducerRef).toBe(appendLogic);
+      expect(reducer.sourceRef).toBe(sourceSignal);
+      expect(reducer.reducerRef).toBe(appendLogic);
     });
   });
 
-  describe("executeStream", () => {
-    test("accumulates values via append reducer", async () => {
+  describe("executeReducer", () => {
+    test("accumulates values from ReadableStream via append reducer", async () => {
       const mockStream = new ReadableStream({
         start(controller) {
           controller.enqueue({ id: 1, text: "Hello" });
@@ -84,7 +84,7 @@ describe("Stream Signals", () => {
       // Create a placeholder source signal (the actual stream is set in registry)
       const sourceSignal = createSignal(null) as AnySignal;
       const appendLogic = createLogic({ src: `${fixturesPath}/append.js` });
-      const messages = createStream(sourceSignal, appendLogic, []);
+      const messages = createReducer(sourceSignal, appendLogic, []);
 
       const registry = new WeaverRegistry();
       registry.registerSignal(sourceSignal);
@@ -92,7 +92,32 @@ describe("Stream Signals", () => {
       registry.registerSignal(messages);
       registry.setValue(sourceSignal.id, mockStream);
 
-      await executeStream(registry, messages.id);
+      await executeReducer(registry, messages.id);
+
+      const value = registry.getValue(messages.id);
+      expect(value).toEqual([
+        { id: 1, text: "Hello" },
+        { id: 2, text: "World" },
+      ]);
+    });
+
+    test("accumulates values from Array via append reducer", async () => {
+      const mockArray = [
+        { id: 1, text: "Hello" },
+        { id: 2, text: "World" },
+      ];
+
+      const sourceSignal = createSignal(null) as AnySignal;
+      const appendLogic = createLogic({ src: `${fixturesPath}/append.js` });
+      const messages = createReducer(sourceSignal, appendLogic, []);
+
+      const registry = new WeaverRegistry();
+      registry.registerSignal(sourceSignal);
+      registry.registerSignal(appendLogic);
+      registry.registerSignal(messages);
+      registry.setValue(sourceSignal.id, mockArray);
+
+      await executeReducer(registry, messages.id);
 
       const value = registry.getValue(messages.id);
       expect(value).toEqual([
@@ -113,7 +138,7 @@ describe("Stream Signals", () => {
 
       const sourceSignal = createSignal(null) as AnySignal;
       const latestLogic = createLogic({ src: `${fixturesPath}/latest.js` });
-      const current = createStream(sourceSignal, latestLogic, null);
+      const current = createReducer(sourceSignal, latestLogic, null);
 
       const registry = new WeaverRegistry();
       registry.registerSignal(sourceSignal);
@@ -121,7 +146,7 @@ describe("Stream Signals", () => {
       registry.registerSignal(current);
       registry.setValue(sourceSignal.id, mockStream);
 
-      await executeStream(registry, current.id);
+      await executeReducer(registry, current.id);
 
       expect(registry.getValue(current.id)).toBe(3);
     });
@@ -136,7 +161,7 @@ describe("Stream Signals", () => {
 
       const sourceSignal = createSignal(null) as AnySignal;
       const appendLogic = createLogic({ src: `${fixturesPath}/append.js` });
-      const items = createStream(sourceSignal, appendLogic, ["initial"]);
+      const items = createReducer(sourceSignal, appendLogic, ["initial"]);
 
       const registry = new WeaverRegistry();
       registry.registerSignal(sourceSignal);
@@ -144,33 +169,33 @@ describe("Stream Signals", () => {
       registry.registerSignal(items);
       registry.setValue(sourceSignal.id, mockStream);
 
-      await executeStream(registry, items.id);
+      await executeReducer(registry, items.id);
 
       // Init value should be the starting point, with new item appended
       expect(registry.getValue(items.id)).toEqual(["initial", "item"]);
     });
 
-    test("throws error if source value is not a ReadableStream", async () => {
-      const sourceSignal = createSignal("not a stream");
+    test("throws error if source value is not iterable", async () => {
+      const sourceSignal = createSignal("not iterable");
       const appendLogic = createLogic({ src: `${fixturesPath}/append.js` });
-      const stream = createStream(sourceSignal, appendLogic, []);
+      const reducer = createReducer(sourceSignal, appendLogic, []);
 
       const registry = new WeaverRegistry();
       registry.registerSignal(sourceSignal);
       registry.registerSignal(appendLogic);
-      registry.registerSignal(stream);
-      registry.setValue(sourceSignal.id, "not a stream");
+      registry.registerSignal(reducer);
+      registry.setValue(sourceSignal.id, 42); // number is not iterable
 
-      await expect(executeStream(registry, stream.id)).rejects.toThrow("Source signal");
+      await expect(executeReducer(registry, reducer.id)).rejects.toThrow("not iterable");
     });
 
-    test("throws error if signal is not a stream signal", async () => {
+    test("throws error if signal is not a reducer signal", async () => {
       const stateSignal = createSignal(42);
 
       const registry = new WeaverRegistry();
       registry.registerSignal(stateSignal);
 
-      await expect(executeStream(registry, stateSignal.id)).rejects.toThrow("not a stream signal");
+      await expect(executeReducer(registry, stateSignal.id)).rejects.toThrow("not a reducer signal");
     });
 
     test("handles empty stream", async () => {
@@ -182,7 +207,7 @@ describe("Stream Signals", () => {
 
       const sourceSignal = createSignal(null) as AnySignal;
       const appendLogic = createLogic({ src: `${fixturesPath}/append.js` });
-      const items = createStream(sourceSignal, appendLogic, []);
+      const items = createReducer(sourceSignal, appendLogic, []);
 
       const registry = new WeaverRegistry();
       registry.registerSignal(sourceSignal);
@@ -190,7 +215,25 @@ describe("Stream Signals", () => {
       registry.registerSignal(items);
       registry.setValue(sourceSignal.id, mockStream);
 
-      await executeStream(registry, items.id);
+      await executeReducer(registry, items.id);
+
+      expect(registry.getValue(items.id)).toEqual([]);
+    });
+
+    test("handles empty array", async () => {
+      const mockArray: unknown[] = [];
+
+      const sourceSignal = createSignal(null) as AnySignal;
+      const appendLogic = createLogic({ src: `${fixturesPath}/append.js` });
+      const items = createReducer(sourceSignal, appendLogic, []);
+
+      const registry = new WeaverRegistry();
+      registry.registerSignal(sourceSignal);
+      registry.registerSignal(appendLogic);
+      registry.registerSignal(items);
+      registry.setValue(sourceSignal.id, mockArray);
+
+      await executeReducer(registry, items.id);
 
       expect(registry.getValue(items.id)).toEqual([]);
     });

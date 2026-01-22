@@ -144,9 +144,14 @@ async function renderExample(
   vite: ViteDevServer,
 ): Promise<string> {
   // Dynamic imports for SSR (using relative path for root execution)
-  const { StreamWeaver, WeaverRegistry, setSSRModuleLoader, clearSSRModuleLoader } = await import(
-    "../../src/index.js"
-  );
+  const {
+    StreamWeaver,
+    WeaverRegistry,
+    setSSRModuleLoader,
+    clearSSRModuleLoader,
+    preExecuteServerLogic,
+    registerSignalsInTree,
+  } = await import("../../src/index.js");
 
   // Configure SSR module loader to use Vite's ssrLoadModule
   // Convert absolute paths to Vite-friendly project-relative paths
@@ -169,6 +174,13 @@ async function renderExample(
 
   const registry = new WeaverRegistry();
   const root = await Component();
+
+  // Register all signals in the tree first
+  registerSignalsInTree(root, registry);
+
+  // Pre-execute server-context computed signals before streaming
+  await preExecuteServerLogic(registry);
+
   const weaver = new StreamWeaver({ root, registry });
 
   // Collect HTML chunks

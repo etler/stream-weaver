@@ -24,7 +24,7 @@ export {
   createComponent,
   createNode,
   createSuspense,
-  createStream,
+  createReducer,
   PENDING,
 } from "./signals";
 
@@ -38,7 +38,7 @@ export type {
   ComponentSignal,
   NodeSignal,
   SuspenseSignal,
-  StreamSignal,
+  ReducerSignal,
   AnySignal,
   LogicFunction,
   ExtractLogicFunction,
@@ -68,9 +68,10 @@ export type { ModuleLoader } from "./ssr";
 export { serializeSignalChain, executeFromChain, executeRemote } from "./logic/remoteExecution";
 export type { SignalChain, SerializedSignal } from "./logic/remoteExecution";
 export { preExecuteServerLogic } from "./logic/preExecuteServerLogic";
+export { registerSignalsInTree } from "./registry/registerSignals";
 
-// Stream execution
-export { executeStream } from "./logic/executeStream";
+// Reducer execution
+export { executeReducer } from "./logic/executeReducer";
 
 // Worker execution (M16)
 export { WorkerPool } from "./worker";

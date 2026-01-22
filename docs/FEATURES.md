@@ -43,4 +43,4 @@
 * **Client-Side Logic:** Logic marked with `context: 'client'` (via `createClientLogic`) that executes only in the browser (useful for accessing `window` or `localStorage`).
 * **Worker Logic:** Logic signals marked with `context: 'worker'` (via `createWorkerLogic`) that execute in a background Worker thread. This allows heavy CPU-bound tasks to run without blocking the main UI thread.
 * **Suspense:** A built-in component that renders fallback content while its child nodes are in a `PENDING` state.
-* **Stream Signals:** The `createStream` primitive for reducing `ReadableStream` sources (like WebSockets) into reactive signal values.
+* **Reducer Signals:** The `createReducer` primitive for reducing async iterables (including ReadableStream, AsyncGenerator, etc.) into reactive signal values.

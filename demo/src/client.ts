@@ -9,8 +9,18 @@ import "stream-weaver/polyfills";
 import { ClientWeaver } from "stream-weaver/client";
 import { WorkerPool } from "stream-weaver";
 
-// Configure worker URL for production build
-WorkerPool.setWorkerUrl("/assets/worker.js");
+// Configure worker URL based on environment
+// In production, use the built worker.js
+// In dev mode, use Vite's module serving for the TypeScript source
+if (import.meta.env.PROD) {
+  WorkerPool.setWorkerUrl("/assets/worker.js");
+} else {
+  // In dev mode, construct the worker URL relative to this file
+  // This file is at demo/src/client.ts, worker is at src/worker/worker.ts
+  // Vite serves the parent directory via /@fs/ prefix
+  const workerPath = new URL("../../src/worker/worker.ts", import.meta.url).href;
+  WorkerPool.setWorkerUrl(workerPath);
+}
 
 // Extend Window interface for our weaver property
 declare global {

@@ -56,6 +56,8 @@ export default defineConfig({
             "append",
             "checkmark",
             "countingStream",
+            "serverCountingStream",
+            "consumeServerStream",
             "latest",
             "getServerTime",
           ].map((name) => [name, path.resolve(__dirname, `src/logic/${name}.ts`)]),

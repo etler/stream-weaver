@@ -130,14 +130,16 @@ export interface SuspenseSignal extends Signal {
 }
 
 /**
- * StreamSignal represents a derived value that reduces items from a ReadableStream
- * As items arrive from the stream, the reducer is applied and the value is updated
+ * ReducerSignal represents a derived value that reduces items from an iterable
+ * As items arrive from the iterable, the reducer is applied and the value is updated
+ *
+ * Works with any iterable including ReadableStream, Array, Generator, AsyncGenerator
  *
  * @template T - The accumulated value type
  */
-export interface StreamSignal<T = unknown> extends Signal {
-  kind: "stream";
-  source: string; // Signal ID whose value is a ReadableStream
+export interface ReducerSignal<T = unknown> extends Signal {
+  kind: "reducer";
+  source: string; // Signal ID whose value is an iterable
   reducer: string; // LogicSignal ID for reducer function (acc, item) => acc
   init: T; // Initial accumulator value
   // Runtime references for convenience
@@ -157,4 +159,4 @@ export type AnySignal =
   | ComponentSignal
   | NodeSignal
   | SuspenseSignal
-  | StreamSignal;
+  | ReducerSignal;

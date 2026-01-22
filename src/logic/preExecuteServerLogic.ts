@@ -15,7 +15,7 @@ import { executeComputed } from "./executeComputed";
 export async function preExecuteServerLogic(registry: WeaverRegistry): Promise<void> {
   const toExecute: string[] = [];
 
-  // Find all computed signals with server-context logic
+  // Find all computed signals with non-client-context logic
   for (const [id, signal] of registry.getAllSignals()) {
     if (signal.kind !== "computed") {
       continue;
@@ -24,8 +24,13 @@ export async function preExecuteServerLogic(registry: WeaverRegistry): Promise<v
     const computed = signal as ComputedSignal;
     const logicSignal = registry.getSignal(computed.logic);
 
-    // Check if this computed uses server-context logic
-    if (logicSignal?.kind === "logic" && logicSignal.context === "server") {
+    // Check if this computed uses logic that should execute during SSR
+    // Execute all contexts except client-only:
+    // - undefined (isomorphic): executes on both server and client
+    // - "server": executes only on server (client uses RPC)
+    // - "worker": executes in worker thread
+    // Skip "client": executes only on client
+    if (logicSignal?.kind === "logic" && logicSignal.context !== "client") {
       // Only execute if we don't already have a value
       if (registry.getValue(id) === undefined) {
         toExecute.push(id);

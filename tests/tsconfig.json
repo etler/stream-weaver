@@ -1,13 +1,13 @@
 {
   "extends": "../tsconfig.json",
   "compilerOptions": {
-    "baseUrl": "./",
     "types": ["vitest/globals"],
     "noEmit": true,
     "jsx": "react-jsx",
-    "paths": {
-      "@/*": ["../src/*"]
-    }
+    "plugins": [
+      { "transform": "typescript-transform-paths" },
+      { "transform": "typescript-transform-paths", "afterDeclarations": true }
+    ]
   },
   "include": ["**/*.ts", "**/*.tsx"],
   "exclude": []
