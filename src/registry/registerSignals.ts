@@ -4,7 +4,7 @@ import { isSignal } from "@/ComponentDelegate/signalDetection";
 
 /**
  * Recursively walks a JSX tree and registers all signals found in the registry
- * This should be called before preExecuteServerLogic to ensure all signals are available
+ * This should be called before streaming to ensure all signals are available
  */
 export function registerSignalsInTree(node: Node, registry: WeaverRegistry): void {
   // Handle null/undefined

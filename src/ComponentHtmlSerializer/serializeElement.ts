@@ -19,16 +19,14 @@ function requiresAsyncProcessing(signal: AnySignal, registry: WeaverRegistry): b
     return true;
   }
 
-  // Computed signals with server/worker context or deferred execution need async
+  // Computed signals with non-client context need async execution during SSR
   if (signal.kind === "computed") {
     const computed = signal as ComputedSignal;
     const logicSignal = computed.logicRef;
 
-    // Server/worker context computed signals need async execution
-    if (
-      (logicSignal?.context === "server" || logicSignal?.context === "worker") &&
-      registry.getValue(signal.id) === undefined
-    ) {
+    // Any non-client context (undefined=isomorphic, "server", "worker") needs async execution
+    // if the value hasn't been computed yet. This matches the check in tokenize.ts.
+    if (logicSignal !== undefined && logicSignal.context !== "client" && registry.getValue(signal.id) === undefined) {
       return true;
     }
 

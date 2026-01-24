@@ -13,7 +13,6 @@ import {
   WeaverRegistry,
   setSSRModuleLoader,
   clearSSRModuleLoader,
-  preExecuteServerLogic,
   registerSignalsInTree,
 } from "stream-weaver";
 
@@ -231,9 +230,6 @@ async function renderComponent(Component: () => JSX.Element): Promise<string> {
 
   // Register all signals in the tree first
   registerSignalsInTree(root, registry);
-
-  // Pre-execute server-context computed signals before streaming
-  await preExecuteServerLogic(registry);
 
   const weaver = new StreamWeaver({ root, registry });
 

@@ -1919,7 +1919,6 @@ import {
   StreamWeaver,
   WeaverRegistry,
   registerSignalsInTree,
-  preExecuteServerLogic,
   setSSRModuleLoader,
   clearSSRModuleLoader
 } from 'stream-weaver';
@@ -1935,13 +1934,10 @@ async function renderToHTML(Component: () => JSX.Element): Promise<string> {
   const registry = new WeaverRegistry();
   const root = await Component();
 
-  // 3. Register all signals in the tree before pre-execution
+  // 3. Register all signals in the tree before streaming
   registerSignalsInTree(root, registry);
 
-  // 4. Pre-execute server-context computed signals
-  await preExecuteServerLogic(registry);
-
-  // 5. Stream the HTML
+  // 4. Stream the HTML (server logic executes during streaming)
   const weaver = new StreamWeaver({ root, registry });
   const chunks: string[] = [];
   for await (const chunk of weaver.readable) {
@@ -1957,19 +1953,8 @@ async function renderToHTML(Component: () => JSX.Element): Promise<string> {
 
 **`registerSignalsInTree(root: Node, registry: WeaverRegistry): void`**
 - Recursively walks the JSX tree and registers all signals in the registry
-- Must be called before `preExecuteServerLogic` to ensure signals are available
 - Registers signals and their referenced signals (logicRef, depsRef, sourceRef, reducerRef)
-- Makes signals discoverable for pre-execution
-
-**`preExecuteServerLogic(registry: WeaverRegistry): Promise<void>`**
-- Executes all computed signals that should run during SSR
-- Executes signals with these contexts:
-  - `undefined` (isomorphic): runs on both server and client
-  - `"server"`: runs only on server
-  - `"worker"`: runs in worker threads
-- Skips signals with context `"client"` (client-only)
-- Only executes signals that don't already have values
-- Runs executions in parallel for performance
+- Should be called before streaming to ensure all signals are available
 
 **Execution Contexts**:
 - **Isomorphic logic** (`defineLogic`): Executes during SSR and re-executes on client if needed
@@ -1977,10 +1962,8 @@ async function renderToHTML(Component: () => JSX.Element): Promise<string> {
 - **Client logic** (`defineClientLogic`): Skipped during SSR, executes only on client
 - **Worker logic** (`defineWorkerLogic`): Executes in worker threads
 
-**Why This Pattern?**
-1. **Signal Registration**: Signals are only registered when encountered during tokenization. `registerSignalsInTree` pre-registers them so `preExecuteServerLogic` can find them.
-2. **Pre-Execution**: Computed signals need values before HTML serialization. `preExecuteServerLogic` ensures these values are available in the initial HTML.
-3. **Blocking vs Streaming**: Use `defineComputed` for blocking server-side stream consumption, `defineReducer` for incremental client updates.
+**How Server Logic Execution Works**:
+During streaming, when the `ComponentDelegate` encounters a computed signal with server-context logic (via `ComputedExecutable`), it automatically executes the logic and streams the result. This happens in parallel for sibling nodes thanks to `DelegateStream`'s parallelization.
 
 ## 7. Serialization
 

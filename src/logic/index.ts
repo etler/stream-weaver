@@ -13,5 +13,4 @@ export type { ExecuteHandlerResult } from "./executeHandler";
 export { executeNode } from "./executeNode";
 export { serializeSignalChain, executeFromChain, executeRemote } from "./remoteExecution";
 export type { SignalChain, SerializedSignal } from "./remoteExecution";
-export { preExecuteServerLogic } from "./preExecuteServerLogic";
 export { executeInWorker } from "./workerExecution";

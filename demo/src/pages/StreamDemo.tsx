@@ -23,8 +23,7 @@ const serverResultLogic = defineLogic(import("../logic/consumeServerStream"));
 
 // This computed blocks during SSR until the stream completes
 // Returns the final accumulated result [0,1,2,3,4,5]
-// Providing [] as init so the check doesn't fail
-const serverCounts = defineComputed(serverResultLogic, [], []);
+const serverCounts = defineComputed(serverResultLogic, []);
 
 // --- Client Stream (runs after hydration, updates incrementally) ---
 
