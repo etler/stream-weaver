@@ -96,8 +96,8 @@ Stream Weaver prevents circular dependencies through a **Sources vs Dependents**
   - `createLogic()` - Creates immutable logic references (const signal)
 
 - **Dependents** (read-only access):
-  - `createComputed()` - Receives `ReadOnly<StateSignal<T>>` objects, cannot mutate
-  - `createNode()` - Receive `ReadOnly<StateSignal<T>>` in props, cannot mutate (`createNode` gets automatically called within `jsx()`)
+  - `createComputed()` - Receives signal registry `T` values, cannot mutate
+  - `createNode()` - Receive signal registry `T` values in props, cannot mutate (`createNode` gets automatically called within `jsx()`)
 
 This design prevents loops by ensuring computed signals and component nodes can never mutate the signals they depend on. Only actions (which are explicitly invoked, not automatically triggered) can cause mutations. The readonly constraint is enforced at compile-time via TypeScript - at runtime, signal objects are identical, but TypeScript prevents writes in computed/node contexts.
 
@@ -609,15 +609,15 @@ The logic function receives **ReadOnly signal objects** as positional arguments 
 
 ```typescript
 // logic/double.ts
-export default (count: ReadOnly<StateSignal<number>>) => {
-  return count.value * 2;  // Can read, cannot mutate
+export default (count: number) => {
+  return count * 2;  // Can read, cannot mutate
 };
 
 // Usage - inline import (common pattern)
 const count = createSignal(5);
 const doubled = createComputed(import("./double"), [count]);
 // TypeScript validates [count] matches function signature
-// doubled.value === 10
+// doubled === 10
 
 // Alternative - explicit logic reference
 const doubleLogic = createLogic(import("./double"));
@@ -629,7 +629,7 @@ TypeScript validates dependencies at the call site:
 
 ```typescript
 // double.ts expects (count: Signal<number>)
-export default (count: ReadOnly<StateSignal<number>>) => count.value * 2;
+export default (count: number) => count * 2;
 
 const count = createSignal(5);
 const name = createSignal("Alice");
@@ -642,26 +642,6 @@ const doubled = createComputed(import("./double"), [name]);
 
 // ✗ TypeScript error - wrong arity
 const doubled = createComputed(import("./double"), [count, name]);
-```
-
-**Advanced Pattern - Signal Pass-Through**:
-Computed functions can return objects containing signal references, enabling composition:
-
-```typescript
-// logic/viewModel.ts
-export default (
-  user: ReadOnly<StateSignal<User>>,
-  settings: ReadOnly<StateSignal<Settings>>
-) => {
-  return {
-    user: user,              // Pass signal reference through
-    settings: settings,      // Pass another signal through
-    displayName: user.value.name.toUpperCase()  // Plus derived values
-  };
-};
-
-// The returned object contains ReadOnly signals that can be passed to components
-const vm = createComputed(import("./viewModel"), [userSignal, settingsSignal]);
 ```
 
 **Reactivity**:
@@ -833,14 +813,14 @@ TypeScript infers prop types from the component module:
 ```typescript
 // components/UserCard.tsx
 interface Props {
-  name: ReadOnly<StateSignal<string>>;
+  name: string;
   age: number;
 }
 
 export default (props: Props) => {
   return (
     <div>
-      <h1>{props.name.value}</h1>
+      <h1>{props.name}</h1>
       <p>Age: {props.age}</p>
     </div>
   );
@@ -860,19 +840,19 @@ const UserCard = createComponent(import("./UserCard"));
 ```
 
 **Component Functions**:
-Component functions receive props containing **ReadOnly signal objects** for reactive props and primitive values for static props:
+Component functions receive props containing **unwrapped ReadOnly signal values** for reactive props and primitive values for static props:
 
 ```typescript
 // components/UserCard.tsx
 interface Props {
-  name: ReadOnly<StateSignal<string>>;
-  count: ReadOnly<StateSignal<number>>;
+  name: string;
+  count: number;
   role: string;  // Static prop
 }
 
 export default (props: Props) => {
   // Can read signal values
-  const displayName = props.name.value.toUpperCase();
+  const displayName = props.name.toUpperCase();
 
   // Can pass signals to child components
   const increment = createHandler(import("./increment"), [props.count]);
@@ -881,7 +861,7 @@ export default (props: Props) => {
     <div>
       <h1>{displayName}</h1>
       <p>Role: {props.role}</p>
-      <p>Count: {props.count.value}</p>
+      <p>Count: {props.count}</p>
       <button onClick={increment}>Increment</button>
     </div>
   );
@@ -1327,13 +1307,13 @@ const Card = createComponent(import("./Card"));
 // Inside component module (Card.tsx):
 interface Props {
   title: string;
-  count: ReadOnly<StateSignal<number>>;
+  count: number;
   enabled: boolean;
 }
 
 export default (props: Props) => {
   // props.title === "Hello" (literal)
-  // props.count === Signal object (can be bound or read via .value)
+  // props.count === Signal value
   // props.enabled === true (literal)
   return <div>{props.count}</div>;
 };
@@ -2080,7 +2060,7 @@ The `import("...")` expression provides full TypeScript inference:
 
 ```typescript
 // double.ts
-export default (count: Signal<number>) => count.value * 2;
+export default (count: number) => count * 2;
 
 // Usage
 const count = createSignal(5);
@@ -2402,35 +2382,40 @@ export const total = createComputed(import("../logic/total"), [subtotal, tax]);
 
 **Logic Modules**:
 ```typescript
+// logic/count.ts
+export default (items: CartItem[]) => {
+  return items.length;
+};
+
 // logic/subtotal.ts
-export default (items: ReadOnly<StateSignal<CartItem[]>>) => {
-  return items.value.reduce((sum, item) => sum + item.price * item.qty, 0);
+export default (items: CartItem[]) => {
+  return items.reduce((sum, item) => sum + item.price * item.qty, 0);
 };
 
 // logic/tax.ts
 export default (
-  subtotal: ReadOnly<StateSignal<number>>,
-  rate: ReadOnly<StateSignal<number>>
+  subtotal: number,
+  rate: number
 ) => {
-  return subtotal.value * rate.value;
+  return subtotal * rate;
 };
 
 // logic/total.ts
 export default (
-  subtotal: ReadOnly<StateSignal<number>>,
-  tax: ReadOnly<StateSignal<number>>
+  subtotal: number,
+  tax: number
 ) => {
-  return subtotal.value + tax.value;
+  return subtotal + tax;
 };
 ```
 
 **Usage in Components**:
 ```tsx
-import { items, subtotal, tax, total } from '../state/cart';
+import { count, subtotal, tax, total } from '../state/cart';
 
 const CartSummary = () => (
   <div>
-    <p>Items: {items.value.length}</p>
+    <p>Items: {count}</p>
     <p>Subtotal: ${subtotal}</p>
     <p>Tax: ${tax}</p>
     <p>Total: ${total}</p>
@@ -2467,8 +2452,8 @@ A higher-order component that returns different components based on signals:
 const LoginView = createComponent(import("./LoginView"));
 const DashboardView = createComponent(import("./DashboardView"));
 
-export default (props: { isLoggedIn: ReadOnly<StateSignal<boolean>> }) => {
-  return props.isLoggedIn.value
+export default (props: { isLoggedIn: boolean }) => {
+  return props.isLoggedIn
     ? <DashboardView />
     : <LoginView />;
 };
@@ -2670,14 +2655,14 @@ type LogicFunction<T = unknown> = (...args: SignalInterface[]) => T | Promise<T>
 **Example**:
 ```typescript
 // computed/fetchUser.ts
-export default async (userId: ReadOnly<StateSignal<string>>) => {
-  const response = await fetch(`/api/users/${userId.value}`);
+export default async (userId: string) => {
+  const response = await fetch(`/api/users/${userId}`);
   return response.json();
 };
 
 // Usage
 const user = createComputed(import("./fetchUser"), [userId]);
-// user.value will be the resolved JSON object
+// user will be signal for resolved JSON object
 ```
 
 ### 11.2 Deferred Logic
@@ -2832,8 +2817,8 @@ When building the dependency chain, the framework can optimize by checking if in
 // serverLogic/fetchUserFromDB.ts (never shipped to client)
 import { db } from '../db';
 
-export default async (userId: ReadOnly<StateSignal<string>>) => {
-  const user = await db.users.findById(userId.value);
+export default async (userId: string) => {
+  const user = await db.users.findById(userId);
   return { name: user.name, email: user.email };  // Serializable
 };
 
@@ -3007,10 +2992,10 @@ export default <T extends { id: string }>(acc: Record<string, T>, item: T) => ({
 **Example - WebSocket Messages**:
 ```typescript
 // streams/websocket.ts - User adapts WebSocket to ReadableStream
-export default function(channel: ReadOnly<StateSignal<string>>) {
+export default function(channel: string) {
   return new ReadableStream({
     start(controller) {
-      const ws = new WebSocket(`/ws/${channel.value}`);
+      const ws = new WebSocket(`/ws/${channel}`);
       ws.onmessage = (e) => controller.enqueue(JSON.parse(e.data));
       ws.onclose = () => controller.close();
       ws.onerror = (e) => controller.error(e);
@@ -3025,7 +3010,7 @@ const wsStream = createComputed(wsLogic, [channel]);  // Value is ReadableStream
 const appendLogic = createLogic(import("./reducers/append"));
 const messages = createReducer(wsStream, appendLogic, []);
 
-// messages.value is Message[], updates as items arrive
+// messages is Message[] signal, updates as items arrive
 ```
 
 **Execution Behavior**:

@@ -39,6 +39,11 @@ export function tokenize(node: Node, registry?: WeaverRegistry): (TokenOrExecuta
     return node.flatMap((child) => tokenize(child, registry));
   }
 
+  // Don't display pending nodes
+  if (node === PENDING) {
+    return [];
+  }
+
   // Check for SuspenseResolutionNode (result of suspense execution)
   if (isSuspenseResolutionNode(node)) {
     // Extract signal-definition tokens from children (needed for client-side tracking)

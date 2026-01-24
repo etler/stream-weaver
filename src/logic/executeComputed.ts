@@ -3,7 +3,6 @@ import type { ComputedSignal, LogicSignal } from "@/signals/types";
 import { isClient } from "@/utils/environment";
 import { PENDING } from "@/signals/pending";
 import { executeLogic } from "./executeLogic";
-import { createReadOnlySignalInterface } from "./signalInterfaces";
 import { executeRemote } from "./remoteExecution";
 import { executeInWorker } from "./workerExecution";
 
@@ -63,7 +62,7 @@ export async function executeComputed(registry: WeaverRegistry, computedId: stri
   }
 
   // Wrap dependencies as read-only interfaces
-  const depInterfaces = computed.deps.map((depId) => createReadOnlySignalInterface(registry, depId));
+  const depInterfaces = computed.deps.map((depId) => registry.getValue(depId));
 
   // Get init value from computed signal (used as fallback when deferring)
 

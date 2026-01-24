@@ -1,6 +1,5 @@
 import { WeaverRegistry } from "@/registry/WeaverRegistry";
 import { executeLogic } from "./executeLogic";
-import { createReadOnlySignalInterface } from "./signalInterfaces";
 import type { Node } from "@/jsx/types/Node";
 import type { NodeSignal, LogicSignal } from "@/signals/types";
 import { isSignal } from "@/ComponentDelegate/signalDetection";
@@ -37,8 +36,8 @@ export async function executeNode(registry: WeaverRegistry, nodeId: string): Pro
   const propsWithInterfaces: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(node.props)) {
     if (isSignal(value)) {
-      // Create a read-only interface for signal props
-      propsWithInterfaces[key] = createReadOnlySignalInterface(registry, value.id);
+      // Return read-only value for signal props
+      propsWithInterfaces[key] = registry.getValue(value.id);
     } else {
       // Pass primitive values through
       propsWithInterfaces[key] = value;

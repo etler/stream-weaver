@@ -10,7 +10,6 @@
  * - File system access
  * - Server-only API calls with secrets
  */
-import type { SignalInterface } from "stream-weaver";
 
 interface User {
   id: number;
@@ -20,7 +19,7 @@ interface User {
   lastLogin: string;
 }
 
-export default async function fetchUserFromDb(userId: SignalInterface<number>): Promise<string> {
+export default async function fetchUserFromDb(userId: number): Promise<string> {
   // Simulate database query delay
   await new Promise((resolve) => setTimeout(resolve, 300));
 
@@ -49,8 +48,8 @@ export default async function fetchUserFromDb(userId: SignalInterface<number>): 
     },
   };
 
-  const user = users[userId.value] ?? {
-    id: userId.value,
+  const user = users[userId] ?? {
+    id: userId,
     name: "Unknown User",
     email: "unknown@example.com",
     role: "Guest",

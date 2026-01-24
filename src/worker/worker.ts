@@ -68,7 +68,7 @@ self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
     console.log("[Worker] Module loaded, executing with args:", args);
 
     // Execute the default export with provided args
-    const result = await mod.default(...args.map((arg) => ({ value: arg })));
+    const result = await mod.default(...args);
     console.log("[Worker] Execution complete, result:", result);
 
     // Post result back

@@ -3,8 +3,6 @@
  * CPU-intensive for large numbers, good for demonstrating worker offloading
  */
 
-import type { SignalInterface } from "stream-weaver";
-
 function isPrime(num: number): boolean {
   if (num < 2) return false;
   if (num === 2) return true;
@@ -15,11 +13,11 @@ function isPrime(num: number): boolean {
   return true;
 }
 
-export default function primeCountWorker(limit: SignalInterface<number>): string {
+export default function primeCountWorker(limit: number): string {
   const start = performance.now();
 
   let count = 0;
-  for (let i = 2; i <= limit.value; i++) {
+  for (let i = 2; i <= limit; i++) {
     if (isPrime(i)) count++;
   }
 

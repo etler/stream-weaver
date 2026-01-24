@@ -7,7 +7,7 @@ import type { Serializable } from "./serializableTypes";
  * Creates a computed signal definition with full type safety
  *
  * Computed signals are derived values that re-execute when dependencies change.
- * They receive read-only access to their dependencies via SignalInterface<T>.
+ * They receive read-only access to their signal dependency values.
  *
  * When using a typed LogicSignal (from import()), the function validates:
  * - Dependencies match the expected function parameter types

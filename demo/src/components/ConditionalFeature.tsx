@@ -9,11 +9,11 @@
 import { createSignal, createHandler, createLogic, type StateSignal } from "stream-weaver";
 
 interface Props {
-  enabled: StateSignal<boolean>;
+  enabled: boolean;
 }
 
 export default function ConditionalFeature({ enabled }: Props): JSX.Element {
-  if (!enabled.value) {
+  if (!enabled) {
     return (
       <div style="padding: 1rem; background: #f5f5f5; border-radius: 8px; color: #999; text-align: center;">
         Advanced mode is disabled. State doesn't even exist yet!
@@ -42,9 +42,7 @@ export default function ConditionalFeature({ enabled }: Props): JSX.Element {
         >
           -
         </button>
-        <span style="font-size: 1.5rem; font-weight: bold; min-width: 60px; text-align: center;">
-          {advancedValue}
-        </span>
+        <span style="font-size: 1.5rem; font-weight: bold; min-width: 60px; text-align: center;">{advancedValue}</span>
         <button
           onClick={incrementAdvanced}
           style="padding: 0.5rem 1rem; background: #1976d2; color: white; border: none; border-radius: 4px; cursor: pointer;"

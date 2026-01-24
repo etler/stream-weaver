@@ -16,24 +16,6 @@ export interface WritableSignalInterface<T = unknown> {
 }
 
 /**
- * Creates a read-only signal interface
- * Used for computed signals and components - they can only read dependencies
- *
- * @param registry - WeaverRegistry instance
- * @param id - Signal ID
- * @returns Read-only interface with .value getter
- */
-export function createReadOnlySignalInterface<T = unknown>(registry: WeaverRegistry, id: string): SignalInterface<T> {
-  return {
-    get value(): T {
-      // Type assertion is safe here - caller provides correct type parameter
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-      return registry.getValue(id) as T;
-    },
-  };
-}
-
-/**
  * Creates a writable signal interface
  * Used for actions and handlers - they can mutate dependencies
  * In M3, this directly mutates the registry

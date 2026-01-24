@@ -38,7 +38,7 @@ export interface CreateLogicOptions {
  * @example
  * // Type-safe (with build plugin)
  * const doubleLogic = createLogic(import("./double"));
- * // doubleLogic is LogicSignal<(count: SignalInterface<number>) => number>
+ * // doubleLogic is LogicSignal<(count: number) => number>
  *
  * @example
  * // With timeout option (deferred execution)

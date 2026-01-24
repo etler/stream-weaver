@@ -6,7 +6,7 @@
  * createLogic(import("./path")) syntax.
  */
 
-import type { SignalInterface, WritableSignalInterface } from "@/logic/signalInterfaces";
+import type { WritableSignalInterface } from "@/logic/signalInterfaces";
 import type { StateSignal, ComputedSignal, AnySignal } from "./types";
 
 // ========== Module Type Extraction ==========
@@ -45,7 +45,7 @@ export type SignalValueType<S extends AnySignal> =
  * // = [SignalInterface<number>, SignalInterface<string>]
  */
 export type SignalsToReadOnlyInterfaces<T extends readonly AnySignal[]> = {
-  [K in keyof T]: T[K] extends AnySignal ? SignalInterface<SignalValueType<T[K]>> : never;
+  [K in keyof T]: T[K] extends AnySignal ? SignalValueType<T[K]> : never;
 };
 
 /**
