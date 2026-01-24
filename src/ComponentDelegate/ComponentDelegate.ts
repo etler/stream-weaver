@@ -134,41 +134,47 @@ async function collectTokens(node: Node, registry: WeaverRegistry): Promise<Toke
 type ChainFn = (input: Iterable<Token> | AsyncIterable<Token> | null) => void;
 
 /**
- * Execute SuspenseSignal. Unlike other executables that write a single Node,
- * Suspense needs to emit multiple token sequences whose content depends on
- * async processing results, requiring an async generator.
+ * Execute SuspenseSignal using the same pattern as other executables:
+ * chain() a readable, then async write to its writable side.
  */
 function executeSuspenseSignal(executable: SuspenseExecutable, chain: ChainFn, registry?: WeaverRegistry): void {
   if (!registry) {
     return;
   }
-  const reg = registry;
 
-  chain(
-    (async function* (): AsyncGenerator<Token> {
-      const { suspense, children, fallback } = executable;
+  const { suspense, children, fallback } = executable;
 
-      // Process children to check for PENDING
-      const childrenTokens = await collectTokens(children, reg);
-      const result = executeSuspense(reg, suspense, childrenTokens);
+  // Use TransformStream as a token pipe (same pattern as other executables)
+  const { readable, writable } = new TransformStream<Token, Token>();
+  chain(readable);
 
-      // Children signal defs must come first when showing fallback
-      if (result.showFallback) {
-        yield* childrenTokens.filter((token) => token.kind === "signal-definition");
+  const writer = writable.getWriter();
+
+  (async () => {
+    const childrenTokens = await collectTokens(children, registry);
+    const result = executeSuspense(registry, suspense, childrenTokens);
+
+    // Emit signal definitions (children's first when showing fallback)
+    if (result.showFallback) {
+      for (const token of childrenTokens.filter((tok) => tok.kind === "signal-definition")) {
+        await writer.write(token);
       }
+    }
+    await writer.write({ kind: "signal-definition", signal: suspense });
+    await writer.write({ kind: "bind-marker-open", id: suspense.id });
 
-      yield { kind: "signal-definition", signal: suspense };
-      yield { kind: "bind-marker-open", id: suspense.id };
+    // Emit content
+    const contentTokens = result.showFallback ? await collectTokens(fallback, registry) : childrenTokens;
+    for (const token of contentTokens) {
+      await writer.write(token);
+    }
 
-      if (result.showFallback) {
-        yield* await collectTokens(fallback, reg);
-      } else {
-        yield* childrenTokens;
-      }
-
-      yield { kind: "bind-marker-close", id: suspense.id };
-    })(),
-  );
+    await writer.write({ kind: "bind-marker-close", id: suspense.id });
+    await writer.close();
+  })().catch((error: unknown) => {
+    console.error(new Error("SuspenseSignal Execution Error", { cause: error }));
+    writer.close().catch(() => {});
+  });
 }
 
 /**
