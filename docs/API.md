@@ -83,6 +83,13 @@ interface NodeSignal extends Signal {
   props: Record<string, Signal | string | number | boolean | null>;
 }
 
+interface ReferenceSignal<T extends Signal = Signal> extends Signal {
+  id: string;
+  kind: 'reference';
+  ref: string;          // ID of the wrapped signal
+  _type?: T;            // Phantom type for TypeScript inference
+}
+
 // ReadOnly wrapper for signal mutation control
 type ReadOnly<T> = { readonly [K in keyof T]: T[K] };
 ```
@@ -94,6 +101,7 @@ Stream Weaver prevents circular dependencies through a **Sources vs Dependents**
   - `defineSignal()` - Creates writable signals
   - `defineAction()` - Receives `StateSignal<T>` objects with writable `.value`
   - `defineLogic()` - Creates immutable logic references (const signal)
+  - `defineReference()` - Creates immutable reference wrapper (passes signal definition through)
 
 - **Dependents** (read-only access):
   - `defineComputed()` - Receives signal registry `T` values, cannot mutate
@@ -102,7 +110,7 @@ Stream Weaver prevents circular dependencies through a **Sources vs Dependents**
 This design prevents loops by ensuring computed signals and component nodes can never mutate the signals they depend on. Only actions (which are explicitly invoked, not automatically triggered) can cause mutations. The readonly constraint is enforced at compile-time via TypeScript - at runtime, signal objects are identical, but TypeScript prevents writes in computed/node contexts.
 
 **Addressable Entities**:
-All reactive entities (signals, computed values, actions, logic references, component definitions, nodes) are addressable definitions that get registered with the Weaver. The complete set of addressable types forms a union:
+All reactive entities (signals, computed values, actions, logic references, component definitions, nodes, references) are addressable definitions that get registered with the Weaver. The complete set of addressable types forms a union:
 
 ```typescript
 type AnySignal =
@@ -112,7 +120,8 @@ type AnySignal =
   | ActionSignal
   | HandlerSignal
   | ComponentSignal
-  | NodeSignal;
+  | NodeSignal
+  | ReferenceSignal;
 ```
 
 **Creation**:
@@ -369,7 +378,189 @@ const items = data.map(item => ({
 
 **Not hooks**: Signals can be created conditionally, in loops, or outside components—they are not bound by React's "rules of hooks."
 
-### 3.2 Addressable Logic
+### 3.2 defineReference()
+
+Creates a reference signal that wraps another signal definition, preventing it from being resolved to its value. Reference signals are derived signals that use content-addressable IDs based on the wrapped signal.
+
+**Type Signature**:
+```typescript
+function defineReference<T extends Signal>(signal: T): ReferenceSignal<T>
+```
+
+**Parameters**:
+- `signal`: Any signal definition to wrap
+
+**Returns**:
+A reference signal containing:
+- `id`: Content-addressable identifier (hash of wrapped signal ID)
+- `ref`: The ID of the wrapped signal
+- `kind`: Type discriminator (`'reference'`)
+- `_type`: Phantom type preserving the wrapped signal's type
+
+**Purpose**:
+When signals are passed as dependencies to computed signals or as props to components, they are normally resolved to their current values. `defineReference()` creates a wrapper that passes the signal definition itself, allowing the receiving code to access the signal directly rather than just its value.
+
+Note: Actions and handlers already receive writable `StateSignal<T>` objects directly—they don't need `defineReference`. This wrapper is specifically for computed signals and components, which normally receive resolved values.
+
+**Content-Addressable IDs**:
+Reference signals use deterministic IDs based on the wrapped signal:
+```
+ID = hash("ref:" + signal.id)
+```
+
+This ensures that wrapping the same signal always produces the same reference ID, enabling automatic deduplication:
+
+```typescript
+const count = defineSignal(0);
+
+const ref1 = defineReference(count);
+const ref2 = defineReference(count);
+// ref1.id === ref2.id (same wrapped signal = same ID)
+```
+
+**Pass-Through Signals**:
+
+The primary use case for `defineReference()` is passing signals through to computed logic or child components without resolution. This is called the "pass-through" pattern.
+
+**Example: Passing a Signal to Computed Logic**
+
+Without `defineReference`, signals in computed dependencies are resolved to their values:
+
+```typescript
+// logic/formatValue.ts
+export default (value: number) => {
+  return `Count: ${value}`;  // Just receives the number
+};
+
+const count = defineSignal(5);
+const formatted = defineComputed(import("./formatValue"), [count]);
+// Logic receives: (5) - the resolved value
+```
+
+With `defineReference`, you can pass the signal definition itself:
+
+```typescript
+// logic/createDerivedSignal.ts
+import type { StateSignal } from 'stream-weaver';
+
+export default (countSignal: StateSignal<number>) => {
+  // countSignal is the actual signal definition, not just its value
+  // Can return it, pass it to other APIs, or access its metadata
+  return {
+    signal: countSignal,
+    doubled: countSignal.value * 2
+  };
+};
+
+const count = defineSignal(0);
+const countRef = defineReference(count);
+const derived = defineComputed(import("./createDerivedSignal"), [countRef]);
+// Logic receives: (count) - the signal definition itself
+```
+
+**Example: Passing a Signal to a Child Component**
+
+Pass-through is especially useful when a parent component wants to give a child component access to a signal definition, so the child can create its own handlers that mutate it:
+
+```typescript
+// Parent component
+const Counter = defineComponent(import("./Counter"));
+const count = defineSignal(0);
+
+// Without reference - child receives the resolved value
+<Counter value={count} />  // Child gets: { value: 0 }
+
+// With reference - child receives the signal definition
+const countRef = defineReference(count);
+<Counter signal={countRef} />  // Child gets: { signal: StateSignal<number> }
+```
+
+```typescript
+// components/Counter.tsx
+interface Props {
+  signal: StateSignal<number>;
+}
+
+export default (props: Props) => {
+  // props.signal is the actual StateSignal definition
+  // Can pass it to handlers (which receive writable signals)
+  const increment = defineHandler(import("./increment"), [props.signal]);
+
+  return (
+    <div>
+      <span>{props.signal}</span>
+      <button onClick={increment}>+</button>
+    </div>
+  );
+};
+```
+
+**Example: Forwarding Signals Through Multiple Component Levels**
+
+References can be passed through multiple component layers, allowing deep children to create handlers that modify ancestor state:
+
+```typescript
+// App level - define signal and wrap it
+const theme = defineSignal('light');
+const themeRef = defineReference(theme);
+
+const App = () => (
+  <Layout themeSignal={themeRef}>
+    <Page />
+  </Layout>
+);
+
+// Layout component receives themeRef as a prop
+// It can pass it further down to children
+// Any child can then create handlers that modify the original theme signal
+```
+
+```typescript
+// components/ThemeToggle.tsx - deeply nested component
+interface Props {
+  themeSignal: StateSignal<string>;
+}
+
+export default (props: Props) => {
+  // Create a handler that mutates the signal passed from App
+  const toggleTheme = defineHandler(import("./toggleTheme"), [props.themeSignal]);
+
+  return <button onClick={toggleTheme}>Toggle Theme</button>;
+};
+```
+
+**When to Use defineReference**:
+
+| Scenario | Use Signal Directly | Use defineReference |
+|----------|---------------------|---------------------|
+| Display a value | ✓ `{count}` | |
+| Computed needs the value | ✓ `defineComputed(logic, [count])` | |
+| Computed needs the signal definition | | ✓ `defineReference(count)` |
+| Component displays a value | ✓ `<Foo value={count} />` | |
+| Component needs to create handlers for signal | | ✓ `defineReference(count)` |
+| Forwarding signal through component layers | | ✓ `defineReference(count)` |
+
+**Serialization**:
+Reference signals serialize as a simple wrapper:
+```json
+{
+  "id": "ref_abc123",
+  "kind": "reference",
+  "ref": "s1"
+}
+```
+
+The wrapped signal must also be serialized separately. On the client, the reference resolves to the registered signal definition.
+
+**Unwrapping**:
+To access the wrapped signal from a reference, use the registry:
+```typescript
+const wrappedSignal = weaver.registry.get(referenceSignal.ref);
+```
+
+In computed logic and component props, the framework automatically unwraps references to provide the actual signal definition.
+
+### 3.3 Addressable Logic
 
 Logic signals are immutable, addressable references to executable code modules. They are created once, registered in the weaver, and referenced by ID from dependent signals. This provides efficient serialization and enables logic reuse across multiple dependents.
 
@@ -528,7 +719,7 @@ const doubled = defineComputed(import("./double"), [count]);
 
 This system provides type safety at authoring time, efficient serialization, and lazy execution at runtime.
 
-### 3.3 Signals as Values
+### 3.4 Signals as Values
 
 Signals are plain JavaScript objects that can be read and written directly.
 
