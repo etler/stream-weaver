@@ -90,6 +90,13 @@ interface ReferenceSignal<T extends Signal = Signal> extends Signal {
   _type?: T;            // Phantom type for TypeScript inference
 }
 
+interface MutatorSignal<T = unknown> extends Signal {
+  id: string;
+  kind: 'mutator';
+  ref: string;          // ID of the wrapped StateSignal
+  _type?: T;            // Phantom type for TypeScript inference
+}
+
 // ReadOnly wrapper for signal mutation control
 type ReadOnly<T> = { readonly [K in keyof T]: T[K] };
 ```
@@ -97,20 +104,35 @@ type ReadOnly<T> = { readonly [K in keyof T]: T[K] };
 **Signal Mutation Model**:
 Stream Weaver prevents circular dependencies through a **Sources vs Dependents** architecture:
 
-- **Sources** (can mutate signals or define immutable references):
-  - `defineSignal()` - Creates writable signals
-  - `defineAction()` - Receives `StateSignal<T>` objects with writable `.value`
+- **Sources** (can define signals and references):
+  - `defineSignal()` - Creates state signals (the only mutable signal type)
   - `defineLogic()` - Creates immutable logic references (const signal)
   - `defineReference()` - Creates immutable reference wrapper (passes signal definition through)
+  - `defineMutator()` - Creates mutation wrapper for state signals (provides writable interface)
 
-- **Dependents** (read-only access):
-  - `defineComputed()` - Receives signal registry `T` values, cannot mutate
-  - `defineNode()` - Receive signal registry `T` values in props, cannot mutate (`defineNode` gets automatically called within `jsx()`)
+- **Dependents** (read-only access to dependency values):
+  - `defineComputed()` - Receives unwrapped signal values, cannot mutate
+  - `defineNode()` - Receives unwrapped signal values in props, cannot mutate
+  - `defineAction()` - Receives unwrapped signal values, except `MutatorSignal` which provides writable interface
+  - `defineHandler()` - Same as action, plus receives event as first parameter
 
-This design prevents loops by ensuring computed signals and component nodes can never mutate the signals they depend on. Only actions (which are explicitly invoked, not automatically triggered) can cause mutations. The readonly constraint is enforced at compile-time via TypeScript - at runtime, signal objects are identical, but TypeScript prevents writes in computed/node contexts.
+**Mutation via MutatorSignal**:
+All logic (computed, action, handler, component) receives **unwrapped values** from their dependencies by default. The only way to get a writable interface is through `defineMutator()`:
+
+```typescript
+const count = defineSignal(0);
+const countMutator = defineMutator(count);  // Wraps state signal for mutation
+
+// Action receives writable interface ONLY for mutator signals
+const increment = defineAction(import("./increment"), [countMutator]);
+```
+
+This design prevents accidental mutation of derived signals and makes mutation intent explicit. TypeScript enforces that:
+1. `defineMutator()` can only wrap `StateSignal` (not computed or other derived signals)
+2. `MutatorSignal` can only be passed to `defineAction()` or `defineHandler()` (not to `defineComputed()` or component props)
 
 **Addressable Entities**:
-All reactive entities (signals, computed values, actions, logic references, component definitions, nodes, references) are addressable definitions that get registered with the Weaver. The complete set of addressable types forms a union:
+All reactive entities (signals, computed values, actions, logic references, component definitions, nodes, references, mutators) are addressable definitions that get registered with the Weaver. The complete set of addressable types forms a union:
 
 ```typescript
 type AnySignal =
@@ -121,7 +143,8 @@ type AnySignal =
   | HandlerSignal
   | ComponentSignal
   | NodeSignal
-  | ReferenceSignal;
+  | ReferenceSignal
+  | MutatorSignal;
 ```
 
 **Creation**:
@@ -560,7 +583,130 @@ const wrappedSignal = weaver.registry.get(referenceSignal.ref);
 
 In computed logic and component props, the framework automatically unwraps references to provide the actual signal definition.
 
-### 3.3 Addressable Logic
+### 3.3 defineMutator()
+
+Creates a mutator signal that wraps a state signal, providing a writable interface when passed to action or handler logic. This is the **only** way to get mutation access to a signal from within logic.
+
+**Type Signature**:
+```typescript
+function defineMutator<T>(signal: StateSignal<T>): MutatorSignal<T>
+```
+
+**Parameters**:
+- `signal`: A `StateSignal` to wrap. TypeScript enforces this constraint—you cannot pass computed signals or other derived signals.
+
+**Returns**:
+A mutator signal containing:
+- `id`: Content-addressable identifier (hash of wrapped signal ID)
+- `ref`: The ID of the wrapped state signal
+- `kind`: Type discriminator (`'mutator'`)
+- `_type`: Phantom type preserving the value type
+
+**Purpose**:
+By default, all logic (computed, action, handler, component) receives **unwrapped values** from dependencies. This prevents accidental mutation of derived signals. When you need to mutate a state signal from within action or handler logic, wrap it with `defineMutator()`:
+
+```typescript
+const count = defineSignal(0);
+
+// Without mutator - action receives the VALUE (number), cannot mutate
+const logCount = defineAction(import("./logCount"), [count]);
+// logCount.ts: export default (value: number) => console.log(value);
+
+// With mutator - action receives WRITABLE INTERFACE, can mutate
+const countMutator = defineMutator(count);
+const increment = defineAction(import("./increment"), [countMutator]);
+// increment.ts: export default (count: WritableSignalInterface<number>) => { count.value++; };
+```
+
+**Content-Addressable IDs**:
+Mutator signals use deterministic IDs based on the wrapped signal:
+```
+ID = hash("mut:" + signal.id)
+```
+
+Same wrapped signal always produces the same mutator ID:
+```typescript
+const count = defineSignal(0);
+const mut1 = defineMutator(count);
+const mut2 = defineMutator(count);
+// mut1.id === mut2.id
+```
+
+**TypeScript Enforcement**:
+
+**Constraint 1: Can only wrap StateSignal**
+```typescript
+const count = defineSignal(0);
+const doubled = defineComputed(import("./double"), [count]);
+
+defineMutator(count);    // ✓ OK - StateSignal
+defineMutator(doubled);  // ✗ TypeScript error - ComputedSignal not assignable to StateSignal
+```
+
+**Constraint 2: Can only be passed to action/handler**
+```typescript
+const count = defineSignal(0);
+const countMutator = defineMutator(count);
+
+// ✓ OK - actions and handlers accept mutators
+defineAction(import("./increment"), [countMutator]);
+defineHandler(import("./handleClick"), [countMutator]);
+
+// ✗ TypeScript error - computed and components don't accept mutators
+defineComputed(import("./double"), [countMutator]);  // Error: MutatorSignal not assignable
+<Counter count={countMutator} />                      // Error: MutatorSignal not assignable
+```
+
+**Example: Counter with Increment/Decrement**
+
+```typescript
+// Define state and mutators
+const count = defineSignal(0);
+const countMutator = defineMutator(count);
+
+// Actions receive writable interface
+const increment = defineHandler(import("./increment"), [countMutator]);
+const decrement = defineHandler(import("./decrement"), [countMutator]);
+
+// Computed receives unwrapped value (read-only)
+const doubled = defineComputed(import("./double"), [count]);
+```
+
+```typescript
+// increment.ts
+import type { WritableSignalInterface } from 'stream-weaver';
+
+export default (event: Event, count: WritableSignalInterface<number>) => {
+  count.value++;
+};
+```
+
+```typescript
+// double.ts - receives value, not interface
+export default (count: number) => count * 2;
+```
+
+**Comparison: Reference vs Mutator**
+
+| Aspect | `defineReference` | `defineMutator` |
+|--------|-------------------|-----------------|
+| Purpose | Pass signal definition through | Provide mutation access |
+| Can wrap | Any signal | Only StateSignal |
+| Can pass to | Computed, components | Only action/handler |
+| Logic receives | Signal definition object | WritableSignalInterface |
+| Use case | Forward signals to children | Mutate state in actions |
+
+**Serialization**:
+Mutator signals serialize as:
+```json
+{
+  "id": "mut_abc123",
+  "kind": "mutator",
+  "ref": "s1"
+}
+```
+
+### 3.4 Addressable Logic
 
 Logic signals are immutable, addressable references to executable code modules. They are created once, registered in the weaver, and referenced by ID from dependent signals. This provides efficient serialization and enables logic reuse across multiple dependents.
 
@@ -719,7 +865,7 @@ const doubled = defineComputed(import("./double"), [count]);
 
 This system provides type safety at authoring time, efficient serialization, and lazy execution at runtime.
 
-### 3.4 Signals as Values
+### 3.5 Signals as Values
 
 Signals are plain JavaScript objects that can be read and written directly.
 
@@ -875,28 +1021,36 @@ type WritableArgsOf<F> = F extends (...args: infer A) => any ? A : never;
 An action signal. The `logic` field contains the LogicSignal ID (string reference). Actions can be invoked by user interactions or other imperative code.
 
 **Execution Model**:
-Unlike computed signals which receive readonly signals, action functions receive **writable signal objects** (`StateSignal<T>`) and can mutate them:
+Like computed signals, action functions receive **unwrapped values** from their dependencies by default. To mutate a signal, you must wrap it with `defineMutator()`:
 
 ```typescript
-// actions/increment.ts
-export default (count: StateSignal<number>) => {
+// actions/logValue.ts - receives unwrapped value (read-only)
+export default (count: number) => {
+  console.log('Current count:', count);
+};
+
+const count = defineSignal(0);
+const logValue = defineAction(import("./logValue"), [count]);
+```
+
+```typescript
+// actions/increment.ts - receives writable interface via mutator
+import type { WritableSignalInterface } from 'stream-weaver';
+
+export default (count: WritableSignalInterface<number>) => {
   count.value++;  // Mutates the signal, triggers reactivity
 };
 
-// Usage - inline import (common pattern)
+// Usage - wrap with defineMutator for mutation access
 const count = defineSignal(0);
-const increment = defineAction(import("./increment"), [count]);
-// TypeScript validates [count] matches function signature
-
-// Alternative - explicit logic reference
-const incrementLogic = defineLogic(import("./increment"));
-const increment = defineAction(incrementLogic, [count]);
+const countMutator = defineMutator(count);
+const increment = defineAction(import("./increment"), [countMutator]);
 ```
 
-Actions are the **only** addressable entities that can mutate signals. This design prevents circular dependencies because:
-- Actions are imperative (must be explicitly invoked)
-- Computed signals and components cannot mutate (receive ReadOnly signals)
-- Therefore, no automatic reactivity loop can form
+Actions can mutate signals **only through MutatorSignal**. This design prevents circular dependencies and accidental mutation:
+- Mutation intent is explicit (must use `defineMutator`)
+- TypeScript enforces that only `StateSignal` can be wrapped
+- Computed signals cannot be accidentally mutated
 
 **Invocation**:
 Actions can be invoked programmatically or through the DOM. For DOM events that need access to event data, use `defineHandler` instead (see Section 4.2.1).
@@ -915,8 +1069,8 @@ function defineHandler<M, F = DefaultExport<M>>(
   deps: WritableArgsOf<F>
 ): HandlerSignal
 
-// Handler functions receive (event, ...signals)
-type HandlerFn = (event: Event, ...signals: StateSignal[]) => void | Promise<void>;
+// Handler functions receive (event, ...deps) where deps are unwrapped values or WritableSignalInterface
+type HandlerFn = (event: Event, ...deps: unknown[]) => void | Promise<void>;
 ```
 
 **Parameters**:
@@ -930,13 +1084,15 @@ type HandlerFn = (event: Event, ...signals: StateSignal[]) => void | Promise<voi
 A handler signal. The `logic` field contains the LogicSignal ID (string reference). Handlers can be attached to DOM event attributes (onClick, onSubmit, etc.).
 
 **Handler Function Signature**:
-Handler functions receive the DOM event as the first parameter, followed by signal dependencies:
+Handler functions receive the DOM event as the first parameter, followed by signal dependencies. Like actions, dependencies are unwrapped values by default—use `defineMutator()` for mutation access:
 
 ```typescript
-// actions/handleClick.ts
+// handlers/handleClick.ts - with mutation via mutator
+import type { WritableSignalInterface } from 'stream-weaver';
+
 export default (
   event: MouseEvent,
-  count: StateSignal<number>
+  count: WritableSignalInterface<number>
 ) => {
   console.log('Clicked at', event.clientX, event.clientY);
   count.value++;
@@ -945,18 +1101,26 @@ export default (
 
 **Usage**:
 ```typescript
-// Inline import (common pattern)
+// Wrap state signal with defineMutator for mutation access
 const count = defineSignal(0);
-const handleClick = defineHandler(import("./handleClick"), [count]);
+const countMutator = defineMutator(count);
+const handleClick = defineHandler(import("./handleClick"), [countMutator]);
 
 <button onClick={handleClick}>Click</button>
-
-// Alternative - explicit logic reference
-const clickLogic = defineLogic(import("./handleClick"));
-const handleClick = defineHandler(clickLogic, [count]);
 ```
 
-Handlers extend actions with event-specific behavior. Use `defineAction` for pure state mutations, and `defineHandler` when you need access to DOM event data.
+```typescript
+// Read-only handler - receives unwrapped value
+// handlers/logClick.ts
+export default (event: MouseEvent, count: number) => {
+  console.log('Count at click time:', count);
+};
+
+const count = defineSignal(0);
+const logClick = defineHandler(import("./logClick"), [count]);  // No mutator needed
+```
+
+Handlers extend actions with event-specific behavior. Use `defineAction` for programmatic state mutations, and `defineHandler` when you need access to DOM event data.
 
 ### 4.3 defineComponent()
 
