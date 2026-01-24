@@ -33,8 +33,8 @@ function extractLogicIds(code: string): string[] {
 
 describe("Milestone 10: Build Plugin for Logic Transformation", () => {
   describe("transformCode", () => {
-    test("plugin recognizes and transforms createComputed pattern", () => {
-      const input = `const doubled = createComputed(import("./double"), [count]);`;
+    test("plugin recognizes and transforms defineComputed pattern", () => {
+      const input = `const doubled = defineComputed(import("./double"), [count]);`;
       const importer = "/project/src/app.ts";
 
       const result = transformCode(input, importer, createResolver());
@@ -50,8 +50,8 @@ describe("Milestone 10: Build Plugin for Logic Transformation", () => {
     });
 
     test("plugin generates stable IDs for same module", () => {
-      const input1 = `const c1 = createComputed(import("./double"), [x]);`;
-      const input2 = `const c2 = createComputed(import("./double"), [y]);`;
+      const input1 = `const c1 = defineComputed(import("./double"), [x]);`;
+      const input2 = `const c2 = defineComputed(import("./double"), [y]);`;
       const importer = "/project/src/app.ts";
 
       const result1 = transformCode(input1, importer, createResolver());
@@ -67,8 +67,8 @@ describe("Milestone 10: Build Plugin for Logic Transformation", () => {
 
     test("different modules get different IDs", () => {
       const input = `
-        const doubled = createComputed(import("./double"), [count]);
-        const tripled = createComputed(import("./triple"), [count]);
+        const doubled = defineComputed(import("./double"), [count]);
+        const tripled = defineComputed(import("./triple"), [count]);
       `;
       const importer = "/project/src/app.ts";
 
@@ -81,11 +81,11 @@ describe("Milestone 10: Build Plugin for Logic Transformation", () => {
 
     test("plugin works with all addressable APIs", () => {
       const input = `
-        const doubled = createComputed(import("./double"), [x]);
-        const inc = createAction(import("./inc"), [x]);
-        const handler = createHandler(import("./click"), [x]);
-        const Card = createComponent(import("./Card"));
-        const logic = createLogic(import("./logic"));
+        const doubled = defineComputed(import("./double"), [x]);
+        const inc = defineAction(import("./inc"), [x]);
+        const handler = defineHandler(import("./click"), [x]);
+        const Card = defineComponent(import("./Card"));
+        const logic = defineLogic(import("./logic"));
       `;
       const importer = "/project/src/app.ts";
 
@@ -105,7 +105,7 @@ describe("Milestone 10: Build Plugin for Logic Transformation", () => {
     test("plugin preserves non-matching code", () => {
       const input = `
         const x = 1;
-        const doubled = createComputed(import("./double"), [count]);
+        const doubled = defineComputed(import("./double"), [count]);
         const y = 2;
       `;
       const importer = "/project/src/app.ts";
@@ -117,7 +117,7 @@ describe("Milestone 10: Build Plugin for Logic Transformation", () => {
     });
 
     test("plugin handles member expression callees (ignored)", () => {
-      const input = `const doubled = obj.createComputed(import("./double"), [count]);`;
+      const input = `const doubled = obj.defineComputed(import("./double"), [count]);`;
       const importer = "/project/src/app.ts";
 
       const result = transformCode(input, importer, createResolver());
@@ -128,7 +128,7 @@ describe("Milestone 10: Build Plugin for Logic Transformation", () => {
     });
 
     test("plugin skips non-literal import sources", () => {
-      const input = `const doubled = createComputed(import(dynamicPath), [count]);`;
+      const input = `const doubled = defineComputed(import(dynamicPath), [count]);`;
       const importer = "/project/src/app.ts";
 
       const result = transformCode(input, importer, createResolver());
@@ -139,7 +139,7 @@ describe("Milestone 10: Build Plugin for Logic Transformation", () => {
     });
 
     test("plugin tracks logic module info", () => {
-      const input = `const doubled = createComputed(import("./double"), [count]);`;
+      const input = `const doubled = defineComputed(import("./double"), [count]);`;
       const importer = "/project/src/app.ts";
 
       const result = transformCode(input, importer, createResolver());
@@ -159,7 +159,7 @@ describe("Milestone 10: Build Plugin for Logic Transformation", () => {
     test("plugin fallback attaches metadata to imports", () => {
       const input = `
         const doubleFn = import("./double");
-        const doubled = createComputed(doubleFn, [count]);
+        const doubled = defineComputed(doubleFn, [count]);
       `;
       const importer = "/project/src/app.ts";
 
@@ -171,7 +171,7 @@ describe("Milestone 10: Build Plugin for Logic Transformation", () => {
     });
 
     test("fallback also handles direct imports in calls", () => {
-      const input = `const doubled = createComputed(import("./double"), [count]);`;
+      const input = `const doubled = defineComputed(import("./double"), [count]);`;
       const importer = "/project/src/app.ts";
 
       const result = transformCodeWithFallback(input, importer, createResolver());
@@ -222,8 +222,8 @@ describe("Milestone 10: Build Plugin for Logic Transformation", () => {
   describe("manifest generation", () => {
     test("manifest maps IDs to public URLs", () => {
       const input = `
-        const doubled = createComputed(import("./double"), [count]);
-        const tripled = createComputed(import("./triple"), [count]);
+        const doubled = defineComputed(import("./double"), [count]);
+        const tripled = defineComputed(import("./triple"), [count]);
       `;
       const importer = "/project/src/app.ts";
 
@@ -256,7 +256,7 @@ describe("Milestone 10: Build Plugin for Logic Transformation", () => {
     });
 
     test("manifest enables server URL resolution", () => {
-      const input = `const doubled = createComputed(import("./double"), [count]);`;
+      const input = `const doubled = defineComputed(import("./double"), [count]);`;
       const importer = "/project/src/app.ts";
 
       const result = transformCode(input, importer, createResolver());
@@ -306,18 +306,18 @@ describe("Milestone 10: Build Plugin for Logic Transformation", () => {
     });
 
     test("handles nested function calls", () => {
-      const input = `const doubled = someWrapper(createComputed(import("./double"), [count]));`;
+      const input = `const doubled = someWrapper(defineComputed(import("./double"), [count]));`;
       const importer = "/project/src/app.ts";
 
       const result = transformCode(input, importer, createResolver());
 
-      // Should still find and transform the createComputed call
+      // Should still find and transform the defineComputed call
       expect(result.code).toContain('id:"logic_');
       expect(result.logicModules.length).toBe(1);
     });
 
     test("handles multiple calls on same line", () => {
-      const input = `const a = createComputed(import("./a"), [x]); const b = createComputed(import("./b"), [y]);`;
+      const input = `const a = defineComputed(import("./a"), [x]); const b = defineComputed(import("./b"), [y]);`;
       const importer = "/project/src/app.ts";
 
       const result = transformCode(input, importer, createResolver());

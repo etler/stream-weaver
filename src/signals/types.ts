@@ -94,7 +94,7 @@ export interface HandlerSignal<TEvent extends Event = Event> extends Signal {
 
 /**
  * ComponentSignal represents a reusable component template
- * This is an inert definition - use createNode() to create reactive instances
+ * This is an inert definition - use defineNode() to create reactive instances
  */
 export interface ComponentSignal extends Signal {
   logic: LogicSignal | string; // LogicSignal definition or ID reference

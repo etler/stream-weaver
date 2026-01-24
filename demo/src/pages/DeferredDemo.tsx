@@ -7,22 +7,22 @@
  * - Async: Blocking async, waits 500ms before updating
  * - Deferred: Non-blocking async, returns immediately with PENDING
  */
-import { createSignal, createHandler, createLogic } from "stream-weaver";
+import { defineSignal, defineHandler, defineLogic } from "stream-weaver";
 
 // --- Shared counter ---
-const count = createSignal(0);
+const count = defineSignal(0);
 
 // --- Instant (sync) ---
-const instantLogic = createLogic(import("../logic/increment"));
-const instantIncrement = createHandler(instantLogic, [count]);
+const instantLogic = defineLogic(import("../logic/increment"));
+const instantIncrement = defineHandler(instantLogic, [count]);
 
 // --- Async (blocking) ---
-const asyncLogic = createLogic(import("../logic/slowIncrement"));
-const asyncIncrement = createHandler(asyncLogic, [count]);
+const asyncLogic = defineLogic(import("../logic/slowIncrement"));
+const asyncIncrement = defineHandler(asyncLogic, [count]);
 
 // --- Deferred (non-blocking) ---
-const deferredLogic = createLogic(import("../logic/slowIncrement"), { timeout: 0 });
-const deferredIncrement = createHandler(deferredLogic, [count]);
+const deferredLogic = defineLogic(import("../logic/slowIncrement"), { timeout: 0 });
+const deferredIncrement = defineHandler(deferredLogic, [count]);
 
 export function DeferredDemoExample(): JSX.Element {
   return (
@@ -34,9 +34,7 @@ export function DeferredDemoExample(): JSX.Element {
 
       {/* Counter display */}
       <div style="text-align: center; margin: 2rem 0;">
-        <div style="font-size: 6rem; font-weight: bold; color: #333; margin: 1rem 0;">
-          {count}
-        </div>
+        <div style="font-size: 6rem; font-weight: bold; color: #333; margin: 1rem 0;">{count}</div>
       </div>
 
       {/* Three buttons */}

@@ -20,10 +20,10 @@ const EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".mts"];
  * Example transformation:
  * ```js
  * // Input
- * const doubled = createComputed(import("./double"), [count]);
+ * const doubled = defineComputed(import("./double"), [count]);
  *
  * // Output
- * const doubled = createComputed({id:"logic_abc123",kind:"logic",src:"./double"}, [count]);
+ * const doubled = defineComputed({id:"logic_abc123",kind:"logic",src:"./double"}, [count]);
  * ```
  *
  * @param options - Plugin configuration options
@@ -56,11 +56,11 @@ export function weaverPlugin(options: WeaverPluginOptions = {}): Plugin {
 
       // Quick check - skip files that don't contain target function calls
       if (
-        !code.includes("createComputed") &&
-        !code.includes("createAction") &&
-        !code.includes("createHandler") &&
-        !code.includes("createComponent") &&
-        !code.includes("createLogic")
+        !code.includes("defineComputed") &&
+        !code.includes("defineAction") &&
+        !code.includes("defineHandler") &&
+        !code.includes("defineComponent") &&
+        !code.includes("defineLogic")
       ) {
         return null;
       }
@@ -192,11 +192,11 @@ export function weaverPluginWithFallback(options: WeaverPluginOptions = {}): Plu
       }
 
       if (
-        !code.includes("createComputed") &&
-        !code.includes("createAction") &&
-        !code.includes("createHandler") &&
-        !code.includes("createComponent") &&
-        !code.includes("createLogic") &&
+        !code.includes("defineComputed") &&
+        !code.includes("defineAction") &&
+        !code.includes("defineHandler") &&
+        !code.includes("defineComponent") &&
+        !code.includes("defineLogic") &&
         !code.includes("import(")
       ) {
         return null;

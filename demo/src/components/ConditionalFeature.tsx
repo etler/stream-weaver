@@ -6,7 +6,7 @@
  * State is created INSIDE an if-block. In React, this would violate
  * the Rules of Hooks and cause: "Rendered more hooks than during previous render"
  */
-import { createSignal, createHandler, createLogic, type StateSignal } from "stream-weaver";
+import { defineSignal, defineHandler, defineLogic, type StateSignal } from "stream-weaver";
 
 interface Props {
   enabled: boolean;
@@ -22,12 +22,12 @@ export default function ConditionalFeature({ enabled }: Props): JSX.Element {
   }
 
   // State created conditionally! Only exists when enabled is true.
-  const advancedValue = createSignal(42);
+  const advancedValue = defineSignal(42);
   // Use import() syntax for type-safe logic that goes through the plugin transform
-  const incrementLogic = createLogic(import("../logic/increment"));
-  const decrementLogic = createLogic(import("../logic/decrement"));
-  const incrementAdvanced = createHandler(incrementLogic, [advancedValue]);
-  const decrementAdvanced = createHandler(decrementLogic, [advancedValue]);
+  const incrementLogic = defineLogic(import("../logic/increment"));
+  const decrementLogic = defineLogic(import("../logic/decrement"));
+  const incrementAdvanced = defineHandler(incrementLogic, [advancedValue]);
+  const decrementAdvanced = defineHandler(decrementLogic, [advancedValue]);
 
   return (
     <div style="padding: 1rem; background: #e3f2fd; border-radius: 8px;">

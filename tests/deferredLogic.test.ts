@@ -1,5 +1,5 @@
 import { describe, test, expect } from "vitest";
-import { createSignal, createComputed, createLogic, createClientLogic, PENDING } from "@/signals";
+import { defineSignal, defineComputed, defineLogic, defineClientLogic, PENDING } from "@/signals";
 import { WeaverRegistry } from "@/registry/WeaverRegistry";
 import { executeComputed } from "@/logic";
 import path from "node:path";
@@ -17,9 +17,9 @@ describe("Milestone 12: Deferred and Client Logic", () => {
 
   describe("timeout: 0 (always defer)", () => {
     test("timeout: 0 sets PENDING immediately", async () => {
-      const count = createSignal(5);
-      const slowLogic = createLogic({ src: `${fixturesPath}/slowDouble.js` }, { timeout: 0 });
-      const result = createComputed(slowLogic, [count]);
+      const count = defineSignal(5);
+      const slowLogic = defineLogic({ src: `${fixturesPath}/slowDouble.js` }, { timeout: 0 });
+      const result = defineComputed(slowLogic, [count]);
 
       const registry = new WeaverRegistry();
       registry.registerSignal(count);
@@ -42,9 +42,9 @@ describe("Milestone 12: Deferred and Client Logic", () => {
     });
 
     test("timeout: 0 uses init value when provided", async () => {
-      const count = createSignal(5);
-      const slowLogic = createLogic({ src: `${fixturesPath}/slowDouble.js` }, { timeout: 0 });
-      const result = createComputed(slowLogic, [count], 0); // init = 0
+      const count = defineSignal(5);
+      const slowLogic = defineLogic({ src: `${fixturesPath}/slowDouble.js` }, { timeout: 0 });
+      const result = defineComputed(slowLogic, [count], 0); // init = 0
 
       const registry = new WeaverRegistry();
       registry.registerSignal(count);
@@ -69,10 +69,10 @@ describe("Milestone 12: Deferred and Client Logic", () => {
 
   describe("timeout racing", () => {
     test("timeout races execution against timer - timer wins", async () => {
-      const count = createSignal(5);
+      const count = defineSignal(5);
       // Logic that takes 100ms, timeout is 50ms
-      const slowLogic = createLogic({ src: `${fixturesPath}/slow100ms.js` }, { timeout: 50 });
-      const result = createComputed(slowLogic, [count]);
+      const slowLogic = defineLogic({ src: `${fixturesPath}/slow100ms.js` }, { timeout: 50 });
+      const result = defineComputed(slowLogic, [count]);
 
       const registry = new WeaverRegistry();
       registry.registerSignal(count);
@@ -94,10 +94,10 @@ describe("Milestone 12: Deferred and Client Logic", () => {
     });
 
     test("fast logic completes inline when within timeout", async () => {
-      const count = createSignal(5);
+      const count = defineSignal(5);
       // Logic that takes 10ms, timeout is 50ms
-      const fastLogic = createLogic({ src: `${fixturesPath}/fast10ms.js` }, { timeout: 50 });
-      const result = createComputed(fastLogic, [count]);
+      const fastLogic = defineLogic({ src: `${fixturesPath}/fast10ms.js` }, { timeout: 50 });
+      const result = defineComputed(fastLogic, [count]);
 
       const registry = new WeaverRegistry();
       registry.registerSignal(count);
@@ -112,9 +112,9 @@ describe("Milestone 12: Deferred and Client Logic", () => {
     });
   });
 
-  describe("createClientLogic", () => {
-    test("createClientLogic sets context to client", () => {
-      const viewportLogic = createClientLogic(`${fixturesPath}/getViewport.js`);
+  describe("defineClientLogic", () => {
+    test("defineClientLogic sets context to client", () => {
+      const viewportLogic = defineClientLogic(`${fixturesPath}/getViewport.js`);
 
       expect(viewportLogic.context).toBe("client");
       expect(viewportLogic.kind).toBe("logic");
@@ -122,8 +122,8 @@ describe("Milestone 12: Deferred and Client Logic", () => {
 
     test("clientside logic returns PENDING on server", async () => {
       // We're running in Node.js, so isServer() returns true
-      const viewportLogic = createClientLogic(`${fixturesPath}/getViewport.js`);
-      const viewport = createComputed(viewportLogic, []);
+      const viewportLogic = defineClientLogic(`${fixturesPath}/getViewport.js`);
+      const viewport = defineComputed(viewportLogic, []);
 
       const registry = new WeaverRegistry();
       registry.registerSignal(viewportLogic);
@@ -136,8 +136,8 @@ describe("Milestone 12: Deferred and Client Logic", () => {
     });
 
     test("clientside logic uses init value on server when provided", async () => {
-      const viewportLogic = createClientLogic(`${fixturesPath}/getViewport.js`);
-      const viewport = createComputed(viewportLogic, [], { width: 1024, height: 768 });
+      const viewportLogic = defineClientLogic(`${fixturesPath}/getViewport.js`);
+      const viewport = defineComputed(viewportLogic, [], { width: 1024, height: 768 });
 
       const registry = new WeaverRegistry();
       registry.registerSignal(viewportLogic);
@@ -152,10 +152,10 @@ describe("Milestone 12: Deferred and Client Logic", () => {
 
   describe("sync logic ignores timeout", () => {
     test("sync logic executes immediately regardless of timeout", async () => {
-      const count = createSignal(5);
+      const count = defineSignal(5);
       // Sync logic (double.js) with timeout: 0 should still execute immediately
-      const syncLogic = createLogic({ src: `${fixturesPath}/double.js` }, { timeout: 0 });
-      const result = createComputed(syncLogic, [count]);
+      const syncLogic = defineLogic({ src: `${fixturesPath}/double.js` }, { timeout: 0 });
+      const result = defineComputed(syncLogic, [count]);
 
       const registry = new WeaverRegistry();
       registry.registerSignal(count);

@@ -1,6 +1,6 @@
 import { describe, test, expect } from "vitest";
-import { createSignal, createComputed, createLogic } from "@/signals";
-import { createSuspense } from "@/signals/createSuspense";
+import { defineSignal, defineComputed, defineLogic } from "@/signals";
+import { createSuspense } from "@/signals/defineSuspense";
 import { Suspense } from "@/components/Suspense";
 import { isSuspenseSignal } from "@/ComponentDelegate/signalDetection";
 import { StreamWeaver, WeaverRegistry } from "@/index";
@@ -39,7 +39,7 @@ describe("Suspense Component", () => {
     });
 
     test("returns false for other signals", () => {
-      const stateSignal = createSignal(0);
+      const stateSignal = defineSignal(0);
       expect(isSuspenseSignal(stateSignal)).toBe(false);
     });
 
@@ -100,9 +100,9 @@ describe("Suspense Component", () => {
     test("renders fallback when children have PENDING signals", async () => {
       const registry = new WeaverRegistry();
       // Create a computed signal with deferred logic (timeout: 0 = always PENDING initially)
-      const deferredLogic = createLogic({ src: `${fixturesPath}/slowDouble.js` }, { timeout: 0 });
-      const count = createSignal(5);
-      const deferredValue = createComputed(deferredLogic, [count]);
+      const deferredLogic = defineLogic({ src: `${fixturesPath}/slowDouble.js` }, { timeout: 0 });
+      const count = defineSignal(5);
+      const deferredValue = defineComputed(deferredLogic, [count]);
 
       // Register the signals
       registry.registerSignal(count);
@@ -145,9 +145,9 @@ describe("Suspense Component", () => {
 
     test("includes signal definitions for PENDING signals when showing fallback", async () => {
       const registry = new WeaverRegistry();
-      const deferredLogic = createLogic({ src: `${fixturesPath}/slowDouble.js` }, { timeout: 0 });
-      const count = createSignal(5);
-      const deferredValue = createComputed(deferredLogic, [count]);
+      const deferredLogic = defineLogic({ src: `${fixturesPath}/slowDouble.js` }, { timeout: 0 });
+      const count = defineSignal(5);
+      const deferredValue = defineComputed(deferredLogic, [count]);
 
       // Register the signals
       registry.registerSignal(count);

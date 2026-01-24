@@ -1,5 +1,5 @@
 import { describe, test, expect, vi } from "vitest";
-import { createSignal, createLogic, createReducer, AnySignal } from "@/signals";
+import { defineSignal, defineLogic, defineReducer, AnySignal } from "@/signals";
 import { WeaverRegistry } from "@/registry/WeaverRegistry";
 import { executeReducer } from "@/logic/executeReducer";
 import path from "node:path";
@@ -14,13 +14,13 @@ vi.mock("@/utils/environment", () => ({
 }));
 
 describe("Reducer Signals", () => {
-  describe("createReducer", () => {
+  describe("defineReducer", () => {
     test("creates a ReducerSignal with correct properties", () => {
       // Use a plain signal as source (in practice, would be a computed signal with client logic)
-      const sourceSignal = createSignal(null);
-      const appendLogic = createLogic({ src: `${fixturesPath}/append.js` });
+      const sourceSignal = defineSignal(null);
+      const appendLogic = defineLogic({ src: `${fixturesPath}/append.js` });
 
-      const messages = createReducer(sourceSignal, appendLogic, []);
+      const messages = defineReducer(sourceSignal, appendLogic, []);
 
       expect(messages.kind).toBe("reducer");
       expect(messages.source).toBe(sourceSignal.id);
@@ -29,42 +29,42 @@ describe("Reducer Signals", () => {
     });
 
     test("creates content-addressable IDs (same inputs = same ID)", () => {
-      const sourceSignal = createSignal(null);
-      const appendLogic = createLogic({ src: `${fixturesPath}/append.js` });
+      const sourceSignal = defineSignal(null);
+      const appendLogic = defineLogic({ src: `${fixturesPath}/append.js` });
 
-      const reducer1 = createReducer(sourceSignal, appendLogic, []);
-      const reducer2 = createReducer(sourceSignal, appendLogic, []);
+      const reducer1 = defineReducer(sourceSignal, appendLogic, []);
+      const reducer2 = defineReducer(sourceSignal, appendLogic, []);
 
       expect(reducer1.id).toBe(reducer2.id);
     });
 
     test("creates different IDs for different sources", () => {
-      const source1 = createSignal(null);
-      const source2 = createSignal(null);
-      const appendLogic = createLogic({ src: `${fixturesPath}/append.js` });
+      const source1 = defineSignal(null);
+      const source2 = defineSignal(null);
+      const appendLogic = defineLogic({ src: `${fixturesPath}/append.js` });
 
-      const reducer1 = createReducer(source1, appendLogic, []);
-      const reducer2 = createReducer(source2, appendLogic, []);
+      const reducer1 = defineReducer(source1, appendLogic, []);
+      const reducer2 = defineReducer(source2, appendLogic, []);
 
       expect(reducer1.id).not.toBe(reducer2.id);
     });
 
     test("creates different IDs for different reducers", () => {
-      const sourceSignal = createSignal(null);
-      const appendLogic = createLogic({ src: `${fixturesPath}/append.js` });
-      const latestLogic = createLogic({ src: `${fixturesPath}/latest.js` });
+      const sourceSignal = defineSignal(null);
+      const appendLogic = defineLogic({ src: `${fixturesPath}/append.js` });
+      const latestLogic = defineLogic({ src: `${fixturesPath}/latest.js` });
 
-      const reducer1 = createReducer(sourceSignal, appendLogic, []);
-      const reducer2 = createReducer(sourceSignal, latestLogic, null);
+      const reducer1 = defineReducer(sourceSignal, appendLogic, []);
+      const reducer2 = defineReducer(sourceSignal, latestLogic, null);
 
       expect(reducer1.id).not.toBe(reducer2.id);
     });
 
     test("stores runtime references", () => {
-      const sourceSignal = createSignal(null);
-      const appendLogic = createLogic({ src: `${fixturesPath}/append.js` });
+      const sourceSignal = defineSignal(null);
+      const appendLogic = defineLogic({ src: `${fixturesPath}/append.js` });
 
-      const reducer = createReducer(sourceSignal, appendLogic, []);
+      const reducer = defineReducer(sourceSignal, appendLogic, []);
 
       expect(reducer.sourceRef).toBe(sourceSignal);
       expect(reducer.reducerRef).toBe(appendLogic);
@@ -82,9 +82,9 @@ describe("Reducer Signals", () => {
       });
 
       // Create a placeholder source signal (the actual stream is set in registry)
-      const sourceSignal = createSignal(null) as AnySignal;
-      const appendLogic = createLogic({ src: `${fixturesPath}/append.js` });
-      const messages = createReducer(sourceSignal, appendLogic, []);
+      const sourceSignal = defineSignal(null) as AnySignal;
+      const appendLogic = defineLogic({ src: `${fixturesPath}/append.js` });
+      const messages = defineReducer(sourceSignal, appendLogic, []);
 
       const registry = new WeaverRegistry();
       registry.registerSignal(sourceSignal);
@@ -107,9 +107,9 @@ describe("Reducer Signals", () => {
         { id: 2, text: "World" },
       ];
 
-      const sourceSignal = createSignal(null) as AnySignal;
-      const appendLogic = createLogic({ src: `${fixturesPath}/append.js` });
-      const messages = createReducer(sourceSignal, appendLogic, []);
+      const sourceSignal = defineSignal(null) as AnySignal;
+      const appendLogic = defineLogic({ src: `${fixturesPath}/append.js` });
+      const messages = defineReducer(sourceSignal, appendLogic, []);
 
       const registry = new WeaverRegistry();
       registry.registerSignal(sourceSignal);
@@ -136,9 +136,9 @@ describe("Reducer Signals", () => {
         },
       });
 
-      const sourceSignal = createSignal(null) as AnySignal;
-      const latestLogic = createLogic({ src: `${fixturesPath}/latest.js` });
-      const current = createReducer(sourceSignal, latestLogic, null);
+      const sourceSignal = defineSignal(null) as AnySignal;
+      const latestLogic = defineLogic({ src: `${fixturesPath}/latest.js` });
+      const current = defineReducer(sourceSignal, latestLogic, null);
 
       const registry = new WeaverRegistry();
       registry.registerSignal(sourceSignal);
@@ -159,9 +159,9 @@ describe("Reducer Signals", () => {
         },
       });
 
-      const sourceSignal = createSignal(null) as AnySignal;
-      const appendLogic = createLogic({ src: `${fixturesPath}/append.js` });
-      const items = createReducer(sourceSignal, appendLogic, ["initial"]);
+      const sourceSignal = defineSignal(null) as AnySignal;
+      const appendLogic = defineLogic({ src: `${fixturesPath}/append.js` });
+      const items = defineReducer(sourceSignal, appendLogic, ["initial"]);
 
       const registry = new WeaverRegistry();
       registry.registerSignal(sourceSignal);
@@ -176,9 +176,9 @@ describe("Reducer Signals", () => {
     });
 
     test("throws error if source value is not iterable", async () => {
-      const sourceSignal = createSignal("not iterable");
-      const appendLogic = createLogic({ src: `${fixturesPath}/append.js` });
-      const reducer = createReducer(sourceSignal, appendLogic, []);
+      const sourceSignal = defineSignal("not iterable");
+      const appendLogic = defineLogic({ src: `${fixturesPath}/append.js` });
+      const reducer = defineReducer(sourceSignal, appendLogic, []);
 
       const registry = new WeaverRegistry();
       registry.registerSignal(sourceSignal);
@@ -190,7 +190,7 @@ describe("Reducer Signals", () => {
     });
 
     test("throws error if signal is not a reducer signal", async () => {
-      const stateSignal = createSignal(42);
+      const stateSignal = defineSignal(42);
 
       const registry = new WeaverRegistry();
       registry.registerSignal(stateSignal);
@@ -205,9 +205,9 @@ describe("Reducer Signals", () => {
         },
       });
 
-      const sourceSignal = createSignal(null) as AnySignal;
-      const appendLogic = createLogic({ src: `${fixturesPath}/append.js` });
-      const items = createReducer(sourceSignal, appendLogic, []);
+      const sourceSignal = defineSignal(null) as AnySignal;
+      const appendLogic = defineLogic({ src: `${fixturesPath}/append.js` });
+      const items = defineReducer(sourceSignal, appendLogic, []);
 
       const registry = new WeaverRegistry();
       registry.registerSignal(sourceSignal);
@@ -223,9 +223,9 @@ describe("Reducer Signals", () => {
     test("handles empty array", async () => {
       const mockArray: unknown[] = [];
 
-      const sourceSignal = createSignal(null) as AnySignal;
-      const appendLogic = createLogic({ src: `${fixturesPath}/append.js` });
-      const items = createReducer(sourceSignal, appendLogic, []);
+      const sourceSignal = defineSignal(null) as AnySignal;
+      const appendLogic = defineLogic({ src: `${fixturesPath}/append.js` });
+      const items = defineReducer(sourceSignal, appendLogic, []);
 
       const registry = new WeaverRegistry();
       registry.registerSignal(sourceSignal);

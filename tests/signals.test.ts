@@ -1,12 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { createSignal, createLogic, createComputed, createAction, createHandler } from "@/signals";
+import { defineSignal, defineLogic, defineComputed, defineAction, defineHandler } from "@/signals";
 import { WeaverRegistry } from "@/registry/WeaverRegistry";
 import { loadLogic, createWritableSignalInterface, executeComputed, executeAction, executeHandler } from "@/logic";
 
 describe("Milestone 1: Signal System Foundation", () => {
   describe("Signal Creation", () => {
     it("signal creation produces definition object", () => {
-      const count = createSignal(0);
+      const count = defineSignal(0);
       expect(count.id).toBe("s1");
       expect(count.kind).toBe("state");
       expect(count.init).toBe(0);
@@ -14,8 +14,8 @@ describe("Milestone 1: Signal System Foundation", () => {
     });
 
     it("multiple signals have unique IDs", () => {
-      const s1 = createSignal(1);
-      const s2 = createSignal(2);
+      const s1 = defineSignal(1);
+      const s2 = defineSignal(2);
       expect(s1.id).toBe("s2"); // Continues from previous test
       expect(s2.id).toBe("s3");
     });
@@ -23,7 +23,7 @@ describe("Milestone 1: Signal System Foundation", () => {
 
   describe("WeaverRegistry", () => {
     it("registry stores signal values", () => {
-      const count = createSignal(10);
+      const count = defineSignal(10);
       const registry = new WeaverRegistry();
 
       registry.registerSignal(count);
@@ -34,7 +34,7 @@ describe("Milestone 1: Signal System Foundation", () => {
     });
 
     it("registry stores signal definitions", () => {
-      const count = createSignal(5);
+      const count = defineSignal(5);
       const registry = new WeaverRegistry();
 
       registry.registerSignal(count);
@@ -51,9 +51,9 @@ describe("Milestone 1: Signal System Foundation", () => {
 describe("Milestone 2: Dependency Graph", () => {
   describe("Signal Definitions", () => {
     it("computed definition registers dependencies", () => {
-      const count = createSignal(5);
-      const doubleLogic = createLogic("double.js");
-      const doubled = createComputed(doubleLogic, [count]);
+      const count = defineSignal(5);
+      const doubleLogic = defineLogic("double.js");
+      const doubled = defineComputed(doubleLogic, [count]);
 
       const registry = new WeaverRegistry();
       registry.registerSignal(count);
@@ -66,9 +66,9 @@ describe("Milestone 2: Dependency Graph", () => {
     });
 
     it("registry tracks dependencies bidirectionally", () => {
-      const count = createSignal(5);
-      const doubleLogic = createLogic("double.js");
-      const doubled = createComputed(doubleLogic, [count]);
+      const count = defineSignal(5);
+      const doubleLogic = defineLogic("double.js");
+      const doubled = defineComputed(doubleLogic, [count]);
 
       const registry = new WeaverRegistry();
       registry.registerSignal(count);
@@ -80,20 +80,20 @@ describe("Milestone 2: Dependency Graph", () => {
     });
 
     it("same logic and deps produce same ID (content-addressable)", () => {
-      const count = createSignal(5);
-      const doubleLogic = createLogic("double.js");
-      const c1 = createComputed(doubleLogic, [count]);
-      const c2 = createComputed(doubleLogic, [count]);
+      const count = defineSignal(5);
+      const doubleLogic = defineLogic("double.js");
+      const c1 = defineComputed(doubleLogic, [count]);
+      const c2 = defineComputed(doubleLogic, [count]);
 
       expect(c1.id).toBe(c2.id); // Hash based on logic ID + dep IDs
     });
 
     it("dependency graph tracks multiple levels", () => {
-      const s1 = createSignal(1);
-      const doubleLogic = createLogic("double.js");
-      const quadLogic = createLogic("quadruple.js");
-      const c1 = createComputed(doubleLogic, [s1]);
-      const c2 = createComputed(quadLogic, [c1]);
+      const s1 = defineSignal(1);
+      const doubleLogic = defineLogic("double.js");
+      const quadLogic = defineLogic("quadruple.js");
+      const c1 = defineComputed(doubleLogic, [s1]);
+      const c2 = defineComputed(quadLogic, [c1]);
 
       const registry = new WeaverRegistry();
       registry.registerSignal(s1);
@@ -107,11 +107,11 @@ describe("Milestone 2: Dependency Graph", () => {
     });
 
     it("action and handler definitions work similarly", () => {
-      const count = createSignal(0);
-      const incLogic = createLogic("increment.js");
-      const clickLogic = createLogic("click.js");
-      const increment = createAction(incLogic, [count]);
-      const handleClick = createHandler(clickLogic, [count]);
+      const count = defineSignal(0);
+      const incLogic = defineLogic("increment.js");
+      const clickLogic = defineLogic("click.js");
+      const increment = defineAction(incLogic, [count]);
+      const handleClick = defineHandler(clickLogic, [count]);
 
       const registry = new WeaverRegistry();
       registry.registerSignal(count);
@@ -131,7 +131,7 @@ describe("Milestone 2: Dependency Graph", () => {
 describe("Milestone 3: Logic System & Signal Interfaces", () => {
   describe("Logic Module Loading", () => {
     it("logic module can be loaded", async () => {
-      const doubleLogic = createLogic("./tests/fixtures/double.js");
+      const doubleLogic = defineLogic("./tests/fixtures/double.js");
       const fn = await loadLogic(doubleLogic);
 
       expect(typeof fn).toBe("function");
@@ -140,7 +140,7 @@ describe("Milestone 3: Logic System & Signal Interfaces", () => {
 
   describe("Signal Interfaces", () => {
     it("signal interface provides .value that accesses registry", () => {
-      const count = createSignal(5);
+      const count = defineSignal(5);
       const registry = new WeaverRegistry();
       registry.registerSignal(count);
       registry.setValue(count.id, 5);
@@ -155,9 +155,9 @@ describe("Milestone 3: Logic System & Signal Interfaces", () => {
 
   describe("Computed Execution", () => {
     it("computed executes logic and caches result", async () => {
-      const count = createSignal(5);
-      const doubleLogic = createLogic("./tests/fixtures/double.js");
-      const doubled = createComputed(doubleLogic, [count]);
+      const count = defineSignal(5);
+      const doubleLogic = defineLogic("./tests/fixtures/double.js");
+      const doubled = defineComputed(doubleLogic, [count]);
 
       const registry = new WeaverRegistry();
       registry.registerSignal(count);
@@ -171,10 +171,10 @@ describe("Milestone 3: Logic System & Signal Interfaces", () => {
     });
 
     it("multiple signals can be passed to logic", async () => {
-      const numA = createSignal(5);
-      const numB = createSignal(10);
-      const sumLogic = createLogic("./tests/fixtures/sum.js");
-      const sum = createComputed(sumLogic, [numA, numB]);
+      const numA = defineSignal(5);
+      const numB = defineSignal(10);
+      const sumLogic = defineLogic("./tests/fixtures/sum.js");
+      const sum = defineComputed(sumLogic, [numA, numB]);
 
       const registry = new WeaverRegistry();
       registry.registerSignal(numA);
@@ -192,9 +192,9 @@ describe("Milestone 3: Logic System & Signal Interfaces", () => {
 
   describe("Action Execution", () => {
     it("action can mutate signals via writable interface", async () => {
-      const count = createSignal(0);
-      const incLogic = createLogic("./tests/fixtures/increment.js");
-      const increment = createAction(incLogic, [count]);
+      const count = defineSignal(0);
+      const incLogic = defineLogic("./tests/fixtures/increment.js");
+      const increment = defineAction(incLogic, [count]);
 
       const registry = new WeaverRegistry();
       registry.registerSignal(count);
@@ -210,9 +210,9 @@ describe("Milestone 3: Logic System & Signal Interfaces", () => {
 
   describe("Handler Execution", () => {
     it("handler receives event and writable signal interfaces", async () => {
-      const count = createSignal(0);
-      const clickLogic = createLogic("./tests/fixtures/handleClick.js");
-      const handler = createHandler(clickLogic, [count]);
+      const count = defineSignal(0);
+      const clickLogic = defineLogic("./tests/fixtures/handleClick.js");
+      const handler = defineHandler(clickLogic, [count]);
 
       const registry = new WeaverRegistry();
       registry.registerSignal(count);

@@ -1,13 +1,13 @@
-export { createSignal } from "./createSignal";
-export { createLogic, createClientLogic, createServerLogic, createWorkerLogic } from "./createLogic";
-export type { CreateLogicOptions } from "./createLogic";
-export { createComputed } from "./createComputed";
-export { createAction } from "./createAction";
-export { createHandler } from "./createHandler";
-export { createComponent } from "./createComponent";
-export { createNode } from "./createNode";
-export { createSuspense } from "./createSuspense";
-export { createReducer } from "./createReducer";
+export { defineSignal } from "./defineSignal";
+export { defineLogic, defineClientLogic, defineServerLogic, defineWorkerLogic } from "./defineLogic";
+export type { CreateLogicOptions } from "./defineLogic";
+export { defineComputed } from "./defineComputed";
+export { defineAction } from "./defineAction";
+export { defineHandler } from "./defineHandler";
+export { defineComponent } from "./defineComponent";
+export { defineNode } from "./defineNode";
+export { createSuspense } from "./defineSuspense";
+export { defineReducer } from "./defineReducer";
 export type {
   Signal,
   StateSignal,

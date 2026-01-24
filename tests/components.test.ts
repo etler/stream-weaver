@@ -1,14 +1,14 @@
 import { describe, test, expect } from "vitest";
-import { createSignal } from "@/signals/createSignal";
-import { createLogic } from "@/signals/createLogic";
-import { createComponent } from "@/signals/createComponent";
-import { createNode } from "@/signals/createNode";
+import { defineSignal } from "@/signals/defineSignal";
+import { defineLogic } from "@/signals/defineLogic";
+import { defineComponent } from "@/signals/defineComponent";
+import { defineNode } from "@/signals/defineNode";
 import { WeaverRegistry } from "@/registry/WeaverRegistry";
 
 describe("Milestone 8: Components as Signals", () => {
   test("component template is created from logic", () => {
-    const logic = createLogic("./fixtures/Card.js");
-    const Card = createComponent(logic);
+    const logic = defineLogic("./fixtures/Card.js");
+    const Card = defineComponent(logic);
 
     expect(Card.kind).toBe("component");
     expect(Card.id).toMatch(/^[a-z0-9]+$/);
@@ -16,11 +16,11 @@ describe("Milestone 8: Components as Signals", () => {
   });
 
   test("node instance is created with signal props", () => {
-    const logic = createLogic("./fixtures/Card.js");
-    const Card = createComponent(logic);
-    const name = createSignal("Alice");
+    const logic = defineLogic("./fixtures/Card.js");
+    const Card = defineComponent(logic);
+    const name = defineSignal("Alice");
 
-    const node = createNode(Card, { name, title: "User" });
+    const node = defineNode(Card, { name, title: "User" });
 
     expect(node.kind).toBe("node");
     expect(node.id).toMatch(/^[a-z0-9]+$/);
@@ -31,11 +31,11 @@ describe("Milestone 8: Components as Signals", () => {
   });
 
   test("node dependencies extracted from props", () => {
-    const logic = createLogic("./fixtures/Card.js");
-    const Card = createComponent(logic);
-    const name = createSignal("Alice");
-    const age = createSignal(30);
-    const node = createNode(Card, { name, age, role: "Admin" });
+    const logic = defineLogic("./fixtures/Card.js");
+    const Card = defineComponent(logic);
+    const name = defineSignal("Alice");
+    const age = defineSignal(30);
+    const node = defineNode(Card, { name, age, role: "Admin" });
 
     const registry = new WeaverRegistry();
     registry.registerSignal(name);
@@ -47,47 +47,47 @@ describe("Milestone 8: Components as Signals", () => {
   });
 
   test("node with only primitive props has no dependencies", () => {
-    const logic = createLogic("./fixtures/Card.js");
-    const Card = createComponent(logic);
-    const node = createNode(Card, { title: "User", count: 5 });
+    const logic = defineLogic("./fixtures/Card.js");
+    const Card = defineComponent(logic);
+    const node = defineNode(Card, { title: "User", count: 5 });
 
     expect(node.deps).toEqual([]);
   });
 
   test("node with mixed props extracts only signal dependencies", () => {
-    const logic = createLogic("./fixtures/Card.js");
-    const Card = createComponent(logic);
-    const name = createSignal("Alice");
-    const node = createNode(Card, { name, title: "User", age: 25 });
+    const logic = defineLogic("./fixtures/Card.js");
+    const Card = defineComponent(logic);
+    const name = defineSignal("Alice");
+    const node = defineNode(Card, { name, title: "User", age: 25 });
 
     expect(node.deps).toEqual([name.id]);
     expect(node.deps.length).toBe(1);
   });
 
   test("nodes with same component and props have same ID", () => {
-    const logic = createLogic("./fixtures/Card.js");
-    const Card = createComponent(logic);
-    const name = createSignal("Alice");
-    const node1 = createNode(Card, { name, title: "User" });
-    const node2 = createNode(Card, { name, title: "User" });
+    const logic = defineLogic("./fixtures/Card.js");
+    const Card = defineComponent(logic);
+    const name = defineSignal("Alice");
+    const node1 = defineNode(Card, { name, title: "User" });
+    const node2 = defineNode(Card, { name, title: "User" });
 
     expect(node1.id).toBe(node2.id);
   });
 
   test("nodes with different props have different IDs", () => {
-    const logic = createLogic("./fixtures/Card.js");
-    const Card = createComponent(logic);
-    const name = createSignal("Alice");
-    const node1 = createNode(Card, { name, title: "User" });
-    const node2 = createNode(Card, { name, title: "Admin" });
+    const logic = defineLogic("./fixtures/Card.js");
+    const Card = defineComponent(logic);
+    const name = defineSignal("Alice");
+    const node1 = defineNode(Card, { name, title: "User" });
+    const node2 = defineNode(Card, { name, title: "Admin" });
 
     expect(node1.id).not.toBe(node2.id);
   });
 
   test("node stores references to component and logic signals", () => {
-    const logic = createLogic("./fixtures/Card.js");
-    const Card = createComponent(logic);
-    const node = createNode(Card, { title: "Test" });
+    const logic = defineLogic("./fixtures/Card.js");
+    const Card = defineComponent(logic);
+    const node = defineNode(Card, { title: "Test" });
 
     // eslint-disable-next-line no-underscore-dangle
     expect(node._componentRef).toBe(Card);

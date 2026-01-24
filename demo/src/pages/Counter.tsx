@@ -2,19 +2,19 @@
  * Example 1: Simple Counter
  * Demonstrates basic state signals and event handlers
  */
-import { createSignal, createHandler, createLogic } from "stream-weaver";
+import { defineSignal, defineHandler, defineLogic } from "stream-weaver";
 
 export function Counter(): JSX.Element {
   // Create a state signal for the count
-  const count = createSignal(0);
+  const count = defineSignal(0);
 
   // Create logic signals for the handlers (type-safe with import())
-  const incrementLogic = createLogic(import("../logic/increment"));
-  const decrementLogic = createLogic(import("../logic/decrement"));
+  const incrementLogic = defineLogic(import("../logic/increment"));
+  const decrementLogic = defineLogic(import("../logic/decrement"));
 
   // Create handlers for increment/decrement (TypeScript validates deps match function signature)
-  const increment = createHandler(incrementLogic, [count]);
-  const decrement = createHandler(decrementLogic, [count]);
+  const increment = defineHandler(incrementLogic, [count]);
+  const decrement = defineHandler(decrementLogic, [count]);
 
   return (
     <div style="max-width: 400px; margin: 2rem auto; padding: 2rem; border: 1px solid #ddd; border-radius: 8px;">

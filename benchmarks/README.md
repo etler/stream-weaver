@@ -16,7 +16,7 @@ Compares SSR streaming performance between Stream Weaver and other frameworks:
 | Stream Weaver | Full SSR | `StreamWeaver`, `jsx()`, `serializeElement()` | 25.3 KB |
 | React | Full SSR | `renderToReadableStream()`, `jsx()` | 25.3 KB |
 | Vue | Full SSR | `renderToWebStream()`, `h()` | 25.3 KB |
-| SolidJS | Full SSR | `renderToStringAsync()`, `ssrElement()`, `ssr`, `createComponent()` | 27.5 KB |
+| SolidJS | Full SSR | `renderToStringAsync()`, `ssrElement()`, `ssr`, `defineComponent()` | 27.5 KB |
 | Qwik | Full SSR + Build | `component$()`, `renderToString()`, Vite build | 39.0 KB |
 
 ### Why Qwik Output is Larger

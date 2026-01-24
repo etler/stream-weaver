@@ -9,7 +9,7 @@ To eliminate the barrier between Server and Client by treating the entire applic
 
 This architecture fills the gap between raw performance and developer control. Modern frameworks force a choice: accept the performance penalty of **Hydration** or accept the complexity of **Compiler Magic**. Stream Weaver solves this by enforcing **Explicit Addressability**: every signal and action is a stable, unique ID. This ensures that what crosses the network is exactly what you intended—an explicit "plan" for interactivity that requires zero runtime guessing.
 
-The result is **unbounded flexibility**. Because we use a **Universal Factory** model (`createSignal`, `createAction`, `createComponent`), state and logic are freed from framework rules. They can exist anywhere; in global constants, inside dynamic loops, or within utility files. This enables a "ChainExplode" pattern where the application literally weaves its own interactive capabilities in real-time as the stream arrives.
+The result is **unbounded flexibility**. Because we use a **Universal Factory** model (`defineSignal`, `defineAction`, `defineComponent`), state and logic are freed from framework rules. They can exist anywhere; in global constants, inside dynamic loops, or within utility files. This enables a "ChainExplode" pattern where the application literally weaves its own interactive capabilities in real-time as the stream arrives.
 
 ---
 
@@ -32,7 +32,7 @@ The dominant paradigm is **Hydration**. React sends HTML, then sends the JavaScr
 | Feature | React / Next.js (RSC) | Stream Weaver |
 | --- | --- | --- |
 | **State Model** | **Positional:** State is tied to a component's location in the tree. | **Addressable:** State is a global ID (`s1`) reachable from anywhere. |
-| **Rules of Hooks** | **Strict:** Hooks must be at the top level, in order, in components. | **None:** `createSignal` can be called in loops, globals, or utilities. |
+| **Rules of Hooks** | **Strict:** Hooks must be at the top level, in order, in components. | **None:** `defineSignal` can be called in loops, globals, or utilities. |
 | **Interactivity** | **Hydration:** Re-runs component logic to attach listeners. | **Resumption:** Sink resolves IDs to DOM nodes instantly. |
 | **Data Flow** | **Tree-Bound:** Prop drilling or Context Providers. | **Direct:** Any Action can import any Signal ID directly. |
 
@@ -61,7 +61,7 @@ Wiz is the gold standard for "Action-State" separation but is notoriously diffic
 
 | Feature | Wiz | Stream Weaver |
 | --- | --- | --- |
-| **Authoring** | **Registry Pattern:** Manual string IDs for every action. | **Factory Pattern:** `createAction` uses standard imports. |
+| **Authoring** | **Registry Pattern:** Manual string IDs for every action. | **Factory Pattern:** `defineAction` uses standard imports. |
 | **Type Safety** | **Manual:** Hard to sync template types with logic. | **Automatic:** TS infers types from `import()` expressions. |
 | **Composition** | **Limited:** Actions are usually flat handlers. | **Recursive:** Actions can return signals and be nested. |
 
@@ -106,13 +106,13 @@ We treat executable code exactly like strings or numbers. Logic is a serializabl
 Circular dependencies are prevented through an architectural constraint: only **Sources** can mutate state, while **Dependents** can only read.
 
 * **Sources (Mutators):**
-  - `createSignal()` - Creates state that can be written to
-  - `createAction()` - Receives writable signal references, can mutate via `.value =`
+  - `defineSignal()` - Creates state that can be written to
+  - `defineAction()` - Receives writable signal references, can mutate via `.value =`
   - Explicitly invoked by user interactions, not automatically triggered
 
 * **Dependents (Observers):**
-  - `createComputed()` - Receives read-only signal references, re-executes when dependencies change
-  - `createComponent()` - Receives read-only signal references, re-renders when dependencies change
+  - `defineComputed()` - Receives read-only signal references, re-executes when dependencies change
+  - `defineComponent()` - Receives read-only signal references, re-renders when dependencies change
   - Automatically triggered by signal updates, cannot mutate
 
 This architectural separation makes circular dependencies impossible by design. Computed logic and components can never trigger themselves—only actions (which are imperative) can cause mutations.
@@ -122,7 +122,7 @@ This architectural separation makes circular dependencies impossible by design. 
 We reject "Automatic Closure Capture." Logic must be explicitly bound.
 
 * **Bad (Implicit):** `() => count.value++` (Relies on closure magic).
-* **Good (Explicit):** `createAction(incSrc, [count])` (Pure function, explicit input).
+* **Good (Explicit):** `defineAction(incSrc, [count])` (Pure function, explicit input).
 
 **No Positional Magic:**
 - Because every entity has a unique ID, the framework never "guesses" which state belongs to which variable
@@ -230,7 +230,7 @@ Because we treat Logic as addressable assets, code is no longer tethered to wher
 
 We are bringing "Unix Pipes" to the UI layer, allowing applications to expand their work dynamically.
 
-* **Dynamic Expansion:** As an AI agent or a database streams data, the framework calls `createAction` on the fly for every new item.
+* **Dynamic Expansion:** As an AI agent or a database streams data, the framework calls `defineAction` on the fly for every new item.
 * **Structural Stability:** The Main Stream emits the "Skeleton" and reserves **Stream Anchors**. Parallel Delegate Streams fill these slots, ensuring a slow-loading header never causes a layout shift by popping in below the footer.
 * **Async Efficiency:** Actions arrive in order while being processed out of order, maintaining maximum async throughput without sacrificing predictability.
 

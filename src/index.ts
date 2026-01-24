@@ -13,18 +13,18 @@ export type { SuspenseProps } from "./components";
 
 // Signals
 export {
-  createSignal,
-  createLogic,
-  createClientLogic,
-  createServerLogic,
-  createWorkerLogic,
-  createComputed,
-  createAction,
-  createHandler,
-  createComponent,
-  createNode,
+  defineSignal,
+  defineLogic,
+  defineClientLogic,
+  defineServerLogic,
+  defineWorkerLogic,
+  defineComputed,
+  defineAction,
+  defineHandler,
+  defineComponent,
+  defineNode,
   createSuspense,
-  createReducer,
+  defineReducer,
   PENDING,
 } from "./signals";
 

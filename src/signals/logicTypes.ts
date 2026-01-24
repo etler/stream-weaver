@@ -3,7 +3,7 @@
  *
  * These types enable compile-time validation of logic function parameters
  * against signal dependencies, providing full type safety when using
- * createLogic(import("./path")) syntax.
+ * defineLogic(import("./path")) syntax.
  */
 
 import type { WritableSignalInterface } from "@/logic/signalInterfaces";

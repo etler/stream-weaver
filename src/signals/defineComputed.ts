@@ -20,26 +20,26 @@ import type { Serializable } from "./serializableTypes";
  *
  * @example
  * // With typed logic (full type checking)
- * const count = createSignal(5);  // StateSignal<number>
- * const doubleLogic = createLogic(import("./double"));
- * const doubled = createComputed(doubleLogic, [count]);  // ComputedSignal<number>
+ * const count = defineSignal(5);  // StateSignal<number>
+ * const doubleLogic = defineLogic(import("./double"));
+ * const doubled = defineComputed(doubleLogic, [count]);  // ComputedSignal<number>
  *
  * @example
  * // With untyped logic (backwards compatible)
- * const legacyLogic = createLogic("./legacy.js");
- * const result = createComputed(legacyLogic, [count]);  // ComputedSignal<unknown>
+ * const legacyLogic = defineLogic("./legacy.js");
+ * const result = defineComputed(legacyLogic, [count]);  // ComputedSignal<unknown>
  */
 
 // Single signature with validation - const Deps ensures tuple inference
 // Init must be both the correct return type AND Serializable for SSR transmission
-export function createComputed<F extends LogicFunction, const Deps extends readonly AnySignal[]>(
+export function defineComputed<F extends LogicFunction, const Deps extends readonly AnySignal[]>(
   logic: LogicSignal<F>,
   deps: ValidateComputedDeps<F, Deps>,
   init?: Awaited<ReturnType<F>> & Serializable,
 ): ComputedSignal<ReturnType<F>>;
 
 // Implementation
-export function createComputed(logic: LogicSignal, deps: AnySignal[], init?: unknown): ComputedSignal {
+export function defineComputed(logic: LogicSignal, deps: AnySignal[], init?: unknown): ComputedSignal {
   const depIds = deps.map((dep) => dep.id);
   const id = allocateDerivedId(logic.id, depIds);
 

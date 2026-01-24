@@ -1,6 +1,6 @@
 /**
  * Client-only logic that returns viewport dimensions
- * Used for testing createClientLogic
+ * Used for testing defineClientLogic
  */
 export default function getViewport() {
   // This would fail on server (no window object)

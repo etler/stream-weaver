@@ -13,7 +13,7 @@ import type { Serializable } from "./serializableTypes";
  * @param init - Initial value for the signal (must be JSON-serializable)
  * @returns StateSignal definition object
  */
-export function createSignal<T extends Serializable>(init: T): StateSignal<T> {
+export function defineSignal<T extends Serializable>(init: T): StateSignal<T> {
   return {
     id: allocateSourceId(),
     kind: "state",

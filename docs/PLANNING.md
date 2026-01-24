@@ -24,7 +24,7 @@ The POC includes:
 
 **Implementation Tasks**:
 - Create `Signal` interface and `StateSignal<T>` type (definition objects)
-- Implement `createSignal<T>(init: T): StateSignal<T>` - returns inert metadata object
+- Implement `defineSignal<T>(init: T): StateSignal<T>` - returns inert metadata object
 - Implement ID allocation (counter-based: `s1`, `s2`, ... or hash-based)
 - Create `WeaverRegistry` class with internal Maps for:
   - Signal definitions: `Map<string, Signal>`
@@ -38,7 +38,7 @@ The POC includes:
 **Test Criteria**:
 ```typescript
 test('signal creation produces definition object', () => {
-  const count = createSignal(0);
+  const count = defineSignal(0);
   expect(count.id).toBe('s1');
   expect(count.kind).toBe('state');
   expect(count.init).toBe(0);
@@ -46,14 +46,14 @@ test('signal creation produces definition object', () => {
 });
 
 test('multiple signals have unique IDs', () => {
-  const s1 = createSignal(1);
-  const s2 = createSignal(2);
+  const s1 = defineSignal(1);
+  const s2 = defineSignal(2);
   expect(s1.id).toBe('s2'); // Continues from previous test
   expect(s2.id).toBe('s3');
 });
 
 test('registry stores signal values', () => {
-  const count = createSignal(10);
+  const count = defineSignal(10);
   const registry = new WeaverRegistry();
 
   registry.registerSignal(count);
@@ -64,7 +64,7 @@ test('registry stores signal values', () => {
 });
 
 test('registry stores signal definitions', () => {
-  const count = createSignal(5);
+  const count = defineSignal(5);
   const registry = new WeaverRegistry();
 
   registry.registerSignal(count);
@@ -86,10 +86,10 @@ test('registry stores signal definitions', () => {
 **Implementation Tasks**:
 - Implement `LogicSignal`, `ComputedSignal`, `ActionSignal`, `HandlerSignal` interfaces per API.md (metadata only)
 - Implement content-addressable ID hashing (hash logic ID + deps → ID)
-- Implement `createLogic(mod: Promise<M>)` - creates LogicSignal (for testing, use shim that returns mock LogicSignal)
-- Implement `createComputed(logic, deps)` - accepts LogicSignal or Promise<M>, stores logic ID reference
-- Implement `createAction(logic, deps)`
-- Implement `createHandler(logic, deps)`
+- Implement `defineLogic(mod: Promise<M>)` - creates LogicSignal (for testing, use shim that returns mock LogicSignal)
+- Implement `defineComputed(logic, deps)` - accepts LogicSignal or Promise<M>, stores logic ID reference
+- Implement `defineAction(logic, deps)`
+- Implement `defineHandler(logic, deps)`
 - Add dependency graph to WeaverRegistry: `Map<string, Set<string>>`
 - Implement `registry.getDependents(id)` - returns Set of dependent signal IDs
 - Implement `registry.getDependencies(id)` - returns array of dependency signal IDs
@@ -97,15 +97,15 @@ test('registry stores signal definitions', () => {
 
 **Test Criteria**:
 ```typescript
-// Test shim for createLogic during M2 (before module loading works)
+// Test shim for defineLogic during M2 (before module loading works)
 function createMockLogic(name: string): LogicSignal {
   return { id: `logic_${name}`, kind: 'logic', src: `${name}.js` };
 }
 
 test('computed definition registers dependencies', () => {
-  const count = createSignal(5);
+  const count = defineSignal(5);
   const doubleLogic = createMockLogic('double');
-  const doubled = createComputed(doubleLogic, [count]);
+  const doubled = defineComputed(doubleLogic, [count]);
 
   const registry = new WeaverRegistry();
   registry.registerSignal(count);
@@ -118,9 +118,9 @@ test('computed definition registers dependencies', () => {
 });
 
 test('registry tracks dependencies bidirectionally', () => {
-  const count = createSignal(5);
+  const count = defineSignal(5);
   const doubleLogic = createMockLogic('double');
-  const doubled = createComputed(doubleLogic, [count]);
+  const doubled = defineComputed(doubleLogic, [count]);
 
   const registry = new WeaverRegistry();
   registry.registerSignal(count);
@@ -132,20 +132,20 @@ test('registry tracks dependencies bidirectionally', () => {
 });
 
 test('same logic and deps produce same ID (content-addressable)', () => {
-  const count = createSignal(5);
+  const count = defineSignal(5);
   const doubleLogic = createMockLogic('double');
-  const c1 = createComputed(doubleLogic, [count]);
-  const c2 = createComputed(doubleLogic, [count]);
+  const c1 = defineComputed(doubleLogic, [count]);
+  const c2 = defineComputed(doubleLogic, [count]);
 
   expect(c1.id).toBe(c2.id); // Hash based on logic ID + dep IDs
 });
 
 test('dependency graph tracks multiple levels', () => {
-  const s1 = createSignal(1);
+  const s1 = defineSignal(1);
   const doubleLogic = createMockLogic('double');
   const quadLogic = createMockLogic('quadruple');
-  const c1 = createComputed(doubleLogic, [s1]);
-  const c2 = createComputed(quadLogic, [c1]);
+  const c1 = defineComputed(doubleLogic, [s1]);
+  const c2 = defineComputed(quadLogic, [c1]);
 
   const registry = new WeaverRegistry();
   registry.registerSignal(s1);
@@ -159,11 +159,11 @@ test('dependency graph tracks multiple levels', () => {
 });
 
 test('action and handler definitions work similarly', () => {
-  const count = createSignal(0);
+  const count = defineSignal(0);
   const incLogic = createMockLogic('increment');
   const clickLogic = createMockLogic('click');
-  const increment = createAction(incLogic, [count]);
-  const handleClick = createHandler(clickLogic, [count]);
+  const increment = defineAction(incLogic, [count]);
+  const handleClick = defineHandler(clickLogic, [count]);
 
   const registry = new WeaverRegistry();
   registry.registerSignal(count);
@@ -213,13 +213,13 @@ test('logic module can be loaded', async () => {
 });
 
 test('computed executes logic and caches result', async () => {
-  const count = createSignal(5);
+  const count = defineSignal(5);
   const doubleLogic: LogicSignal = {
     id: 'logic_double',
     kind: 'logic',
     src: './tests/fixtures/double.js'
   };
-  const doubled = createComputed(doubleLogic, [count]);
+  const doubled = defineComputed(doubleLogic, [count]);
 
   const registry = new WeaverRegistry();
   registry.registerSignal(count);
@@ -234,7 +234,7 @@ test('computed executes logic and caches result', async () => {
 });
 
 test('signal interface provides .value that accesses registry', () => {
-  const count = createSignal(5);
+  const count = defineSignal(5);
   const registry = new WeaverRegistry();
   registry.registerSignal(count);
   registry.setValue(count.id, 5);
@@ -248,13 +248,13 @@ test('signal interface provides .value that accesses registry', () => {
 
 test('action can mutate signals via writable interface', async () => {
   // tests/fixtures/increment.ts: export default (count) => { count.value++ }
-  const count = createSignal(0);
+  const count = defineSignal(0);
   const incLogic: LogicSignal = {
     id: 'logic_increment',
     kind: 'logic',
     src: './tests/fixtures/increment.js'
   };
-  const increment = createAction(incLogic, [count]);
+  const increment = defineAction(incLogic, [count]);
 
   const registry = new WeaverRegistry();
   registry.registerSignal(count);
@@ -269,13 +269,13 @@ test('action can mutate signals via writable interface', async () => {
 
 test('handler receives event and writable signal interfaces', async () => {
   // tests/fixtures/handleClick.ts: export default (event, count) => { count.value++ }
-  const count = createSignal(0);
+  const count = defineSignal(0);
   const clickLogic: LogicSignal = {
     id: 'logic_handleClick',
     kind: 'logic',
     src: './tests/fixtures/handleClick.js'
   };
-  const handler = createHandler(clickLogic, [count]);
+  const handler = defineHandler(clickLogic, [count]);
 
   const registry = new WeaverRegistry();
   registry.registerSignal(count);
@@ -291,14 +291,14 @@ test('handler receives event and writable signal interfaces', async () => {
 
 test('multiple signals can be passed to logic', async () => {
   // tests/fixtures/sum.ts: export default (a, b) => a.value + b.value
-  const a = createSignal(5);
-  const b = createSignal(10);
+  const a = defineSignal(5);
+  const b = defineSignal(10);
   const sumLogic: LogicSignal = {
     id: 'logic_sum',
     kind: 'logic',
     src: './tests/fixtures/sum.js'
   };
-  const sum = createComputed(sumLogic, [a, b]);
+  const sum = defineComputed(sumLogic, [a, b]);
 
   const registry = new WeaverRegistry();
   registry.registerSignal(a);
@@ -335,8 +335,8 @@ test('multiple signals can be passed to logic', async () => {
 **Test Criteria**:
 ```typescript
 test('signal update triggers dependent computed execution', async () => {
-  const count = createSignal(5);
-  const doubled = createComputed({ src: './tests/fixtures/double.js' }, [count]);
+  const count = defineSignal(5);
+  const doubled = defineComputed({ src: './tests/fixtures/double.js' }, [count]);
 
   const registry = new WeaverRegistry();
   registry.registerSignal(count);
@@ -366,9 +366,9 @@ test('signal update triggers dependent computed execution', async () => {
 });
 
 test('cascading updates propagate through multiple levels', async () => {
-  const count = createSignal(2);
-  const doubled = createComputed({ src: './tests/fixtures/double.js' }, [count]);
-  const quadrupled = createComputed({ src: './tests/fixtures/double.js' }, [doubled]);
+  const count = defineSignal(2);
+  const doubled = defineComputed({ src: './tests/fixtures/double.js' }, [count]);
+  const quadrupled = defineComputed({ src: './tests/fixtures/double.js' }, [doubled]);
 
   const registry = new WeaverRegistry();
   registry.registerSignal(count);
@@ -405,9 +405,9 @@ test('cascading updates propagate through multiple levels', async () => {
 });
 
 test('multiple dependents execute in parallel', async () => {
-  const count = createSignal(5);
-  const doubled = createComputed({ src: './tests/fixtures/double.js' }, [count]);
-  const tripled = createComputed({ src: './tests/fixtures/triple.js' }, [count]);
+  const count = defineSignal(5);
+  const doubled = defineComputed({ src: './tests/fixtures/double.js' }, [count]);
+  const tripled = defineComputed({ src: './tests/fixtures/triple.js' }, [count]);
 
   const registry = new WeaverRegistry();
   registry.registerSignal(count);
@@ -460,7 +460,7 @@ test('multiple dependents execute in parallel', async () => {
 **Test Criteria**:
 ```typescript
 test('signal serializes with bind markers and definition script', async () => {
-  const count = createSignal(5);
+  const count = defineSignal(5);
   const registry = new WeaverRegistry();
   registry.registerSignal(count);
   registry.setValue(count.id, 5);
@@ -473,7 +473,7 @@ test('signal serializes with bind markers and definition script', async () => {
 });
 
 test('attribute bindings serialize with data attributes', async () => {
-  const theme = createSignal('dark');
+  const theme = defineSignal('dark');
   const registry = new WeaverRegistry();
   registry.registerSignal(theme);
   registry.setValue(theme.id, 'dark');
@@ -486,13 +486,13 @@ test('attribute bindings serialize with data attributes', async () => {
 });
 
 test('handler bindings serialize with data attributes and logic', async () => {
-  const count = createSignal(0);
+  const count = defineSignal(0);
   const clickLogic: LogicSignal = {
     id: 'logic_click',
     kind: 'logic',
     src: './fixtures/click.js'
   };
-  const handler = createHandler(clickLogic, [count]);
+  const handler = defineHandler(clickLogic, [count]);
 
   const registry = new WeaverRegistry();
   registry.registerSignal(count);
@@ -510,13 +510,13 @@ test('handler bindings serialize with data attributes and logic', async () => {
 });
 
 test('computed definition serializes with logic reference', async () => {
-  const count = createSignal(5);
+  const count = defineSignal(5);
   const doubleLogic: LogicSignal = {
     id: 'logic_double',
     kind: 'logic',
     src: './fixtures/double.js'
   };
-  const doubled = createComputed(doubleLogic, [count]);
+  const doubled = defineComputed(doubleLogic, [count]);
 
   const registry = new WeaverRegistry();
   registry.registerSignal(count);
@@ -623,8 +623,8 @@ test('sink rescans after update for nested markers', () => {
 **Test Criteria**:
 ```typescript
 test('event delegation finds handler ID and triggers execution', async () => {
-  const count = createSignal(0);
-  const handler = createHandler({ src: './fixtures/click.js' }, [count]);
+  const count = defineSignal(0);
+  const handler = defineHandler({ src: './fixtures/click.js' }, [count]);
 
   const registry = new WeaverRegistry();
   registry.registerSignal(count);
@@ -643,10 +643,10 @@ test('event delegation finds handler ID and triggers execution', async () => {
 });
 
 test('multiple event types work', async () => {
-  const count1 = createSignal(0);
-  const count2 = createSignal(0);
-  const clickHandler = createHandler({ src: './fixtures/increment.js' }, [count1]);
-  const inputHandler = createHandler({ src: './fixtures/increment.js' }, [count2]);
+  const count1 = defineSignal(0);
+  const count2 = defineSignal(0);
+  const clickHandler = defineHandler({ src: './fixtures/increment.js' }, [count1]);
+  const inputHandler = defineHandler({ src: './fixtures/increment.js' }, [count2]);
 
   const registry = new WeaverRegistry();
   registry.registerSignal(count1);
@@ -673,8 +673,8 @@ test('multiple event types work', async () => {
 });
 
 test('event delegation bubbles to parent', async () => {
-  const count = createSignal(0);
-  const handler = createHandler({ src: './fixtures/increment.js' }, [count]);
+  const count = defineSignal(0);
+  const handler = defineHandler({ src: './fixtures/increment.js' }, [count]);
 
   const registry = new WeaverRegistry();
   registry.registerSignal(count);
@@ -703,20 +703,20 @@ test('event delegation bubbles to parent', async () => {
 
 **Implementation Tasks**:
 - Implement `ComponentSignal` interface per API.md
-- Implement `createComponent(logic: Logic, props: Props): ComponentSignal`
+- Implement `defineComponent(logic: Logic, props: Props): ComponentSignal`
 - Implement content-addressable ID for components (hash logic + serialized props)
 - Extract signal dependencies from props (signal objects → IDs)
 - Register components in dependency graph when bound
-- Update JSX factory to call `createComponent` for function components
+- Update JSX factory to call `defineComponent` for function components
 - Emit `signal-definition` tokens for components in ComponentDelegate
 - Implement component re-rendering when prop signals change via SignalDelegate
 
 **Test Criteria**:
 ```typescript
 test('component definition is created with signal props', () => {
-  const name = createSignal('Alice');
+  const name = defineSignal('Alice');
   const Card = () => <div>{name}</div>;
-  const card = createComponent({ src: './fixtures/Card.js' }, { name, title: 'User' });
+  const card = defineComponent({ src: './fixtures/Card.js' }, { name, title: 'User' });
 
   expect(card.kind).toBe('component');
   expect(card.id).toMatch(/^c/);
@@ -725,9 +725,9 @@ test('component definition is created with signal props', () => {
 });
 
 test('component dependencies extracted from props', () => {
-  const name = createSignal('Alice');
-  const age = createSignal(30);
-  const card = createComponent({ src: './fixtures/Card.js' }, { name, age, role: 'Admin' });
+  const name = defineSignal('Alice');
+  const age = defineSignal(30);
+  const card = defineComponent({ src: './fixtures/Card.js' }, { name, age, role: 'Admin' });
 
   const registry = new WeaverRegistry();
   registry.registerSignal(name);
@@ -739,9 +739,9 @@ test('component dependencies extracted from props', () => {
 });
 
 test('component serialization includes props and logic', async () => {
-  const name = createSignal('Alice');
+  const name = defineSignal('Alice');
   const Card = (props: { name: StateSignal<string>, title: string }) => <div>{props.name} - {props.title}</div>;
-  const card = createComponent({ src: './fixtures/Card.js' }, { name, title: 'User' });
+  const card = defineComponent({ src: './fixtures/Card.js' }, { name, title: 'User' });
 
   const registry = new WeaverRegistry();
   registry.registerSignal(name);
@@ -755,9 +755,9 @@ test('component serialization includes props and logic', async () => {
 });
 
 test('component re-renders when prop signal changes', async () => {
-  const name = createSignal('Alice');
+  const name = defineSignal('Alice');
   const Card = (props: { name: StateSignal<string> }) => <div>{props.name}</div>;
-  const card = createComponent({ src: './fixtures/Card.js' }, { name });
+  const card = defineComponent({ src: './fixtures/Card.js' }, { name });
 
   const registry = new WeaverRegistry();
   registry.registerSignal(name);
@@ -832,9 +832,9 @@ test('client initializes from server HTML', () => {
 
 test('full reactive cycle: event → handler → computed → DOM', async () => {
   // Server-side rendering
-  const count = createSignal(0);
-  const doubled = createComputed({ src: './fixtures/double.js' }, [count]);
-  const increment = createHandler({ src: './fixtures/increment.js' }, [count]);
+  const count = defineSignal(0);
+  const doubled = defineComputed({ src: './fixtures/double.js' }, [count]);
+  const increment = defineHandler({ src: './fixtures/increment.js' }, [count]);
 
   const registry = new WeaverRegistry();
   registry.registerSignal(count);
@@ -891,11 +891,11 @@ test('full reactive cycle: event → handler → computed → DOM', async () => 
 **Implementation Tasks**:
 - Create Vite/Rollup plugin that recognizes addressable logic patterns
 - Implement AST traversal to find `import("...")` in:
-  - `createComputed(import("..."), deps)`
-  - `createAction(import("..."), deps)`
-  - `createHandler(import("..."), deps)`
-  - `createComponent(import("..."))`
-  - `createLogic(import("..."))`
+  - `defineComputed(import("..."), deps)`
+  - `defineAction(import("..."), deps)`
+  - `defineHandler(import("..."), deps)`
+  - `defineComponent(import("..."))`
+  - `defineLogic(import("..."))`
 - Generate stable, deterministic IDs for each unique module (hash of resolved path)
 - **Primary strategy**: Inline rewrite - replace `import("...")` with LogicSignal object
 - **Fallback strategy**: Metadata attachment - add `__logicId` to import expression for robustness
@@ -905,22 +905,22 @@ test('full reactive cycle: event → handler → computed → DOM', async () => 
 
 **Test Criteria**:
 ```typescript
-test('plugin recognizes and transforms createComputed pattern', async () => {
+test('plugin recognizes and transforms defineComputed pattern', async () => {
   const input = `
-    const doubled = createComputed(import("./double"), [count]);
+    const doubled = defineComputed(import("./double"), [count]);
   `;
 
   const result = await transformWithPlugin(input);
 
-  expect(result.code).toContain('createLogic');
+  expect(result.code).toContain('defineLogic');
   expect(result.code).toContain('id: "logic_');
   expect(result.code).toContain('src:');
-  // Should create logic signal and pass it to createComputed
+  // Should create logic signal and pass it to defineComputed
 });
 
 test('plugin generates stable IDs for same module', async () => {
-  const input1 = `const c1 = createComputed(import("./double"), [x]);`;
-  const input2 = `const c2 = createComputed(import("./double"), [y]);`;
+  const input1 = `const c1 = defineComputed(import("./double"), [x]);`;
+  const input2 = `const c2 = defineComputed(import("./double"), [y]);`;
 
   const result1 = await transformWithPlugin(input1);
   const result2 = await transformWithPlugin(input2);
@@ -934,8 +934,8 @@ test('plugin generates stable IDs for same module', async () => {
 
 test('plugin generates manifest mapping IDs to URLs', async () => {
   const input = `
-    const doubled = createComputed(import("./double"), [count]);
-    const tripled = createComputed(import("./triple"), [count]);
+    const doubled = defineComputed(import("./double"), [count]);
+    const tripled = defineComputed(import("./triple"), [count]);
   `;
 
   const { manifest } = await buildWithPlugin(input);
@@ -949,7 +949,7 @@ test('plugin generates manifest mapping IDs to URLs', async () => {
 test('plugin fallback attaches metadata to imports', async () => {
   const input = `
     const doubleFn = import("./double");
-    const doubled = createComputed(doubleFn, [count]);
+    const doubled = defineComputed(doubleFn, [count]);
   `;
 
   const result = await transformWithPlugin(input);
@@ -960,21 +960,21 @@ test('plugin fallback attaches metadata to imports', async () => {
 
 test('plugin works with all addressable APIs', async () => {
   const input = `
-    const doubled = createComputed(import("./double"), [x]);
-    const inc = createAction(import("./inc"), [x]);
-    const handler = createHandler(import("./click"), [x]);
-    const Card = createComponent(import("./Card"));
+    const doubled = defineComputed(import("./double"), [x]);
+    const inc = defineAction(import("./inc"), [x]);
+    const handler = defineHandler(import("./click"), [x]);
+    const Card = defineComponent(import("./Card"));
   `;
 
   const result = await transformWithPlugin(input);
 
   // All should be transformed
-  expect(result.code.match(/createLogic/g).length).toBe(4);
+  expect(result.code.match(/defineLogic/g).length).toBe(4);
 });
 
 test('manifest enables server URL resolution', async () => {
   const { manifest } = await buildWithPlugin(`
-    const doubled = createComputed(import("./double"), [count]);
+    const doubled = defineComputed(import("./double"), [count]);
   `);
 
   // Server can resolve logic ID to public URL
@@ -1009,21 +1009,21 @@ test('manifest enables server URL resolution', async () => {
   // Alias for clarity in our API
   type Serializable = JsonValue;
   ```
-- Update `createSignal<T>` init type from `unknown` to `Serializable` (init is part of serialized definition)
-- Update `createComputed` init option type from `unknown` to `Serializable`
-- Export `Serializable` type for use in `createServerLogic` return type enforcement
+- Update `defineSignal<T>` init type from `unknown` to `Serializable` (init is part of serialized definition)
+- Update `defineComputed` init option type from `unknown` to `Serializable`
+- Export `Serializable` type for use in `defineServerLogic` return type enforcement
 
 **Test Criteria**:
 ```typescript
 test('async computed logic resolves before storing value', async () => {
   // tests/fixtures/asyncDouble.ts: export default async (x) => { await delay(10); return x.value * 2; }
-  const count = createSignal(5);
+  const count = defineSignal(5);
   const asyncLogic: LogicSignal = {
     id: 'logic_asyncDouble',
     kind: 'logic',
     src: './tests/fixtures/asyncDouble.js'
   };
-  const doubled = createComputed(asyncLogic, [count]);
+  const doubled = defineComputed(asyncLogic, [count]);
 
   const registry = new WeaverRegistry();
   registry.registerSignal(count);
@@ -1039,13 +1039,13 @@ test('async computed logic resolves before storing value', async () => {
 
 test('async action completes before signal updates propagate', async () => {
   // tests/fixtures/asyncIncrement.ts: export default async (x) => { await delay(10); x.value++; }
-  const count = createSignal(0);
+  const count = defineSignal(0);
   const asyncLogic: LogicSignal = {
     id: 'logic_asyncInc',
     kind: 'logic',
     src: './tests/fixtures/asyncIncrement.js'
   };
-  const increment = createAction(asyncLogic, [count]);
+  const increment = defineAction(asyncLogic, [count]);
 
   const registry = new WeaverRegistry();
   registry.registerSignal(count);
@@ -1058,32 +1058,32 @@ test('async action completes before signal updates propagate', async () => {
   expect(registry.getValue(count.id)).toBe(1);
 });
 
-test('createSignal init must be Serializable', () => {
+test('defineSignal init must be Serializable', () => {
   // Valid: JSON-compatible types
-  const s1 = createSignal('hello');
-  const s2 = createSignal(42);
-  const s3 = createSignal(true);
-  const s4 = createSignal(null);
-  const s5 = createSignal({ name: 'Alice', age: 30 });
-  const s6 = createSignal([1, 2, 3]);
-  const s7 = createSignal({ nested: { array: [1, 'two', null] } });
+  const s1 = defineSignal('hello');
+  const s2 = defineSignal(42);
+  const s3 = defineSignal(true);
+  const s4 = defineSignal(null);
+  const s5 = defineSignal({ name: 'Alice', age: 30 });
+  const s6 = defineSignal([1, 2, 3]);
+  const s7 = defineSignal({ nested: { array: [1, 'two', null] } });
 
   // TypeScript should error on non-serializable types:
-  // const bad1 = createSignal(() => {}); // Function
-  // const bad2 = createSignal(undefined); // undefined
-  // const bad3 = createSignal(Symbol()); // Symbol
-  // const bad4 = createSignal(new Map()); // Map
+  // const bad1 = defineSignal(() => {}); // Function
+  // const bad2 = defineSignal(undefined); // undefined
+  // const bad3 = defineSignal(Symbol()); // Symbol
+  // const bad4 = defineSignal(new Map()); // Map
 });
 
 test('async handler awaits completion', async () => {
   // tests/fixtures/asyncHandler.ts: export default async (e, x) => { await delay(10); x.value = e.type; }
-  const value = createSignal('');
+  const value = defineSignal('');
   const asyncLogic: LogicSignal = {
     id: 'logic_asyncHandler',
     kind: 'logic',
     src: './tests/fixtures/asyncHandler.js'
   };
-  const handler = createHandler(asyncLogic, [value]);
+  const handler = defineHandler(asyncLogic, [value]);
 
   const registry = new WeaverRegistry();
   registry.registerSignal(value);
@@ -1106,7 +1106,7 @@ test('async handler awaits completion', async () => {
 **Goal**: Allow logic to execute without blocking the stream (via timeout) or only on client, using PENDING sentinel for pending state.
 
 **Implementation Tasks**:
-- Add `timeout?: number` option to `createLogic`
+- Add `timeout?: number` option to `defineLogic`
   - `undefined` = no timeout, always inline (blocking)
   - `0` = always defer immediately (never block)
   - `> 0` = wait up to N ms, then defer if not complete
@@ -1118,7 +1118,7 @@ test('async handler awaits completion', async () => {
 - When deferred execution completes, push signal-update to main stream
 - Update SignalDelegate to handle timeout-based deferred execution flow
 - Add `MaybePending<T>` type helper
-- Implement `createClientLogic` function with `context: 'client'` flag
+- Implement `defineClientLogic` function with `context: 'client'` flag
 - When clientside on server: return `PENDING`/`init` immediately without loading module
 - On client boot: detect and execute pending clientside signals
 
@@ -1127,9 +1127,9 @@ test('async handler awaits completion', async () => {
 import { PENDING } from 'stream-weaver';
 
 test('timeout: 0 sets PENDING immediately', async () => {
-  const count = createSignal(5);
-  const slowLogic = createLogic({ src: './tests/fixtures/slowDouble.js' }, { timeout: 0 });
-  const result = createComputed(slowLogic, [count]);
+  const count = defineSignal(5);
+  const slowLogic = defineLogic({ src: './tests/fixtures/slowDouble.js' }, { timeout: 0 });
+  const result = defineComputed(slowLogic, [count]);
 
   const registry = new WeaverRegistry();
   registry.registerSignal(count);
@@ -1149,12 +1149,12 @@ test('timeout: 0 sets PENDING immediately', async () => {
 });
 
 test('timeout: 0 does not block stream', async () => {
-  const count1 = createSignal(5);
-  const count2 = createSignal(10);
-  const slowLogic = createLogic({ src: './tests/fixtures/slowDouble.js' }, { timeout: 0 });
-  const fastLogic = createLogic({ src: './tests/fixtures/double.js' });
-  const slow = createComputed(slowLogic, [count1]);
-  const fast = createComputed(fastLogic, [count2]);
+  const count1 = defineSignal(5);
+  const count2 = defineSignal(10);
+  const slowLogic = defineLogic({ src: './tests/fixtures/slowDouble.js' }, { timeout: 0 });
+  const fastLogic = defineLogic({ src: './tests/fixtures/double.js' });
+  const slow = defineComputed(slowLogic, [count1]);
+  const fast = defineComputed(fastLogic, [count2]);
 
   const registry = new WeaverRegistry();
   registry.registerSignal(count1);
@@ -1186,10 +1186,10 @@ test('timeout: 0 does not block stream', async () => {
 });
 
 test('timeout races execution against timer', async () => {
-  const count = createSignal(5);
+  const count = defineSignal(5);
   // Logic that takes 100ms
-  const slowLogic = createLogic({ src: './tests/fixtures/slow100ms.js' }, { timeout: 50 });
-  const result = createComputed(slowLogic, [count]);
+  const slowLogic = defineLogic({ src: './tests/fixtures/slow100ms.js' }, { timeout: 50 });
+  const result = defineComputed(slowLogic, [count]);
 
   const registry = new WeaverRegistry();
   registry.registerSignal(count);
@@ -1208,10 +1208,10 @@ test('timeout races execution against timer', async () => {
 });
 
 test('fast logic completes inline when within timeout', async () => {
-  const count = createSignal(5);
+  const count = defineSignal(5);
   // Logic that takes 10ms, timeout is 50ms
-  const fastLogic = createLogic({ src: './tests/fixtures/fast10ms.js' }, { timeout: 50 });
-  const result = createComputed(fastLogic, [count]);
+  const fastLogic = defineLogic({ src: './tests/fixtures/fast10ms.js' }, { timeout: 50 });
+  const result = defineComputed(fastLogic, [count]);
 
   const registry = new WeaverRegistry();
   registry.registerSignal(count);
@@ -1230,8 +1230,8 @@ test('PENDING is a unique symbol', () => {
   expect(PENDING).not.toBe(Symbol('PENDING')); // Unique instance
 });
 
-test('createClientLogic sets context to client', () => {
-  const viewportLogic = createClientLogic(import('./getViewport'));
+test('defineClientLogic sets context to client', () => {
+  const viewportLogic = defineClientLogic(import('./getViewport'));
 
   expect(viewportLogic.context).toBe('client');
   expect(viewportLogic.kind).toBe('logic');
@@ -1239,8 +1239,8 @@ test('createClientLogic sets context to client', () => {
 
 test('clientside logic returns PENDING on server', async () => {
   // Mock isServer() to return true
-  const viewportLogic = createClientLogic(import('./getViewport'));
-  const viewport = createComputed(viewportLogic, []);
+  const viewportLogic = defineClientLogic(import('./getViewport'));
+  const viewport = defineComputed(viewportLogic, []);
 
   const registry = new WeaverRegistry();
   registry.registerSignal(viewportLogic);
@@ -1253,8 +1253,8 @@ test('clientside logic returns PENDING on server', async () => {
 });
 
 test('clientside logic uses init value on server when provided', async () => {
-  const viewportLogic = createClientLogic(import('./getViewport'));
-  const viewport = createComputed(viewportLogic, [], { init: { width: 1024, height: 768 } });
+  const viewportLogic = defineClientLogic(import('./getViewport'));
+  const viewport = defineComputed(viewportLogic, [], { init: { width: 1024, height: 768 } });
 
   const registry = new WeaverRegistry();
   registry.registerSignal(viewportLogic);
@@ -1268,8 +1268,8 @@ test('clientside logic uses init value on server when provided', async () => {
 
 test('clientside logic executes on client', async () => {
   // Mock isServer() to return false
-  const viewportLogic = createClientLogic(import('./getViewport'));
-  const viewport = createComputed(viewportLogic, []);
+  const viewportLogic = defineClientLogic(import('./getViewport'));
+  const viewport = defineComputed(viewportLogic, []);
 
   const registry = new WeaverRegistry();
   registry.registerSignal(viewportLogic);
@@ -1294,7 +1294,7 @@ test('clientside logic executes on client', async () => {
 **Goal**: Enable logic that executes only on the server with automatic client-server communication.
 
 **Implementation Tasks**:
-- Create `createServerLogic<F>` function that enforces `Serializable` return type (using type from M11)
+- Create `defineServerLogic<F>` function that enforces `Serializable` return type (using type from M11)
 - Use `context: 'server'` flag on LogicSignal (using existing `context` union type)
 - Implement `executeRemote(registry, signalId)` for client-side remote execution
 - Build signal chain serializer that walks dependency graph
@@ -1306,17 +1306,17 @@ test('clientside logic executes on client', async () => {
 
 **Test Criteria**:
 ```typescript
-test('createServerLogic sets context to server', () => {
-  const dbLogic = createServerLogic(import('./serverLogic/query'));
+test('defineServerLogic sets context to server', () => {
+  const dbLogic = defineServerLogic(import('./serverLogic/query'));
 
   expect(dbLogic.context).toBe('server');
   expect(dbLogic.kind).toBe('logic');
 });
 
 test('signal chain serializer walks dependency graph', () => {
-  const userId = createSignal('user123');
-  const formatted = createComputed(formatLogic, [userId]);
-  const result = createComputed(serversideLogic, [formatted]);
+  const userId = defineSignal('user123');
+  const formatted = defineComputed(formatLogic, [userId]);
+  const result = defineComputed(serversideLogic, [formatted]);
 
   const registry = new WeaverRegistry();
   registry.registerSignal(userId);
@@ -1336,9 +1336,9 @@ test('signal chain serializer walks dependency graph', () => {
 });
 
 test('chain serialization prunes at serializable computed values', () => {
-  const a = createSignal(5);
-  const b = createComputed(doubleLogic, [a]); // Returns number (serializable)
-  const c = createComputed(serversideLogic, [b]);
+  const a = defineSignal(5);
+  const b = defineComputed(doubleLogic, [a]); // Returns number (serializable)
+  const c = defineComputed(serversideLogic, [b]);
 
   const registry = new WeaverRegistry();
   // ... register all ...
@@ -1376,8 +1376,8 @@ test('server endpoint executes logic and returns result', async () => {
 
 test('executeLogic calls executeRemote for server logic on client', async () => {
   // Mock isClient() to return true
-  const dbLogic = createServerLogic(import('./serverLogic/query'));
-  const result = createComputed(dbLogic, [userId]);
+  const dbLogic = defineServerLogic(import('./serverLogic/query'));
+  const result = defineComputed(dbLogic, [userId]);
 
   const registry = new WeaverRegistry();
   // ... setup ...
@@ -1407,9 +1407,9 @@ test('executeLogic calls executeRemote for server logic on client', async () => 
 **Test Criteria**:
 ```typescript
 test('Suspense shows fallback when child is PENDING', async () => {
-  const slowLogic = createLogic(import('./slowComponent'), { timeout: 0 });
-  const SlowComponent = createComponent(slowLogic);
-  const slowNode = createNode(SlowComponent, {});
+  const slowLogic = defineLogic(import('./slowComponent'), { timeout: 0 });
+  const SlowComponent = defineComponent(slowLogic);
+  const slowNode = defineNode(SlowComponent, {});
 
   const registry = new WeaverRegistry();
   registry.registerSignal(slowLogic);
@@ -1418,7 +1418,7 @@ test('Suspense shows fallback when child is PENDING', async () => {
   registry.setValue(slowNode.id, PENDING);
 
   const fallback = <div class="loading">Loading...</div>;
-  const suspenseNode = createNode(Suspense, { child: slowNode, fallback });
+  const suspenseNode = defineNode(Suspense, { child: slowNode, fallback });
 
   registry.registerSignal(suspenseNode);
   const result = await executeNode(registry, suspenseNode.id);
@@ -1428,7 +1428,7 @@ test('Suspense shows fallback when child is PENDING', async () => {
 });
 
 test('Suspense shows child when resolved', async () => {
-  const slowNode = createSignal(null); // Simulate resolved node
+  const slowNode = defineSignal(null); // Simulate resolved node
   const childContent = <div class="content">Loaded!</div>;
 
   const registry = new WeaverRegistry();
@@ -1436,7 +1436,7 @@ test('Suspense shows child when resolved', async () => {
   registry.setValue(slowNode.id, childContent);
 
   const fallback = <div class="loading">Loading...</div>;
-  const suspenseNode = createNode(Suspense, { child: slowNode, fallback });
+  const suspenseNode = defineNode(Suspense, { child: slowNode, fallback });
 
   registry.registerSignal(suspenseNode);
   const result = await executeNode(registry, suspenseNode.id);
@@ -1446,16 +1446,16 @@ test('Suspense shows child when resolved', async () => {
 });
 
 test('Suspense re-renders when child transitions from PENDING to resolved', async () => {
-  const slowLogic = createLogic(import('./slowComponent'), { timeout: 0 });
-  const SlowComponent = createComponent(slowLogic);
-  const slowNode = createNode(SlowComponent, {});
+  const slowLogic = defineLogic(import('./slowComponent'), { timeout: 0 });
+  const SlowComponent = defineComponent(slowLogic);
+  const slowNode = defineNode(SlowComponent, {});
 
   const registry = new WeaverRegistry();
   // ... register all ...
   registry.setValue(slowNode.id, PENDING);
 
   const fallback = <div>Loading...</div>;
-  const suspenseNode = createNode(Suspense, { child: slowNode, fallback });
+  const suspenseNode = defineNode(Suspense, { child: slowNode, fallback });
   registry.registerSignal(suspenseNode);
 
   // Initial render shows fallback
@@ -1473,9 +1473,9 @@ test('Suspense re-renders when child transitions from PENDING to resolved', asyn
 
 test('Suspense integrates with SignalDelegate for reactive updates', async () => {
   // Full integration test with deferred logic triggering Suspense swap
-  const slowLogic = createLogic(import('./slowComponent'), { timeout: 0 });
-  const SlowComponent = createComponent(slowLogic);
-  const slowNode = createNode(SlowComponent, {});
+  const slowLogic = defineLogic(import('./slowComponent'), { timeout: 0 });
+  const SlowComponent = defineComponent(slowLogic);
+  const slowNode = defineNode(SlowComponent, {});
 
   const registry = new WeaverRegistry();
   // ... full setup ...
@@ -1501,7 +1501,7 @@ test('Suspense integrates with SignalDelegate for reactive updates', async () =>
 
 **Implementation Tasks**:
 - Define `ReducerSignal` interface with `source`, `reducer`, and `init` fields
-- Implement `createReducer(sourceSignal, reducerLogic, init)` function
+- Implement `defineReducer(sourceSignal, reducerLogic, init)` function
 - Implement iterable consumption in `executeReducer` using `for await...of`
 - On each item: apply reducer, update registry, emit signal-update
 - Handle iteration completion and errors
@@ -1510,12 +1510,12 @@ test('Suspense integrates with SignalDelegate for reactive updates', async () =>
 
 **Test Criteria**:
 ```typescript
-test('createReducer creates a ReducerSignal', () => {
-  const wsLogic = createLogic(import('./websocket'));
-  const wsStream = createComputed(wsLogic, [channel]);
-  const appendLogic = createLogic(import('./append'));
+test('defineReducer creates a ReducerSignal', () => {
+  const wsLogic = defineLogic(import('./websocket'));
+  const wsStream = defineComputed(wsLogic, [channel]);
+  const appendLogic = defineLogic(import('./append'));
 
-  const messages = createReducer(wsStream, appendLogic, []);
+  const messages = defineReducer(wsStream, appendLogic, []);
 
   expect(messages.kind).toBe('reducer');
   expect(messages.source).toBe(wsStream.id);
@@ -1533,9 +1533,9 @@ test('reducer signal accumulates values via reducer', async () => {
     }
   });
 
-  const sourceSignal = createSignal(mockStream);
-  const appendLogic = createLogic(import('./append'));
-  const messages = createReducer(sourceSignal, appendLogic, []);
+  const sourceSignal = defineSignal(mockStream);
+  const appendLogic = defineLogic(import('./append'));
+  const messages = defineReducer(sourceSignal, appendLogic, []);
 
   const registry = new WeaverRegistry();
   registry.registerSignal(sourceSignal);
@@ -1562,9 +1562,9 @@ test('reducer signal with latest reducer keeps only last value', async () => {
     }
   });
 
-  const sourceSignal = createSignal(mockStream);
-  const latestLogic = createLogic(import('./latest')); // (_, item) => item
-  const current = createReducer(sourceSignal, latestLogic, null);
+  const sourceSignal = defineSignal(mockStream);
+  const latestLogic = defineLogic(import('./latest')); // (_, item) => item
+  const current = defineReducer(sourceSignal, latestLogic, null);
 
   const registry = new WeaverRegistry();
   // ... register all ...
@@ -1583,9 +1583,9 @@ test('reducer signal emits signal-update for each item', async () => {
     }
   });
 
-  const sourceSignal = createSignal(mockStream);
-  const appendLogic = createLogic(import('./append'));
-  const items = createReducer(sourceSignal, appendLogic, []);
+  const sourceSignal = defineSignal(mockStream);
+  const appendLogic = defineLogic(import('./append'));
+  const items = defineReducer(sourceSignal, appendLogic, []);
 
   const registry = new WeaverRegistry();
   // ... register all ...
@@ -1618,9 +1618,9 @@ test('reducer signal handles iteration errors', async () => {
     }
   });
 
-  const sourceSignal = createSignal(errorStream);
-  const appendLogic = createLogic(import('./append'));
-  const items = createReducer(sourceSignal, appendLogic, []);
+  const sourceSignal = defineSignal(errorStream);
+  const appendLogic = defineLogic(import('./append'));
+  const items = defineReducer(sourceSignal, appendLogic, []);
 
   const registry = new WeaverRegistry();
   // ... register all ...
@@ -1646,7 +1646,7 @@ test('reducer signal handles iteration errors', async () => {
 
 **Implementation Tasks**:
 - Add `'worker'` to the `context` type in `LogicSignal` interface
-- Implement `createWorkerLogic(mod)` factory function (wrapper around `createLogic` with `context: 'worker'`)
+- Implement `defineWorkerLogic(mod)` factory function (wrapper around `defineLogic` with `context: 'worker'`)
 - Create two worker scripts:
   - `worker.ts` for browser/Bun (Web Worker API)
   - `nodeWorker.ts` for Node.js (worker_threads API)
@@ -1734,8 +1734,8 @@ parentPort.on('message', async ({ src, args }) => {
 
 **Test Criteria**:
 ```typescript
-test('createWorkerLogic creates logic signal with worker context', () => {
-  const logic = createWorkerLogic(import('./heavyCompute'));
+test('defineWorkerLogic creates logic signal with worker context', () => {
+  const logic = defineWorkerLogic(import('./heavyCompute'));
 
   expect(logic.kind).toBe('logic');
   expect(logic.context).toBe('worker');
@@ -1743,8 +1743,8 @@ test('createWorkerLogic creates logic signal with worker context', () => {
 
 test('worker logic executes in worker thread', async () => {
   // Create a logic that returns thread info
-  const logic = createWorkerLogic(import('./fixtures/threadInfo'));
-  const computed = createComputed(logic, []);
+  const logic = defineWorkerLogic(import('./fixtures/threadInfo'));
+  const computed = defineComputed(logic, []);
 
   const registry = new WeaverRegistry();
   registry.registerSignal(logic);
@@ -1785,8 +1785,8 @@ test('worker pool reuses workers', async () => {
 });
 
 test('worker logic handles errors', async () => {
-  const logic = createWorkerLogic(import('./fixtures/throwError'));
-  const computed = createComputed(logic, []);
+  const logic = defineWorkerLogic(import('./fixtures/throwError'));
+  const computed = defineComputed(logic, []);
 
   const registry = new WeaverRegistry();
   registry.registerSignal(logic);
@@ -1797,7 +1797,7 @@ test('worker logic handles errors', async () => {
 });
 
 test('worker logic uses correct path per runtime', async () => {
-  const logic = createWorkerLogic(import('./fixtures/compute'));
+  const logic = defineWorkerLogic(import('./fixtures/compute'));
 
   // Browser/Bun should use src
   // Node should use ssrSrc
@@ -1809,8 +1809,8 @@ test('worker logic uses correct path per runtime', async () => {
 
 test('worker logic with deferred timeout', async () => {
   // Worker logic can also use timeout for smart deferral
-  const logic = createWorkerLogic(import('./fixtures/slowCompute'), { timeout: 0 });
-  const computed = createComputed(logic, [], { init: 'loading' });
+  const logic = defineWorkerLogic(import('./fixtures/slowCompute'), { timeout: 0 });
+  const computed = defineComputed(logic, [], { init: 'loading' });
 
   const registry = new WeaverRegistry();
   registry.registerSignal(logic);
@@ -1829,12 +1829,12 @@ test('worker logic with deferred timeout', async () => {
 **Demo**:
 ```typescript
 // demo/src/pages/WorkerDemo.tsx
-import { createWorkerLogic, createComputed, createSignal } from "stream-weaver";
+import { defineWorkerLogic, defineComputed, defineSignal } from "stream-weaver";
 
 // CPU-intensive Fibonacci calculation - works on browser, Bun, and Node
-const fibLogic = createWorkerLogic(import("../logic/fibonacci"));
-const n = createSignal(40);
-const result = createComputed(fibLogic, [n], { init: "Calculating..." });
+const fibLogic = defineWorkerLogic(import("../logic/fibonacci"));
+const n = defineSignal(40);
+const result = defineComputed(fibLogic, [n], { init: "Calculating..." });
 
 export function WorkerExample() {
   return (

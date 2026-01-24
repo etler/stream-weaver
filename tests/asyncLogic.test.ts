@@ -1,5 +1,5 @@
 import { describe, test, expect } from "vitest";
-import { createSignal, createComputed, createAction, createHandler, LogicSignal } from "@/signals";
+import { defineSignal, defineComputed, defineAction, defineHandler, LogicSignal } from "@/signals";
 import { WeaverRegistry } from "@/registry/WeaverRegistry";
 import { executeComputed, executeAction, executeHandler } from "@/logic";
 import path from "node:path";
@@ -9,13 +9,13 @@ const fixturesPath = path.resolve(__dirname, "fixtures");
 
 describe("Milestone 11: Async Logic", () => {
   test("async computed logic resolves before storing value", async () => {
-    const count = createSignal(5);
+    const count = defineSignal(5);
     const asyncLogic: LogicSignal = {
       id: "logic_asyncDouble",
       kind: "logic",
       src: `${fixturesPath}/asyncDouble.js`,
     };
-    const doubled = createComputed(asyncLogic, [count]);
+    const doubled = defineComputed(asyncLogic, [count]);
 
     const registry = new WeaverRegistry();
     registry.registerSignal(count);
@@ -30,13 +30,13 @@ describe("Milestone 11: Async Logic", () => {
   });
 
   test("async action completes before signal updates propagate", async () => {
-    const count = createSignal(0);
+    const count = defineSignal(0);
     const asyncLogic: LogicSignal = {
       id: "logic_asyncInc",
       kind: "logic",
       src: `${fixturesPath}/asyncIncrement.js`,
     };
-    const increment = createAction(asyncLogic, [count]);
+    const increment = defineAction(asyncLogic, [count]);
 
     const registry = new WeaverRegistry();
     registry.registerSignal(count);
@@ -49,15 +49,15 @@ describe("Milestone 11: Async Logic", () => {
     expect(registry.getValue(count.id)).toBe(1);
   });
 
-  test("createSignal init must be Serializable", () => {
+  test("defineSignal init must be Serializable", () => {
     // Valid: JSON-compatible types
-    const s1 = createSignal("hello");
-    const s2 = createSignal(42);
-    const s3 = createSignal(true);
-    const s4 = createSignal(null);
-    const s5 = createSignal({ name: "Alice", age: 30 });
-    const s6 = createSignal([1, 2, 3]);
-    const s7 = createSignal({ nested: { array: [1, "two", null] } });
+    const s1 = defineSignal("hello");
+    const s2 = defineSignal(42);
+    const s3 = defineSignal(true);
+    const s4 = defineSignal(null);
+    const s5 = defineSignal({ name: "Alice", age: 30 });
+    const s6 = defineSignal([1, 2, 3]);
+    const s7 = defineSignal({ nested: { array: [1, "two", null] } });
 
     // All should create valid signals
     expect(s1.init).toBe("hello");
@@ -69,20 +69,20 @@ describe("Milestone 11: Async Logic", () => {
     expect(s7.init).toEqual({ nested: { array: [1, "two", null] } });
 
     // TypeScript should error on non-serializable types:
-    // const bad1 = createSignal(() => {}); // Function
-    // const bad2 = createSignal(undefined); // undefined
-    // const bad3 = createSignal(Symbol()); // Symbol
-    // const bad4 = createSignal(new Map()); // Map
+    // const bad1 = defineSignal(() => {}); // Function
+    // const bad2 = defineSignal(undefined); // undefined
+    // const bad3 = defineSignal(Symbol()); // Symbol
+    // const bad4 = defineSignal(new Map()); // Map
   });
 
   test("async handler awaits completion", async () => {
-    const value = createSignal("");
+    const value = defineSignal("");
     const asyncLogic: LogicSignal = {
       id: "logic_asyncHandler",
       kind: "logic",
       src: `${fixturesPath}/asyncHandler.js`,
     };
-    const handler = createHandler(asyncLogic, [value]);
+    const handler = defineHandler(asyncLogic, [value]);
 
     const registry = new WeaverRegistry();
     registry.registerSignal(value);

@@ -2,7 +2,7 @@ import { Node } from "./types/Node";
 import type { Element } from "./types/Element";
 import { Fragment } from "./Fragment";
 import { isSignal, isComponentSignal } from "@/ComponentDelegate/signalDetection";
-import { createNode } from "@/signals/createNode";
+import { defineNode } from "@/signals/defineNode";
 import type { ComponentSignal, NodeSignal } from "@/signals/types";
 
 type UnknownRecord<T extends string = string> = Record<T, unknown>;
@@ -19,7 +19,7 @@ export function jsx(type: Element["type"] | ComponentSignal, props: UnknownRecor
     if (children !== undefined) {
       nodeProps["children"] = normalizeChild(children);
     }
-    return createNode(type, nodeProps);
+    return defineNode(type, nodeProps);
   }
 
   if (type === Fragment) {
@@ -94,7 +94,7 @@ function normalizeNode(child: unknown): Node {
   }
 }
 
-// Keep for backward compatibility with createNode
+// Keep for backward compatibility with defineNode
 function normalizeChild(child: unknown): Node {
   return normalizeNode(child);
 }

@@ -13,35 +13,35 @@
  * - Server-side computations
  *
  * HOW IT WORKS:
- * 1. createServerLogic marks logic as server-only
+ * 1. defineServerLogic marks logic as server-only
  * 2. On SSR: executes directly like any other logic
  * 3. On client: serializes dependency chain, POSTs to server, gets result
  */
-import { createSignal, createComputed, createHandler, createLogic, createServerLogic } from "stream-weaver";
+import { defineSignal, defineComputed, defineHandler, defineLogic, defineServerLogic } from "stream-weaver";
 
 // --- Server Logic Signals ---
 
 // User ID state that can be changed from the client
-const userId = createSignal(1);
+const userId = defineSignal(1);
 
 // Server logic - fetches user from "database"
 // This will execute on the server and return the result
-const fetchUserLogic = createServerLogic(import("../logic/fetchUserFromDb"));
-const user = createComputed(fetchUserLogic, [userId], "Loading user...");
+const fetchUserLogic = defineServerLogic(import("../logic/fetchUserFromDb"));
+const user = defineComputed(fetchUserLogic, [userId], "Loading user...");
 
 // Server logic with no dependencies - just returns server time
-const getTimeLogic = createServerLogic(import("../logic/getServerTime"));
-const serverTime = createComputed(getTimeLogic, [], "Loading...");
+const getTimeLogic = defineServerLogic(import("../logic/getServerTime"));
+const serverTime = defineComputed(getTimeLogic, [], "Loading...");
 
 // --- Client-side handlers to change userId ---
-const setUser1Logic = createLogic(import("../logic/setUserId1"));
-const setUser1 = createHandler(setUser1Logic, [userId]);
+const setUser1Logic = defineLogic(import("../logic/setUserId1"));
+const setUser1 = defineHandler(setUser1Logic, [userId]);
 
-const setUser2Logic = createLogic(import("../logic/setUserId2"));
-const setUser2 = createHandler(setUser2Logic, [userId]);
+const setUser2Logic = defineLogic(import("../logic/setUserId2"));
+const setUser2 = defineHandler(setUser2Logic, [userId]);
 
-const setUser3Logic = createLogic(import("../logic/setUserId3"));
-const setUser3 = createHandler(setUser3Logic, [userId]);
+const setUser3Logic = defineLogic(import("../logic/setUserId3"));
+const setUser3 = defineHandler(setUser3Logic, [userId]);
 
 /**
  * User Card component - displays user fetched from server
@@ -121,7 +121,7 @@ export function ServerLogicExample(): JSX.Element {
         <strong>How it works:</strong>
         <ul style="margin: 0.5rem 0 0 0; padding-left: 1.5rem; font-size: 0.9rem;">
           <li>
-            <code>createServerLogic()</code> marks logic as server-only
+            <code>defineServerLogic()</code> marks logic as server-only
           </li>
           <li>During SSR: executes directly on the server</li>
           <li>

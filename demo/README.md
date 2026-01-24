@@ -14,14 +14,14 @@ Then open http://localhost:3000 in your browser.
 
 ### 01. Counter
 Basic state signals and event handlers. Demonstrates:
-- Creating state signals with `createSignal()`
-- Creating event handlers with `createHandler()`
+- Creating state signals with `defineSignal()`
+- Creating event handlers with `defineHandler()`
 - Binding handlers to DOM events with `onClick`
 - Reactive DOM updates
 
 ### 02. Computed Signals
 Reactive computed values that update automatically. Demonstrates:
-- Creating computed signals with `createComputed()`
+- Creating computed signals with `defineComputed()`
 - Automatic dependency tracking
 - Reactive propagation through the signal graph
 - Server-side execution of computed values
@@ -72,10 +72,10 @@ Example:
 
 ```tsx
 // demo/examples/03-my-example.tsx
-import { createSignal, createHandler } from "../../src/signals";
+import { defineSignal, defineHandler } from "../../src/signals";
 
-const myState = createSignal("initial");
-const myHandler = createHandler(import("../logic/my-logic.js"), [myState]);
+const myState = defineSignal("initial");
+const myHandler = defineHandler(import("../logic/my-logic.js"), [myState]);
 
 export function MyExample() {
   return (

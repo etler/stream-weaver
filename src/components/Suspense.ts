@@ -1,4 +1,4 @@
-import { createSuspense } from "@/signals/createSuspense";
+import { createSuspense } from "@/signals/defineSuspense";
 import type { SuspenseSignal } from "@/signals/types";
 import type { Node } from "@/jsx/types/Node";
 

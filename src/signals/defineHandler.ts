@@ -17,15 +17,15 @@ import { allocateDerivedId } from "./idAllocation";
  *
  * @example
  * // With typed logic (full type checking)
- * const count = createSignal(5);  // StateSignal<number>
- * const clickLogic = createLogic(import("./handleClick"));
+ * const count = defineSignal(5);  // StateSignal<number>
+ * const clickLogic = defineLogic(import("./handleClick"));
  * // handleClick = (e: MouseEvent, count: WritableSignalInterface<number>) => void
- * const onClick = createHandler(clickLogic, [count]);  // HandlerSignal<MouseEvent>
+ * const onClick = defineHandler(clickLogic, [count]);  // HandlerSignal<MouseEvent>
  *
  * @example
  * // With untyped logic (backwards compatible)
- * const legacyLogic = createLogic("./legacy.js");
- * const handler = createHandler(legacyLogic, [count]);  // HandlerSignal<Event>
+ * const legacyLogic = defineLogic("./legacy.js");
+ * const handler = defineHandler(legacyLogic, [count]);  // HandlerSignal<Event>
  */
 
 // Extract event type from handler function, defaulting to Event
@@ -33,13 +33,13 @@ type ExtractEventType<F extends LogicFunction> = First<Parameters<F>> extends Ev
 
 // Single signature with validation - no fallback overload
 // Use [...Deps] to encourage tuple inference instead of array inference
-export function createHandler<F extends LogicFunction, const Deps extends readonly AnySignal[]>(
+export function defineHandler<F extends LogicFunction, const Deps extends readonly AnySignal[]>(
   logic: LogicSignal<F>,
   deps: ValidateHandlerDeps<F, Deps>,
 ): HandlerSignal<ExtractEventType<F>>;
 
 // Implementation
-export function createHandler(logic: LogicSignal, deps: AnySignal[]): HandlerSignal {
+export function defineHandler(logic: LogicSignal, deps: AnySignal[]): HandlerSignal {
   const depIds = deps.map((dep) => dep.id);
   const id = allocateDerivedId(logic.id, depIds);
 

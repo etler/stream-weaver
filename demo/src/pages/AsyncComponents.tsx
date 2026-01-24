@@ -13,7 +13,7 @@
  * 1. Async components (UserDashboard, RecentActivity) - await directly in component
  * 2. Async logic signals (UserStats) - async handler with M11 executeLogic
  */
-import { createSignal, createHandler, createLogic } from "stream-weaver";
+import { defineSignal, defineHandler, defineLogic } from "stream-weaver";
 
 // Simulated API calls with delays to demonstrate streaming
 async function fetchUser(id: number): Promise<{ id: number; name: string; email: string }> {
@@ -38,13 +38,13 @@ async function fetchRecentActivity(): Promise<{ id: number; action: string; time
 // UserStats uses separate state signals + async handler to fetch data
 
 // Individual state signals for each stat (enables reactive updates per field)
-const commits = createSignal(0);
-const prs = createSignal(0);
-const reviews = createSignal(0);
+const commits = defineSignal(0);
+const prs = defineSignal(0);
+const reviews = defineSignal(0);
 
 // Async action logic that fetches and updates all stats
-const fetchStatsLogic = createLogic(import("../logic/fetchStatsAction"));
-const fetchStats = createHandler(fetchStatsLogic, [commits, prs, reviews]);
+const fetchStatsLogic = defineLogic(import("../logic/fetchStatsAction"));
+const fetchStats = defineHandler(fetchStatsLogic, [commits, prs, reviews]);
 
 /**
  * UserStats - powered by async logic signal (M11)

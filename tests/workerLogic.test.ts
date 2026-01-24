@@ -1,5 +1,5 @@
 import { describe, test, expect } from "vitest";
-import { createSignal, createComputed, createWorkerLogic, createLogic } from "@/signals";
+import { defineSignal, defineComputed, defineWorkerLogic, defineLogic } from "@/signals";
 import { isNodeOnly } from "@/utils/environment";
 import path from "node:path";
 
@@ -7,9 +7,9 @@ import path from "node:path";
 const fixturesPath = path.resolve(__dirname, "fixtures");
 
 describe("Milestone 16: Worker Logic", () => {
-  describe("createWorkerLogic", () => {
+  describe("defineWorkerLogic", () => {
     test("creates logic with context: worker", () => {
-      const workerLogic = createWorkerLogic(`${fixturesPath}/workerDouble.js`);
+      const workerLogic = defineWorkerLogic(`${fixturesPath}/workerDouble.js`);
 
       expect(workerLogic.context).toBe("worker");
       expect(workerLogic.kind).toBe("logic");
@@ -17,10 +17,10 @@ describe("Milestone 16: Worker Logic", () => {
     });
 
     test("different context options produce different IDs", () => {
-      const clientLogic = createLogic({ src: `${fixturesPath}/double.js` }, { context: "client" });
-      const serverLogic = createLogic({ src: `${fixturesPath}/double.js` }, { context: "server" });
-      const workerLogic = createLogic({ src: `${fixturesPath}/double.js` }, { context: "worker" });
-      const defaultLogic = createLogic({ src: `${fixturesPath}/double.js` });
+      const clientLogic = defineLogic({ src: `${fixturesPath}/double.js` }, { context: "client" });
+      const serverLogic = defineLogic({ src: `${fixturesPath}/double.js` }, { context: "server" });
+      const workerLogic = defineLogic({ src: `${fixturesPath}/double.js` }, { context: "worker" });
+      const defaultLogic = defineLogic({ src: `${fixturesPath}/double.js` });
 
       // All should have different IDs despite same src
       expect(clientLogic.id).not.toBe(serverLogic.id);
@@ -30,7 +30,7 @@ describe("Milestone 16: Worker Logic", () => {
     });
 
     test("worker logic can have timeout option", () => {
-      const deferredWorkerLogic = createLogic(
+      const deferredWorkerLogic = defineLogic(
         { src: `${fixturesPath}/workerDouble.js` },
         { context: "worker", timeout: 0 },
       );
@@ -55,9 +55,9 @@ describe("Milestone 16: Worker Logic", () => {
 
   describe("Worker logic signal creation", () => {
     test("creates computed signal with worker logic", () => {
-      const count = createSignal(5);
-      const workerLogic = createWorkerLogic(`${fixturesPath}/workerDouble.js`);
-      const result = createComputed(workerLogic, [count]);
+      const count = defineSignal(5);
+      const workerLogic = defineWorkerLogic(`${fixturesPath}/workerDouble.js`);
+      const result = defineComputed(workerLogic, [count]);
 
       expect(result.kind).toBe("computed");
       expect(result.logic).toBe(workerLogic.id);
@@ -65,9 +65,9 @@ describe("Milestone 16: Worker Logic", () => {
     });
 
     test("worker logic with init value", () => {
-      const count = createSignal(5);
-      const workerLogic = createWorkerLogic(`${fixturesPath}/workerDouble.js`);
-      const result = createComputed(workerLogic, [count], 0);
+      const count = defineSignal(5);
+      const workerLogic = defineWorkerLogic(`${fixturesPath}/workerDouble.js`);
+      const result = defineComputed(workerLogic, [count], 0);
 
       expect(result.init).toBe(0);
     });
@@ -79,7 +79,7 @@ describe("Milestone 16: Worker Logic", () => {
 
   describe("Context type", () => {
     test("context type includes worker", () => {
-      const workerLogic = createWorkerLogic(`${fixturesPath}/workerDouble.js`);
+      const workerLogic = defineWorkerLogic(`${fixturesPath}/workerDouble.js`);
 
       // TypeScript should allow 'worker' as a context value
       const context: "server" | "client" | "worker" | undefined = workerLogic.context;

@@ -6,35 +6,35 @@
  * - Server-side blocking worker: Fibonacci computation runs during SSR
  * - Client-side deferred worker: Prime counting runs without blocking UI
  */
-import { createSignal, createHandler, createComputed, createLogic, createWorkerLogic, Suspense } from "stream-weaver";
+import { defineSignal, defineHandler, defineComputed, defineLogic, defineWorkerLogic, Suspense } from "stream-weaver";
 
 // --- Fibonacci (Server-side blocking worker) ---
 // This computation runs during SSR in a Node.js worker thread
 // The result is included in the initial HTML
-const fibInput = createSignal(35);
-const fibLogic = createWorkerLogic(import("../logic/fibonacciWorker"));
-const fibResult = createComputed(fibLogic, [fibInput], "Computing...");
+const fibInput = defineSignal(35);
+const fibLogic = defineWorkerLogic(import("../logic/fibonacciWorker"));
+const fibResult = defineComputed(fibLogic, [fibInput], "Computing...");
 
 // Handler to increment fib input
-const incrementFibLogic = createLogic(import("../logic/incrementFibInput"));
-const incrementFib = createHandler(incrementFibLogic, [fibInput]);
+const incrementFibLogic = defineLogic(import("../logic/incrementFibInput"));
+const incrementFib = defineHandler(incrementFibLogic, [fibInput]);
 
 // Handler to decrement fib input
-const decrementFibLogic = createLogic(import("../logic/decrement"));
-const decrementFib = createHandler(decrementFibLogic, [fibInput]);
+const decrementFibLogic = defineLogic(import("../logic/decrement"));
+const decrementFib = defineHandler(decrementFibLogic, [fibInput]);
 
 // --- Prime counting (Client-side deferred worker) ---
 // This computation runs on the client with timeout: 0 (non-blocking)
 // Shows loading state initially, updates when computation completes
-const primeLimit = createSignal(100000);
-const primeLogic = createWorkerLogic(import("../logic/primeCountWorker"));
+const primeLimit = defineSignal(100000);
+const primeLogic = defineWorkerLogic(import("../logic/primeCountWorker"));
 // Create deferred version by passing the logic signal with timeout and context options
-const deferredPrimeLogic = createLogic(primeLogic, { timeout: 0, context: "worker" });
-const primeResult = createComputed(deferredPrimeLogic, [primeLimit]);
+const deferredPrimeLogic = defineLogic(primeLogic, { timeout: 0, context: "worker" });
+const primeResult = defineComputed(deferredPrimeLogic, [primeLimit]);
 
 // Handler to increment prime limit
-const incrementPrimeLimitLogic = createLogic(import("../logic/incrementPrimeLimit"));
-const incrementPrimeLimit = createHandler(incrementPrimeLimitLogic, [primeLimit]);
+const incrementPrimeLimitLogic = defineLogic(import("../logic/incrementPrimeLimit"));
+const incrementPrimeLimit = defineHandler(incrementPrimeLimitLogic, [primeLimit]);
 
 function FibonacciSection(): JSX.Element {
   return (
@@ -140,7 +140,7 @@ export function WorkerExample(): JSX.Element {
         <h3 style="margin: 0 0 0.5rem 0;">How it works</h3>
         <ul style="margin: 0; padding-left: 1.5rem; color: #666;">
           <li>
-            <strong>Blocking (blue):</strong> Uses <code>createWorkerLogic()</code> without timeout. Computation
+            <strong>Blocking (blue):</strong> Uses <code>defineWorkerLogic()</code> without timeout. Computation
             completes before the page renders (SSR) or before the handler returns (client).
           </li>
           <li style="margin-top: 0.5rem;">

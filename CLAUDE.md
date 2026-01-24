@@ -123,13 +123,13 @@ Tests are not just validation - they are **executable specifications**. The test
 ```typescript
 // 1. Read the test criteria from PLANNING.md
 test('signal creation and value access', () => {
-  const count = createSignal(0);
+  const count = defineSignal(0);
   expect(count.id).toBe('s1');
   expect(count.value).toBe(0);
 });
 
 // 2. Implement to make it pass
-export function createSignal<T>(init: T): StateSignal<T> {
+export function defineSignal<T>(init: T): StateSignal<T> {
   // Implementation here
 }
 
@@ -261,7 +261,7 @@ Reuse these patterns when integrating components as signals (M10).
 ### How to Ask
 
 Be specific:
-- ✅ "M2 test criteria shows `createComputedDef([count])` but API.md shows `createComputed(logic, deps)`. Should M2 use a different function name?"
+- ✅ "M2 test criteria shows `defineComputedDef([count])` but API.md shows `defineComputed(logic, deps)`. Should M2 use a different function name?"
 - ❌ "I'm confused about computed signals"
 
 ---
@@ -307,12 +307,12 @@ interface StateSignal<T> extends Signal {
 
 // ❌ Don't implement future features
 // (in M1, adding logic execution from M8)
-const doubled = createComputed(logic, [count]);
+const doubled = defineComputed(logic, [count]);
 await executeComputed(doubled.id); // M8 feature!
 
 // ✅ Only current milestone
 // (M1 just needs signal creation)
-const count = createSignal(0);
+const count = defineSignal(0);
 count.value = 5;
 ```
 
@@ -340,7 +340,7 @@ count.value = 5;
 
 3. **Verify implementation**
    ```typescript
-   export function createSignal<T>(init: T): StateSignal<T> {
+   export function defineSignal<T>(init: T): StateSignal<T> {
      return {
        id: allocateId(), // ← Make sure this is called
        init,

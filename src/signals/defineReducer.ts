@@ -24,23 +24,23 @@ import { allocateDerivedId } from "./idAllocation";
  *
  * @example
  * // Reduce a ReadableStream
- * const wsLogic = createClientLogic(import("./websocket"));
- * const wsStream = createComputed(wsLogic, [channel]); // Value is ReadableStream
+ * const wsLogic = defineClientLogic(import("./websocket"));
+ * const wsStream = defineComputed(wsLogic, [channel]); // Value is ReadableStream
  *
- * const appendLogic = createLogic(import("./reducers/append"));
- * const messages = createReducer(wsStream, appendLogic, []);
+ * const appendLogic = defineLogic(import("./reducers/append"));
+ * const messages = defineReducer(wsStream, appendLogic, []);
  * // messages.value is Message[], updates as items arrive
  *
  * @example
  * // Reduce an async generator
- * const dataLogic = createLogic(import("./dataGenerator"));
- * const dataGen = createComputed(dataLogic, []); // Value is AsyncGenerator
+ * const dataLogic = defineLogic(import("./dataGenerator"));
+ * const dataGen = defineComputed(dataLogic, []); // Value is AsyncGenerator
  *
- * const latestLogic = createLogic(import("./reducers/latest"));
- * const currentValue = createReducer(dataGen, latestLogic, null);
+ * const latestLogic = defineLogic(import("./reducers/latest"));
+ * const currentValue = defineReducer(dataGen, latestLogic, null);
  * // currentValue.value is the most recent item
  */
-export function createReducer<T>(sourceSignal: AnySignal, reducerLogic: LogicSignal, init: T): ReducerSignal<T> {
+export function defineReducer<T>(sourceSignal: AnySignal, reducerLogic: LogicSignal, init: T): ReducerSignal<T> {
   const id = allocateDerivedId(reducerLogic.id, [sourceSignal.id]);
 
   return {

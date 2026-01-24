@@ -5,7 +5,7 @@
  * IMPOSSIBLE IN OTHER FRAMEWORKS:
  * - React: Hooks must be called inside components
  * - Vue: Composables must be called in setup()
- * - Solid: createSignal needs reactive scope
+ * - Solid: defineSignal needs reactive scope
  *
  * Stream Weaver: Signals are just objects - create them anywhere!
  * Import them in any component, no providers needed.

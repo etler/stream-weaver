@@ -2,23 +2,23 @@
  * Example 2: Computed Signals
  * Demonstrates reactive computed values that update automatically
  */
-import { createSignal, createHandler, createComputed, createLogic } from "stream-weaver";
+import { defineSignal, defineHandler, defineComputed, defineLogic } from "stream-weaver";
 
 // Create a state signal for the count
-const count = createSignal(0);
+const count = defineSignal(0);
 
 // Create logic signals (type-safe with import())
-const doubleLogic = createLogic(import("../logic/double"));
-const incrementLogic = createLogic(import("../logic/increment"));
-const decrementLogic = createLogic(import("../logic/decrement"));
+const doubleLogic = defineLogic(import("../logic/double"));
+const incrementLogic = defineLogic(import("../logic/increment"));
+const decrementLogic = defineLogic(import("../logic/decrement"));
 
 // Create a computed signal that doubles the count (TypeScript infers return type from logic)
 // Initial value of 0 for SSR (since 0 * 2 = 0)
-const doubled = createComputed(doubleLogic, [count], 0);
+const doubled = defineComputed(doubleLogic, [count], 0);
 
 // Create handlers for increment/decrement (TypeScript validates deps match function signature)
-const increment = createHandler(incrementLogic, [count]);
-const decrement = createHandler(decrementLogic, [count]);
+const increment = defineHandler(incrementLogic, [count]);
+const decrement = defineHandler(decrementLogic, [count]);
 
 export function ComputedExample(): JSX.Element {
   return (

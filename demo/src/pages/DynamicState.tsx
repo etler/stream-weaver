@@ -5,20 +5,20 @@
  * IMPOSSIBLE IN OTHER FRAMEWORKS:
  * - React: "Rules of Hooks" - can't call hooks in loops or conditionals
  * - Vue: Similar restrictions on composables
- * - Solid: createSignal must maintain consistent call order
+ * - Solid: defineSignal must maintain consistent call order
  *
  * Stream Weaver: Signals are identified by ID, not call order!
  * Create them in loops, conditionals, wherever you need them.
  */
-import { createSignal, createHandler, createLogic, createComputed, createComponent } from "stream-weaver";
+import { defineSignal, defineHandler, defineLogic, defineComputed, defineComponent } from "stream-weaver";
 
 // Logic for toggling state and visual display (type-safe with import())
-const toggleLogic = createLogic(import("../logic/toggle"));
-const checkmarkLogic = createLogic(import("../logic/checkmark"));
+const toggleLogic = defineLogic(import("../logic/toggle"));
+const checkmarkLogic = defineLogic(import("../logic/checkmark"));
 
 // ComponentSignal for the ConditionalFeature component
-const ConditionalFeatureLogic = createLogic(import("../components/ConditionalFeature"));
-const ConditionalFeature = createComponent(ConditionalFeatureLogic);
+const ConditionalFeatureLogic = defineLogic(import("../components/ConditionalFeature"));
+const ConditionalFeature = defineComponent(ConditionalFeatureLogic);
 
 // Sample data - each item will get its own independent state
 const todoItems = [
@@ -39,11 +39,11 @@ const todoItems = [
  */
 function TodoItem(item: { id: string; text: string; priority: string }): JSX.Element {
   // State created in a loop! Each item has its own independent completed state.
-  const completed = createSignal(false);
-  const toggleCompleted = createHandler(toggleLogic, [completed]);
+  const completed = defineSignal(false);
+  const toggleCompleted = defineHandler(toggleLogic, [completed]);
 
   // Computed signal that returns a checkmark when completed
-  const checkmark = createComputed(checkmarkLogic, [completed], "");
+  const checkmark = defineComputed(checkmarkLogic, [completed], "");
 
   const priorityColors: Record<string, string> = {
     high: "#f44336",
@@ -78,8 +78,8 @@ function TodoItem(item: { id: string; text: string; priority: string }): JSX.Ele
  */
 export function DynamicStateExample(): JSX.Element {
   // State to toggle the conditional feature
-  const advancedEnabled = createSignal(true);
-  const toggleAdvanced = createHandler(toggleLogic, [advancedEnabled]);
+  const advancedEnabled = defineSignal(true);
+  const toggleAdvanced = defineHandler(toggleLogic, [advancedEnabled]);
 
   return (
     <div style="padding: 1rem; max-width: 600px; margin: 0 auto;">
@@ -126,7 +126,6 @@ export function DynamicStateExample(): JSX.Element {
             <span>Currently: {advancedEnabled}</span>
           </label>
         </div>
-        {/* @ts-expect-error ComponentSignal is valid JSX in stream-weaver */}
         <ConditionalFeature enabled={advancedEnabled} />
       </section>
     </div>

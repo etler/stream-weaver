@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createSignal, createLogic, createComputed } from "@/signals";
+import { defineSignal, defineLogic, defineComputed } from "@/signals";
 import { WeaverRegistry } from "@/registry/WeaverRegistry";
 import { SignalDelegate } from "@/SignalDelegate";
 import { executeComputed } from "@/logic";
@@ -7,9 +7,9 @@ import { executeComputed } from "@/logic";
 describe("Milestone 4: Reactivity Propagation (ChainExplode)", () => {
   describe("Signal Update Propagation", () => {
     it("signal update triggers dependent computed execution", async () => {
-      const count = createSignal(5);
-      const doubleLogic = createLogic("./tests/fixtures/double.js");
-      const doubled = createComputed(doubleLogic, [count]);
+      const count = defineSignal(5);
+      const doubleLogic = defineLogic("./tests/fixtures/double.js");
+      const doubled = defineComputed(doubleLogic, [count]);
 
       const registry = new WeaverRegistry();
       registry.registerSignal(count);
@@ -43,10 +43,10 @@ describe("Milestone 4: Reactivity Propagation (ChainExplode)", () => {
     });
 
     it("cascading updates propagate through multiple levels", async () => {
-      const count = createSignal(2);
-      const doubleLogic = createLogic("./tests/fixtures/double.js");
-      const doubled = createComputed(doubleLogic, [count]);
-      const quadrupled = createComputed(doubleLogic, [doubled]);
+      const count = defineSignal(2);
+      const doubleLogic = defineLogic("./tests/fixtures/double.js");
+      const doubled = defineComputed(doubleLogic, [count]);
+      const quadrupled = defineComputed(doubleLogic, [doubled]);
 
       const registry = new WeaverRegistry();
       registry.registerSignal(count);
@@ -84,11 +84,11 @@ describe("Milestone 4: Reactivity Propagation (ChainExplode)", () => {
     });
 
     it("multiple dependents execute in parallel", async () => {
-      const count = createSignal(5);
-      const doubleLogic = createLogic("./tests/fixtures/double.js");
-      const tripleLogic = createLogic("./tests/fixtures/triple.js");
-      const doubled = createComputed(doubleLogic, [count]);
-      const tripled = createComputed(tripleLogic, [count]);
+      const count = defineSignal(5);
+      const doubleLogic = defineLogic("./tests/fixtures/double.js");
+      const tripleLogic = defineLogic("./tests/fixtures/triple.js");
+      const doubled = defineComputed(doubleLogic, [count]);
+      const tripled = defineComputed(tripleLogic, [count]);
 
       const registry = new WeaverRegistry();
       registry.registerSignal(count);

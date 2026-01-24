@@ -2,9 +2,9 @@
  * @vitest-environment happy-dom
  */
 import { describe, test, expect, beforeEach } from "vitest";
-import { createSignal } from "@/signals/createSignal";
-import { createHandler } from "@/signals/createHandler";
-import { createLogic } from "@/signals/createLogic";
+import { defineSignal } from "@/signals/defineSignal";
+import { defineHandler } from "@/signals/defineHandler";
+import { defineLogic } from "@/signals/defineLogic";
 import { WeaverRegistry } from "@/registry/WeaverRegistry";
 import { SignalDelegate } from "@/SignalDelegate/SignalDelegate";
 import { setupEventDelegation } from "@/events/setupEventDelegation";
@@ -30,9 +30,9 @@ describe("Milestone 7: Event Delegation Infrastructure", () => {
   });
 
   test("event delegation finds handler ID and triggers execution", async () => {
-    const count = createSignal(0);
-    const logic = createLogic("./tests/fixtures/handleClick.js");
-    const handler = createHandler(logic, [count]);
+    const count = defineSignal(0);
+    const logic = defineLogic("./tests/fixtures/handleClick.js");
+    const handler = defineHandler(logic, [count]);
 
     const registry = new WeaverRegistry();
     registry.registerSignal(count);
@@ -72,11 +72,11 @@ describe("Milestone 7: Event Delegation Infrastructure", () => {
   });
 
   test("multiple event types work", async () => {
-    const count1 = createSignal(0);
-    const count2 = createSignal(0);
-    const logic = createLogic("./tests/fixtures/handleClick.js");
-    const clickHandler = createHandler(logic, [count1]);
-    const inputHandler = createHandler(logic, [count2]);
+    const count1 = defineSignal(0);
+    const count2 = defineSignal(0);
+    const logic = defineLogic("./tests/fixtures/handleClick.js");
+    const clickHandler = defineHandler(logic, [count1]);
+    const inputHandler = defineHandler(logic, [count2]);
 
     const registry = new WeaverRegistry();
     registry.registerSignal(count1);
@@ -131,9 +131,9 @@ describe("Milestone 7: Event Delegation Infrastructure", () => {
   });
 
   test("event delegation bubbles to parent", async () => {
-    const count = createSignal(0);
-    const logic = createLogic("./tests/fixtures/handleClick.js");
-    const handler = createHandler(logic, [count]);
+    const count = defineSignal(0);
+    const logic = defineLogic("./tests/fixtures/handleClick.js");
+    const handler = defineHandler(logic, [count]);
 
     const registry = new WeaverRegistry();
     registry.registerSignal(count);

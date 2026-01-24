@@ -3,10 +3,10 @@
  */
 import { describe, test, expect, beforeEach } from "vitest";
 import { ClientWeaver } from "@/client/ClientWeaver";
-import { createSignal } from "@/signals/createSignal";
-import { createComputed } from "@/signals/createComputed";
-import { createHandler } from "@/signals/createHandler";
-import { createLogic } from "@/signals/createLogic";
+import { defineSignal } from "@/signals/defineSignal";
+import { defineComputed } from "@/signals/defineComputed";
+import { defineHandler } from "@/signals/defineHandler";
+import { defineLogic } from "@/signals/defineLogic";
 import { WeaverRegistry } from "@/registry/WeaverRegistry";
 import { executeComputed } from "@/logic";
 
@@ -90,9 +90,9 @@ describe("Milestone 9: Full Stack Integration", () => {
 
   test("reactive updates propagate to DOM", async () => {
     // Setup: Create signals and render
-    const count = createSignal(0);
-    const logic = createLogic("./tests/fixtures/double.js");
-    const doubled = createComputed(logic, [count]);
+    const count = defineSignal(0);
+    const logic = defineLogic("./tests/fixtures/double.js");
+    const doubled = defineComputed(logic, [count]);
 
     const registry = new WeaverRegistry();
     registry.registerSignal(count);
@@ -142,9 +142,9 @@ describe("Milestone 9: Full Stack Integration", () => {
 
   test("event handler triggers reactive cycle", async () => {
     // Setup signals
-    const count = createSignal(0);
-    const logic = createLogic("./tests/fixtures/handleClick.js");
-    const increment = createHandler(logic, [count]);
+    const count = defineSignal(0);
+    const logic = defineLogic("./tests/fixtures/handleClick.js");
+    const increment = defineHandler(logic, [count]);
 
     const registry = new WeaverRegistry();
     registry.registerSignal(count);
@@ -192,11 +192,11 @@ describe("Milestone 9: Full Stack Integration", () => {
 
   test("full reactive cycle with computed signal", async () => {
     // Setup signals
-    const count = createSignal(0);
-    const doubleLogic = createLogic("./tests/fixtures/double.js");
-    const doubled = createComputed(doubleLogic, [count]);
-    const incrementLogic = createLogic("./tests/fixtures/handleClick.js");
-    const increment = createHandler(incrementLogic, [count]);
+    const count = defineSignal(0);
+    const doubleLogic = defineLogic("./tests/fixtures/double.js");
+    const doubled = defineComputed(doubleLogic, [count]);
+    const incrementLogic = defineLogic("./tests/fixtures/handleClick.js");
+    const increment = defineHandler(incrementLogic, [count]);
 
     const registry = new WeaverRegistry();
     registry.registerSignal(count);

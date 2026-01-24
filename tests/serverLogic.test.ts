@@ -1,5 +1,5 @@
 import { describe, test, expect } from "vitest";
-import { createSignal, createComputed, createServerLogic, createLogic } from "@/signals";
+import { defineSignal, defineComputed, defineServerLogic, defineLogic } from "@/signals";
 import { WeaverRegistry } from "@/registry/WeaverRegistry";
 import { serializeSignalChain, executeFromChain } from "@/logic/remoteExecution";
 import path from "node:path";
@@ -8,9 +8,9 @@ import path from "node:path";
 const fixturesPath = path.resolve(__dirname, "fixtures");
 
 describe("Milestone 13: Server-side Logic", () => {
-  describe("createServerLogic", () => {
+  describe("defineServerLogic", () => {
     test("creates logic with context: server", () => {
-      const serverLogic = createServerLogic(`${fixturesPath}/serverDouble.js`);
+      const serverLogic = defineServerLogic(`${fixturesPath}/serverDouble.js`);
 
       expect(serverLogic.context).toBe("server");
       expect(serverLogic.kind).toBe("logic");
@@ -18,9 +18,9 @@ describe("Milestone 13: Server-side Logic", () => {
     });
 
     test("different context options produce different IDs", () => {
-      const clientLogic = createLogic({ src: `${fixturesPath}/double.js` }, { context: "client" });
-      const serverLogic = createLogic({ src: `${fixturesPath}/double.js` }, { context: "server" });
-      const defaultLogic = createLogic({ src: `${fixturesPath}/double.js` });
+      const clientLogic = defineLogic({ src: `${fixturesPath}/double.js` }, { context: "client" });
+      const serverLogic = defineLogic({ src: `${fixturesPath}/double.js` }, { context: "server" });
+      const defaultLogic = defineLogic({ src: `${fixturesPath}/double.js` });
 
       // All should have different IDs despite same src
       expect(clientLogic.id).not.toBe(serverLogic.id);
@@ -31,9 +31,9 @@ describe("Milestone 13: Server-side Logic", () => {
 
   describe("serializeSignalChain", () => {
     test("serializes a simple computed signal chain", () => {
-      const count = createSignal(5);
-      const logic = createLogic({ src: `${fixturesPath}/double.js` });
-      const result = createComputed(logic, [count]);
+      const count = defineSignal(5);
+      const logic = defineLogic({ src: `${fixturesPath}/double.js` });
+      const result = defineComputed(logic, [count]);
 
       const registry = new WeaverRegistry();
       registry.registerSignal(count);
@@ -53,9 +53,9 @@ describe("Milestone 13: Server-side Logic", () => {
     });
 
     test("includes values for state signals", () => {
-      const count = createSignal(5);
-      const logic = createLogic({ src: `${fixturesPath}/double.js` });
-      const result = createComputed(logic, [count]);
+      const count = defineSignal(5);
+      const logic = defineLogic({ src: `${fixturesPath}/double.js` });
+      const result = defineComputed(logic, [count]);
 
       const registry = new WeaverRegistry();
       registry.registerSignal(count);
@@ -73,12 +73,12 @@ describe("Milestone 13: Server-side Logic", () => {
     test("prunes at computed signals with serializable values", () => {
       // Build a chain: count -> double -> triple
       // If double already has a value, triple's chain shouldn't include count
-      const count = createSignal(5);
-      const doubleLogic = createLogic({ src: `${fixturesPath}/double.js` });
-      const doubled = createComputed(doubleLogic, [count]);
+      const count = defineSignal(5);
+      const doubleLogic = defineLogic({ src: `${fixturesPath}/double.js` });
+      const doubled = defineComputed(doubleLogic, [count]);
 
-      const tripleLogic = createLogic({ src: `${fixturesPath}/triple.js` });
-      const tripled = createComputed(tripleLogic, [doubled]);
+      const tripleLogic = defineLogic({ src: `${fixturesPath}/triple.js` });
+      const tripled = defineComputed(tripleLogic, [doubled]);
 
       const registry = new WeaverRegistry();
       registry.registerSignal(count);
@@ -110,9 +110,9 @@ describe("Milestone 13: Server-side Logic", () => {
     });
 
     test("removes non-serializable references from signals", () => {
-      const count = createSignal(5);
-      const logic = createLogic({ src: `${fixturesPath}/double.js` });
-      const result = createComputed(logic, [count]);
+      const count = defineSignal(5);
+      const logic = defineLogic({ src: `${fixturesPath}/double.js` });
+      const result = defineComputed(logic, [count]);
 
       const registry = new WeaverRegistry();
       registry.registerSignal(count);
@@ -130,9 +130,9 @@ describe("Milestone 13: Server-side Logic", () => {
   describe("executeFromChain", () => {
     test("rebuilds registry and executes computed signal", async () => {
       // Create signals and serialize
-      const count = createSignal(5);
-      const logic = createLogic({ src: `${fixturesPath}/double.js` });
-      const result = createComputed(logic, [count]);
+      const count = defineSignal(5);
+      const logic = defineLogic({ src: `${fixturesPath}/double.js` });
+      const result = defineComputed(logic, [count]);
 
       const registry = new WeaverRegistry();
       registry.registerSignal(count);
@@ -148,9 +148,9 @@ describe("Milestone 13: Server-side Logic", () => {
     });
 
     test("uses serialized values correctly", async () => {
-      const count = createSignal(0); // init is 0
-      const logic = createLogic({ src: `${fixturesPath}/double.js` });
-      const result = createComputed(logic, [count]);
+      const count = defineSignal(0); // init is 0
+      const logic = defineLogic({ src: `${fixturesPath}/double.js` });
+      const result = defineComputed(logic, [count]);
 
       const registry = new WeaverRegistry();
       registry.registerSignal(count);
@@ -168,12 +168,12 @@ describe("Milestone 13: Server-side Logic", () => {
 
     test("works with pruned chains", async () => {
       // Build chain where intermediate computed has value
-      const count = createSignal(5);
-      const doubleLogic = createLogic({ src: `${fixturesPath}/double.js` });
-      const doubled = createComputed(doubleLogic, [count]);
+      const count = defineSignal(5);
+      const doubleLogic = defineLogic({ src: `${fixturesPath}/double.js` });
+      const doubled = defineComputed(doubleLogic, [count]);
 
-      const tripleLogic = createLogic({ src: `${fixturesPath}/triple.js` });
-      const tripled = createComputed(tripleLogic, [doubled]);
+      const tripleLogic = defineLogic({ src: `${fixturesPath}/triple.js` });
+      const tripled = defineComputed(tripleLogic, [doubled]);
 
       const registry = new WeaverRegistry();
       registry.registerSignal(count);
@@ -194,7 +194,7 @@ describe("Milestone 13: Server-side Logic", () => {
     });
 
     test("throws error for unsupported signal types", async () => {
-      const count = createSignal(5);
+      const count = defineSignal(5);
 
       const registry = new WeaverRegistry();
       registry.registerSignal(count);
@@ -208,9 +208,9 @@ describe("Milestone 13: Server-side Logic", () => {
 
   describe("integration", () => {
     test("chain serialization is idempotent", () => {
-      const count = createSignal(5);
-      const logic = createLogic({ src: `${fixturesPath}/double.js` });
-      const result = createComputed(logic, [count]);
+      const count = defineSignal(5);
+      const logic = defineLogic({ src: `${fixturesPath}/double.js` });
+      const result = defineComputed(logic, [count]);
 
       const registry = new WeaverRegistry();
       registry.registerSignal(count);
@@ -225,9 +225,9 @@ describe("Milestone 13: Server-side Logic", () => {
     });
 
     test("server logic keeps src in serialization for server execution", () => {
-      const count = createSignal(5);
-      const serverLogic = createServerLogic(`${fixturesPath}/serverDouble.js`);
-      const result = createComputed(serverLogic, [count]);
+      const count = defineSignal(5);
+      const serverLogic = defineServerLogic(`${fixturesPath}/serverDouble.js`);
+      const result = defineComputed(serverLogic, [count]);
 
       const registry = new WeaverRegistry();
       registry.registerSignal(count);

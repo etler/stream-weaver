@@ -29,11 +29,11 @@ export default function increment(n: number): number {
 }
 
 // Counter.tsx
-import { createSignal, createComputed, createLogic } from 'stream-weaver';
+import { defineSignal, defineComputed, defineLogic } from 'stream-weaver';
 
-const incrementLogic = createLogic(import('./increment.logic.ts'));
-const count = createSignal(0);
-const next = createComputed(incrementLogic, [count]);
+const incrementLogic = defineLogic(import('./increment.logic.ts'));
+const count = defineSignal(0);
+const next = defineComputed(incrementLogic, [count]);
 ```
 
 This separation:
@@ -48,7 +48,7 @@ Inline module expressions allow logic to be defined alongside components:
 
 ```typescript
 // Counter.tim
-import { createSignal, createComputed } from 'stream-weaver';
+import { defineSignal, defineComputed } from 'stream-weaver';
 
 const incrementLogic = module {
   export default function increment(n: number): number {
@@ -56,8 +56,8 @@ const incrementLogic = module {
   }
 };
 
-const count = createSignal(0);
-const next = createComputed(incrementLogic, [count]);
+const count = defineSignal(0);
+const next = defineComputed(incrementLogic, [count]);
 ```
 
 ### Goals
@@ -820,16 +820,16 @@ export function weaverModulesPlugin(options: WeaverModulesOptions = {}): Plugin 
         const block = parsed.moduleBlocks[i];
 
         // Replace: const name = module { ... }
-        // With:    const name = createLogic(import('./${basename}.__mod${i}'))
+        // With:    const name = defineLogic(import('./${basename}.__mod${i}'))
         const replacement =
-          `const ${block.name} = createLogic(import('./${basename}.__mod${i}'))`;
+          `const ${block.name} = defineLogic(import('./${basename}.__mod${i}'))`;
 
         s.overwrite(block.start, block.end, replacement);
       }
 
-      // Add createLogic import if not present
-      if (!code.includes('createLogic')) {
-        s.prepend(`import { createLogic } from 'stream-weaver';\n`);
+      // Add defineLogic import if not present
+      if (!code.includes('defineLogic')) {
+        s.prepend(`import { defineLogic } from 'stream-weaver';\n`);
       }
 
       return {
@@ -949,8 +949,8 @@ const increment = module {
 // }>
 
 // Usage with full type safety:
-const count = createSignal(0);
-const next = createComputed(increment, [count]);
+const count = defineSignal(0);
+const next = defineComputed(increment, [count]);
 // next is typed as ComputedSignal<number>
 
 // Access to named exports:
@@ -1037,7 +1037,7 @@ test('transforms module block to import', async () => {
       export default (n: number) => n + 1;
     };
   `);
-  expect(result.code).toContain('createLogic(import(');
+  expect(result.code).toContain('defineLogic(import(');
   expect(result.code).not.toContain('module {');
 });
 

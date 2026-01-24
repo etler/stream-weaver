@@ -14,8 +14,8 @@ Then open http://localhost:3000 in your browser.
 
 ### 1. Counter (http://localhost:3000/counter)
 A simple counter demonstrating:
-- State signals (`createSignal`)
-- Event handlers (`createHandler`)
+- State signals (`defineSignal`)
+- Event handlers (`defineHandler`)
 - DOM event binding (`onClick`)
 - Reactive updates
 
@@ -23,7 +23,7 @@ Click the + and - buttons to see the counter update in real-time.
 
 ### 2. Computed Signals (http://localhost:3000/computed)
 Shows reactive computed values:
-- Computed signals (`createComputed`)
+- Computed signals (`defineComputed`)
 - Automatic dependency tracking
 - Cascading updates through the signal graph
 
@@ -78,10 +78,10 @@ demo/
 1. Create your component in `demo/examples/`:
 ```tsx
 // demo/examples/03-my-example.tsx
-import { createSignal, createHandler } from "../../src/signals";
+import { defineSignal, defineHandler } from "../../src/signals";
 
-const state = createSignal("initial");
-const handler = createHandler(import("../logic/my-logic.js"), [state]);
+const state = defineSignal("initial");
+const handler = defineHandler(import("../logic/my-logic.js"), [state]);
 
 export function MyExample() {
   return (
@@ -117,7 +117,7 @@ export default function myLogic(event, state) {
 ### Signal Lifecycle
 
 **Server:**
-1. Signal created with `createSignal(init)`
+1. Signal created with `defineSignal(init)`
 2. ID allocated (counter-based: s1, s2, ...)
 3. Value stored in `WeaverRegistry`
 4. Serialized to HTML with bind markers + definition script

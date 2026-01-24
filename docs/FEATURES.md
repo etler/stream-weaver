@@ -7,10 +7,10 @@
 
 ### 2. Reactivity System (Signals)
 
-* **State Signals:** Writable primitives created via `createSignal<T>` that hold values and trigger updates.
-* **Computed Signals:** Derived values created via `createComputed` that automatically re-execute when dependencies change. They receive read-only access to their dependencies.
-* **Actions:** Imperative logic created via `createAction` that can mutate State Signals. These are explicitly invoked (not automatic) to prevent circular dependencies.
-* **Event Handlers:** Specialized actions created via `createHandler` that receive the DOM `Event` object as their first argument.
+* **State Signals:** Writable primitives created via `defineSignal<T>` that hold values and trigger updates.
+* **Computed Signals:** Derived values created via `defineComputed` that automatically re-execute when dependencies change. They receive read-only access to their dependencies.
+* **Actions:** Imperative logic created via `defineAction` that can mutate State Signals. These are explicitly invoked (not automatic) to prevent circular dependencies.
+* **Event Handlers:** Specialized actions created via `defineHandler` that receive the DOM `Event` object as their first argument.
 * **Signal Serialization:** All addressable entities (signals, logic, actions) are serializable to JSON-compatible formats for transmission over the wire.
 
 ### 3. Logic & Module System
@@ -22,8 +22,8 @@
 
 ### 4. Component Model
 
-* **Component Definitions:** Reusable templates created via `createComponent` that wrap a logic reference.
-* **Reactive Nodes:** Component instances created via `createNode` (or JSX). These are reactive entities that re-execute when their prop signals change.
+* **Component Definitions:** Reusable templates created via `defineComponent` that wrap a logic reference.
+* **Reactive Nodes:** Component instances created via `defineNode` (or JSX). These are reactive entities that re-execute when their prop signals change.
 * **Content-Addressable Identity:** Node IDs are deterministically generated based on the component logic ID and its props, enabling automatic deduplication and stable identity without explicit keys.
 * **JSX Integration:** A custom JSX factory (`jsx()`) that automatically handles signal binding and component instantiation.
 * **Recursive Parallel Rendering:** Components can spawn child components to arbitrary depth, all executing in parallel.
@@ -39,8 +39,8 @@
 
 * **Async Logic:** Support for logic functions that return Promises; the framework awaits resolution before propagating values.
 * **Deferred Logic:** A mechanism (`timeout` option) to defer long-running operations. If a timeout threshold is exceeded, the stream emits a `PENDING` sentinel or initial value to avoid blocking, delivering the result later via a swap script.
-* **Server-Side Logic:** Logic signals marked with `context: 'server'` (via `createServerLogic`) that never run in the browser. Client invocations automatically proxy the request to a `/weaver/execute` endpoint.
-* **Client-Side Logic:** Logic marked with `context: 'client'` (via `createClientLogic`) that executes only in the browser (useful for accessing `window` or `localStorage`).
-* **Worker Logic:** Logic signals marked with `context: 'worker'` (via `createWorkerLogic`) that execute in a background Worker thread. This allows heavy CPU-bound tasks to run without blocking the main UI thread.
+* **Server-Side Logic:** Logic signals marked with `context: 'server'` (via `defineServerLogic`) that never run in the browser. Client invocations automatically proxy the request to a `/weaver/execute` endpoint.
+* **Client-Side Logic:** Logic marked with `context: 'client'` (via `defineClientLogic`) that executes only in the browser (useful for accessing `window` or `localStorage`).
+* **Worker Logic:** Logic signals marked with `context: 'worker'` (via `defineWorkerLogic`) that execute in a background Worker thread. This allows heavy CPU-bound tasks to run without blocking the main UI thread.
 * **Suspense:** A built-in component that renders fallback content while its child nodes are in a `PENDING` state.
-* **Reducer Signals:** The `createReducer` primitive for reducing async iterables (including ReadableStream, AsyncGenerator, etc.) into reactive signal values.
+* **Reducer Signals:** The `defineReducer` primitive for reducing async iterables (including ReadableStream, AsyncGenerator, etc.) into reactive signal values.

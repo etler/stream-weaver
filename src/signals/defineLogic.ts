@@ -3,7 +3,7 @@ import { LogicFunction } from "./logicTypes";
 import { allocateSourceId, allocateLogicId } from "./idAllocation";
 
 /**
- * Input types that createLogic accepts at compile time:
+ * Input types that defineLogic accepts at compile time:
  * 1. Promise<Module> - from import("./path"), transformed to object at build time
  * 2. LogicSignal object - the pre-transformed object from the plugin
  * 3. string - backwards compatible path string
@@ -11,7 +11,7 @@ import { allocateSourceId, allocateLogicId } from "./idAllocation";
  */
 
 /**
- * Options for createLogic
+ * Options for defineLogic
  */
 export interface CreateLogicOptions {
   /**
@@ -37,36 +37,36 @@ export interface CreateLogicOptions {
  * When used with import(), the logic function's type is captured:
  * @example
  * // Type-safe (with build plugin)
- * const doubleLogic = createLogic(import("./double"));
+ * const doubleLogic = defineLogic(import("./double"));
  * // doubleLogic is LogicSignal<(count: number) => number>
  *
  * @example
  * // With timeout option (deferred execution)
- * const slowLogic = createLogic(import("./slow"), { timeout: 0 });
+ * const slowLogic = defineLogic(import("./slow"), { timeout: 0 });
  *
  * @example
  * // Backwards compatible (no type info)
- * const legacyLogic = createLogic("./double.js");
+ * const legacyLogic = defineLogic("./double.js");
  * // legacyLogic is LogicSignal<LogicFunction>
  */
 
 // Overload 1: Type-safe import() syntax - extracts type from module promise
-export function createLogic<M extends { default: LogicFunction }>(
+export function defineLogic<M extends { default: LogicFunction }>(
   mod: Promise<M>,
   options?: CreateLogicOptions,
 ): LogicSignal<M["default"]>;
 
 // Overload 2: Pre-transformed LogicSignal object from plugin
-export function createLogic<F extends LogicFunction>(
+export function defineLogic<F extends LogicFunction>(
   input: LogicSignal<F>,
   options?: CreateLogicOptions,
 ): LogicSignal<F>;
 
 // Overload 3: Legacy string path or object with src (no type info)
-export function createLogic(input: string | { src: string }, options?: CreateLogicOptions): LogicSignal;
+export function defineLogic(input: string | { src: string }, options?: CreateLogicOptions): LogicSignal;
 
 // Implementation
-export function createLogic(input: unknown, options?: CreateLogicOptions): LogicSignal {
+export function defineLogic(input: unknown, options?: CreateLogicOptions): LogicSignal {
   // Handle string input (legacy usage)
   if (typeof input === "string") {
     return {
@@ -116,7 +116,7 @@ export function createLogic(input: unknown, options?: CreateLogicOptions): Logic
   // Fallback: If somehow we got here without proper input, throw
   // This shouldn't happen with correct plugin setup
   throw new Error(
-    "createLogic received unexpected input. " +
+    "defineLogic received unexpected input. " +
       "When using import(), ensure the stream-weaver plugin is configured. " +
       "For legacy usage, pass a string path or { src: './path' }.",
   );
@@ -126,28 +126,28 @@ export function createLogic(input: unknown, options?: CreateLogicOptions): Logic
  * Creates a client-only logic signal
  *
  * Client logic only executes in the browser. On the server, it returns PENDING
- * (or the init value if provided to createComputed).
+ * (or the init value if provided to defineComputed).
  *
  * Use this for browser-specific APIs like localStorage, window dimensions, etc.
  *
  * @example
- * const viewportLogic = createClientLogic(import("./getViewport"));
- * const viewport = createComputed(viewportLogic, [], { width: 1024, height: 768 });
+ * const viewportLogic = defineClientLogic(import("./getViewport"));
+ * const viewport = defineComputed(viewportLogic, [], { width: 1024, height: 768 });
  */
 
 // Overload 1: Type-safe import() syntax
-export function createClientLogic<M extends { default: LogicFunction }>(mod: Promise<M>): LogicSignal<M["default"]>;
+export function defineClientLogic<M extends { default: LogicFunction }>(mod: Promise<M>): LogicSignal<M["default"]>;
 
 // Overload 2: Pre-transformed LogicSignal object from plugin
-export function createClientLogic<F extends LogicFunction>(input: LogicSignal<F>): LogicSignal<F>;
+export function defineClientLogic<F extends LogicFunction>(input: LogicSignal<F>): LogicSignal<F>;
 
 // Overload 3: Legacy string path
-export function createClientLogic(src: string): LogicSignal;
+export function defineClientLogic(src: string): LogicSignal;
 
 // Implementation
-export function createClientLogic(input: unknown): LogicSignal {
+export function defineClientLogic(input: unknown): LogicSignal {
   // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-  return createLogic(input as string | { src: string }, { context: "client" });
+  return defineLogic(input as string | { src: string }, { context: "client" });
 }
 
 /**
@@ -159,23 +159,23 @@ export function createClientLogic(input: unknown): LogicSignal {
  * Use this for server-side operations like database access, file system, etc.
  *
  * @example
- * const fetchUserLogic = createServerLogic(import("./fetchUser"));
- * const user = createComputed(fetchUserLogic, [userId]);
+ * const fetchUserLogic = defineServerLogic(import("./fetchUser"));
+ * const user = defineComputed(fetchUserLogic, [userId]);
  */
 
 // Overload 1: Type-safe import() syntax
-export function createServerLogic<M extends { default: LogicFunction }>(mod: Promise<M>): LogicSignal<M["default"]>;
+export function defineServerLogic<M extends { default: LogicFunction }>(mod: Promise<M>): LogicSignal<M["default"]>;
 
 // Overload 2: Pre-transformed LogicSignal object from plugin
-export function createServerLogic<F extends LogicFunction>(input: LogicSignal<F>): LogicSignal<F>;
+export function defineServerLogic<F extends LogicFunction>(input: LogicSignal<F>): LogicSignal<F>;
 
 // Overload 3: Legacy string path
-export function createServerLogic(src: string): LogicSignal;
+export function defineServerLogic(src: string): LogicSignal;
 
 // Implementation
-export function createServerLogic(input: unknown): LogicSignal {
+export function defineServerLogic(input: unknown): LogicSignal {
   // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-  return createLogic(input as string | { src: string }, { context: "server" });
+  return defineLogic(input as string | { src: string }, { context: "server" });
 }
 
 /**
@@ -188,21 +188,21 @@ export function createServerLogic(input: unknown): LogicSignal {
  * Use this for heavy computation like image processing, data parsing, etc.
  *
  * @example
- * const fibLogic = createWorkerLogic(import("./fibonacci"));
- * const result = createComputed(fibLogic, [n]);
+ * const fibLogic = defineWorkerLogic(import("./fibonacci"));
+ * const result = defineComputed(fibLogic, [n]);
  */
 
 // Overload 1: Type-safe import() syntax
-export function createWorkerLogic<M extends { default: LogicFunction }>(mod: Promise<M>): LogicSignal<M["default"]>;
+export function defineWorkerLogic<M extends { default: LogicFunction }>(mod: Promise<M>): LogicSignal<M["default"]>;
 
 // Overload 2: Pre-transformed LogicSignal object from plugin
-export function createWorkerLogic<F extends LogicFunction>(input: LogicSignal<F>): LogicSignal<F>;
+export function defineWorkerLogic<F extends LogicFunction>(input: LogicSignal<F>): LogicSignal<F>;
 
 // Overload 3: Legacy string path
-export function createWorkerLogic(src: string): LogicSignal;
+export function defineWorkerLogic(src: string): LogicSignal;
 
 // Implementation
-export function createWorkerLogic(input: unknown): LogicSignal {
+export function defineWorkerLogic(input: unknown): LogicSignal {
   // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-  return createLogic(input as string | { src: string }, { context: "worker" });
+  return defineLogic(input as string | { src: string }, { context: "worker" });
 }

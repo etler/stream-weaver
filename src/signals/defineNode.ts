@@ -15,18 +15,18 @@ import { isSignal } from "@/ComponentDelegate/signalDetection";
  *
  * @example
  * ```typescript
- * const UserCard = createComponent(createLogic("/components/UserCard.tsx"));
- * const nameSignal = createSignal("Alice");
+ * const UserCard = defineComponent(defineLogic("/components/UserCard.tsx"));
+ * const nameSignal = defineSignal("Alice");
  *
  * // Create a node instance
- * const node = createNode(UserCard, { name: nameSignal, age: 25 });
+ * const node = defineNode(UserCard, { name: nameSignal, age: 25 });
  *
  * // Same component + props = same node ID (content-addressable)
- * const node2 = createNode(UserCard, { name: nameSignal, age: 25 });
+ * const node2 = defineNode(UserCard, { name: nameSignal, age: 25 });
  * // node.id === node2.id
  * ```
  */
-export function createNode(component: ComponentSignal, props: Record<string, unknown>): NodeSignal {
+export function defineNode(component: ComponentSignal, props: Record<string, unknown>): NodeSignal {
   // Extract signal dependencies from props
   const deps: string[] = [];
   for (const value of Object.values(props)) {

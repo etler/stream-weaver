@@ -1,8 +1,8 @@
 import { describe, test, expect } from "vitest";
 import { StreamWeaver } from "@/StreamWeaver";
-import { createSignal } from "@/signals/createSignal";
-import { createHandler } from "@/signals/createHandler";
-import { createLogic } from "@/signals/createLogic";
+import { defineSignal } from "@/signals/defineSignal";
+import { defineHandler } from "@/signals/defineHandler";
+import { defineLogic } from "@/signals/defineLogic";
 import { WeaverRegistry } from "@/registry/WeaverRegistry";
 import { jsx } from "@/jsx/jsx";
 
@@ -25,7 +25,7 @@ async function streamToString(stream: ReadableStream): Promise<string> {
 describe("Milestone 5: Server Bind Markers", () => {
   test("signal in JSX children produces bind markers and signal definition", async () => {
     const registry = new WeaverRegistry();
-    const count = createSignal(42);
+    const count = defineSignal(42);
 
     const app = jsx("div", { children: [count] });
     const weaver = new StreamWeaver({ root: app, registry });
@@ -47,7 +47,7 @@ describe("Milestone 5: Server Bind Markers", () => {
 
   test("signal prop as attribute produces data-w-* attribute and signal definition", async () => {
     const registry = new WeaverRegistry();
-    const className = createSignal("active");
+    const className = defineSignal("active");
 
     const app = jsx("div", { className, children: ["Hello"] });
     const weaver = new StreamWeaver({ root: app, registry });
@@ -66,8 +66,8 @@ describe("Milestone 5: Server Bind Markers", () => {
   test("handler signal as event handler produces data-w-* attribute and signal definition", async () => {
     const registry = new WeaverRegistry();
     // Create a handler signal using the proper pattern
-    const clickLogic = createLogic("/test/handleClick.js");
-    const handleClick = createHandler(clickLogic, []);
+    const clickLogic = defineLogic("/test/handleClick.js");
+    const handleClick = defineHandler(clickLogic, []);
 
     const app = jsx("button", { onClick: handleClick, children: ["Click me"] });
     const weaver = new StreamWeaver({ root: app, registry });
@@ -86,9 +86,9 @@ describe("Milestone 5: Server Bind Markers", () => {
 
   test("full HTML output with nested signals", async () => {
     const registry = new WeaverRegistry();
-    const title = createSignal("Counter");
-    const count = createSignal(0);
-    const className = createSignal("counter-display");
+    const title = defineSignal("Counter");
+    const count = defineSignal(0);
+    const className = defineSignal("counter-display");
 
     const app = jsx("div", {
       children: [jsx("h1", { children: [title] }), jsx("div", { className, children: ["Count: ", count] })],
@@ -119,7 +119,7 @@ describe("Milestone 5: Server Bind Markers", () => {
   });
 
   test("signal without registry is skipped", async () => {
-    const count = createSignal(42);
+    const count = defineSignal(42);
 
     // No registry passed
     const app = jsx("div", { children: [count] });
@@ -137,12 +137,12 @@ describe("Milestone 5: Server Bind Markers", () => {
 
   test("computed signal serialization", async () => {
     const registry = new WeaverRegistry();
-    const { createComputed } = await import("@/signals/createComputed");
-    const { createLogic } = await import("@/signals/createLogic");
+    const { defineComputed } = await import("@/signals/defineComputed");
+    const { defineLogic } = await import("@/signals/defineLogic");
 
-    const numA = createSignal(5);
-    const doubleLogic = createLogic("./tests/fixtures/double.js");
-    const doubled = createComputed(doubleLogic, [numA]);
+    const numA = defineSignal(5);
+    const doubleLogic = defineLogic("./tests/fixtures/double.js");
+    const doubled = defineComputed(doubleLogic, [numA]);
 
     const app = jsx("div", { children: [doubled] });
     const weaver = new StreamWeaver({ root: app, registry });

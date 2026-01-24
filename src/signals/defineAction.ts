@@ -15,24 +15,24 @@ import { allocateDerivedId } from "./idAllocation";
  *
  * @example
  * // With typed logic (full type checking)
- * const count = createSignal(5);  // StateSignal<number>
- * const incrementLogic = createLogic(import("./increment"));
- * const increment = createAction(incrementLogic, [count]);  // Type-checked!
+ * const count = defineSignal(5);  // StateSignal<number>
+ * const incrementLogic = defineLogic(import("./increment"));
+ * const increment = defineAction(incrementLogic, [count]);  // Type-checked!
  *
  * @example
  * // With untyped logic (backwards compatible)
- * const legacyLogic = createLogic("./legacy.js");
- * const action = createAction(legacyLogic, [count]);  // No type checking
+ * const legacyLogic = defineLogic("./legacy.js");
+ * const action = defineAction(legacyLogic, [count]);  // No type checking
  */
 
 // Single signature with validation - const Deps ensures tuple inference
-export function createAction<F extends LogicFunction, const Deps extends readonly AnySignal[]>(
+export function defineAction<F extends LogicFunction, const Deps extends readonly AnySignal[]>(
   logic: LogicSignal<F>,
   deps: ValidateActionDeps<F, Deps>,
 ): ActionSignal;
 
 // Implementation
-export function createAction(logic: LogicSignal, deps: AnySignal[]): ActionSignal {
+export function defineAction(logic: LogicSignal, deps: AnySignal[]): ActionSignal {
   const depIds = deps.map((dep) => dep.id);
   const id = allocateDerivedId(logic.id, depIds);
 
