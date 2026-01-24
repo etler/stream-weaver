@@ -210,7 +210,7 @@ function serializeAttributes(props: Record<string, unknown>, registry?: WeaverRe
             if (!registry.getSignal(depSignal.id)) {
               registry.registerSignal(depSignal);
             }
-            signalDefs += serializeSignalDefinition(depSignal as AnySignal);
+            signalDefs += serializeSignalDefinition(depSignal);
           }
         }
       }

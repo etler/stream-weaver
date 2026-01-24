@@ -26,9 +26,12 @@ export function defineComponent(logic: LogicSignal): ComponentSignal {
   // Generate content-addressable ID based on logic only
   const id = allocateDerivedId("component", [logicId]);
 
+  // Cast to ComponentSignal - the call signature is for JSX type compatibility only
+  // ComponentSignal objects are not actually callable; jsx() handles them specially
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
   return {
     id,
     kind: "component",
     logic,
-  };
+  } as ComponentSignal;
 }

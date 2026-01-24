@@ -95,10 +95,17 @@ export interface HandlerSignal<TEvent extends Event = Event> extends Signal {
 /**
  * ComponentSignal represents a reusable component template
  * This is an inert definition - use defineNode() to create reactive instances
+ *
+ * The call signature is for JSX type compatibility - ComponentSignal objects
+ * are not actually callable at runtime, but TypeScript requires element types
+ * to be callable. The jsx() function handles ComponentSignal specially.
  */
 export interface ComponentSignal extends Signal {
   logic: LogicSignal | string; // LogicSignal definition or ID reference
   kind: "component";
+  // JSX call signature - allows <ComponentSignal props={...} /> syntax
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (props: Record<string, any>): NodeSignal;
 }
 
 /**

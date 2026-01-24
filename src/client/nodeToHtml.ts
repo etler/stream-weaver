@@ -32,10 +32,10 @@ function registerSignalWithDependencies(signal: AnySignal, registry: WeaverRegis
 
   // Register depsRef signals (MutatorSignals, etc.) for handlers/actions
   if ((signal.kind === "handler" || signal.kind === "action") && "depsRef" in signal) {
-    const depsRef = (signal as { depsRef?: AnySignal[] }).depsRef;
+    const { depsRef } = signal as { depsRef?: AnySignal[] };
     if (Array.isArray(depsRef)) {
       for (const depSignal of depsRef) {
-        if (depSignal && !registry.getSignal(depSignal.id)) {
+        if (!registry.getSignal(depSignal.id)) {
           registry.registerSignal(depSignal);
         }
       }

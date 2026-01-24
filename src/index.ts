@@ -48,6 +48,8 @@ export type {
   ExtractLogicFunction,
   SignalValueType,
   SignalsToReadOnlyInterfaces,
+  SignalsToActionInterfaces,
+  // eslint-disable-next-line @typescript-eslint/no-deprecated
   SignalsToWritableInterfaces,
   DropFirst,
   First,
