@@ -77,6 +77,45 @@ export class Sink {
   }
 
   /**
+   * Check if one signal's bind point is a descendant of another's
+   * Used to determine if a signal is inside a Suspense boundary
+   */
+  public isDescendant(childId: string, parentId: string): boolean {
+    const childPoints = this.bindPoints.get(childId);
+    const parentPoints = this.bindPoints.get(parentId);
+
+    if (!childPoints || !parentPoints) {
+      return false;
+    }
+
+    // Check if any child bind point is inside any parent bind point
+    for (const childPoint of childPoints) {
+      if (childPoint.type !== "content") {
+        continue;
+      }
+
+      for (const parentPoint of parentPoints) {
+        if (parentPoint.type !== "content") {
+          continue;
+        }
+
+        // Check if child's range start is inside parent's range
+        const comparison = parentPoint.range.comparePoint(
+          childPoint.range.startContainer,
+          childPoint.range.startOffset,
+        );
+
+        // comparePoint returns 0 if point is inside, -1 if before, 1 if after
+        if (comparison === 0) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  /**
    * Check if a signal's bind point already has content (SSR-rendered)
    * Returns true if the Range between markers contains non-whitespace content
    */

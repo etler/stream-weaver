@@ -318,8 +318,12 @@ export class ClientWeaver {
           this.sink.sync(value.id, textContent);
         }
 
-        // Check if this signal resolving affects any suspense boundaries
-        if (currentValue !== PENDING) {
+        // Check if this signal affects any suspense boundaries
+        if (currentValue === PENDING) {
+          // Signal became PENDING - show fallback in parent Suspense
+          this.checkSuspensePending(value.id);
+        } else {
+          // Signal resolved - check if Suspense can show children
           this.checkSuspenseResolution(value.id);
         }
       }
@@ -358,6 +362,83 @@ export class ClientWeaver {
 
     // Clean up the waiters map
     this.suspenseWaiters.delete(resolvedId);
+  }
+
+  /**
+   * Check if a signal becoming PENDING causes any suspense boundaries to show fallback
+   */
+  private checkSuspensePending(pendingId: string): void {
+    // Find all Suspense signals and check if they contain this signal
+    const allSignals = this.registry.getAllSignals();
+    for (const [signalId, signal] of allSignals) {
+      if (signal.kind !== "suspense") {
+        continue;
+      }
+      const suspense = signal;
+
+      // Check if this Suspense's bind point contains the pending signal's bind point
+      if (!this.sink.hasBindPoint(signalId) || !this.sink.hasBindPoint(pendingId)) {
+        continue;
+      }
+
+      // Check if the pending signal is a descendant of this Suspense
+      // by checking if its bind point is inside the Suspense's bind point
+      if (!this.sink.isDescendant(pendingId, signalId)) {
+        continue;
+      }
+
+      // Add to pending deps if not already there
+      if (!suspense.pendingDeps.includes(pendingId)) {
+        suspense.pendingDeps.push(pendingId);
+
+        // Register waiter for when this signal resolves
+        let waiters = this.suspenseWaiters.get(pendingId);
+        if (!waiters) {
+          waiters = new Set();
+          this.suspenseWaiters.set(pendingId, waiters);
+        }
+        waiters.add(signalId);
+
+        // If this is the first pending signal, swap to fallback
+        if (suspense.pendingDeps.length === 1) {
+          this.showSuspenseFallback(signalId, suspense);
+        }
+      }
+    }
+  }
+
+  /**
+   * Show the fallback content for a suspense boundary
+   */
+  private showSuspenseFallback(suspenseId: string, suspense: SuspenseSignal): void {
+    const { fallback } = suspense;
+
+    // Check if fallback is a NodeSignal that needs to be executed
+    if (
+      fallback !== null &&
+      typeof fallback === "object" &&
+      "kind" in fallback &&
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+      (fallback as { kind: string }).kind === "node"
+    ) {
+      // Execute the NodeSignal to get the rendered content
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+      const nodeSignal = fallback as { id: string; kind: "node" };
+      (async () => {
+        const result = await executeNode(this.registry, nodeSignal.id);
+        this.registry.setValue(nodeSignal.id, result);
+        const html = nodeToHtml(result, this.registry);
+        this.sink.sync(suspenseId, html);
+      })().catch((error: unknown) => {
+        console.error(new Error("Failed to execute fallback NodeSignal", { cause: error }));
+      });
+      return;
+    }
+
+    // Otherwise, render directly (works for plain HTML elements)
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+    const html = nodeToHtml(fallback as Node, this.registry);
+    this.sink.sync(suspenseId, html);
   }
 
   /**

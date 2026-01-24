@@ -11,7 +11,16 @@
  * - Skeleton screens while fetching
  * - Graceful handling of slow network requests
  */
-import { defineSignal, defineComputed, defineHandler, defineLogic, defineMutator, Suspense } from "stream-weaver";
+import {
+  defineSignal,
+  defineComputed,
+  defineHandler,
+  defineLogic,
+  defineMutator,
+  defineComponent,
+  defineNode,
+  Suspense,
+} from "stream-weaver";
 
 // --- Deferred Data Signals ---
 
@@ -32,17 +41,9 @@ const postsData = defineComputed(postsLogic, [refreshCount]);
 const refreshLogic = defineLogic(import("../logic/incrementRefresh"));
 const onRefresh = defineHandler(refreshLogic, [setRefreshCount]);
 
-/**
- * Loading skeleton component
- */
-function LoadingSkeleton(): JSX.Element {
-  return (
-    <div style="background: #f0f0f0; padding: 1rem; border-radius: 8px; animation: pulse 1.5s infinite;">
-      <div style="height: 20px; background: #ddd; border-radius: 4px; margin-bottom: 0.5rem; width: 60%;"></div>
-      <div style="height: 16px; background: #ddd; border-radius: 4px; width: 80%;"></div>
-    </div>
-  );
-}
+// Loading skeleton as a ComponentSignal so it can be executed client-side
+const LoadingSkeletonLogic = defineLogic(import("../components/LoadingSkeleton"));
+const LoadingSkeletonComponent = defineComponent(LoadingSkeletonLogic);
 
 /**
  * User card that displays user data
@@ -109,14 +110,14 @@ export function SuspenseExample(): JSX.Element {
 
         <h2 style="color: #333; font-size: 1.2rem;">User Profile (with Suspense)</h2>
         <div style="margin-bottom: 1.5rem;">
-          <Suspense fallback={<LoadingSkeleton />}>
+          <Suspense fallback={<LoadingSkeletonComponent />}>
             <UserCard />
           </Suspense>
         </div>
 
         <h2 style="color: #333; font-size: 1.2rem;">Posts List (with Suspense)</h2>
         <div style="margin-bottom: 1.5rem;">
-          <Suspense fallback={<LoadingSkeleton />}>
+          <Suspense fallback={<LoadingSkeletonComponent />}>
             <PostsList />
           </Suspense>
         </div>
