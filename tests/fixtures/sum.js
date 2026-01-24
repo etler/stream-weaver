@@ -1,7 +1,7 @@
 /**
- * Sum logic - adds two signal values together
- * @param {object} a - First signal with .value property
- * @param {object} b - Second signal with .value property
+ * Sum logic - adds two values together
+ * @param {number} a - First raw signal value
+ * @param {number} b - Second raw signal value
  * @returns {number} The sum of both values
  */
-export default (a, b) => a.value + b.value;
+export default (a, b) => a + b;

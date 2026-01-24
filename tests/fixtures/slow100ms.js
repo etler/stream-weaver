@@ -6,5 +6,5 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export default async function slow100ms(x) {
   await delay(100);
-  return x.value * 2;
+  return x * 2;
 }

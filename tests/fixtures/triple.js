@@ -1,6 +1,6 @@
 /**
- * Triple logic - multiplies a signal value by 3
- * @param {object} count - Signal with .value property
+ * Triple logic - multiplies a value by 3
+ * @param {number} count - Raw signal value
  * @returns {number} The tripled value
  */
-export default (count) => count.value * 3;
+export default (count) => count * 3;

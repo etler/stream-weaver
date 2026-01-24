@@ -1,6 +1,6 @@
 /**
- * Double logic - multiplies a signal value by 2
- * @param {object} count - Signal with .value property
+ * Double logic - multiplies a value by 2
+ * @param {number} count - Raw signal value
  * @returns {number} The doubled value
  */
-export default (count) => count.value * 2;
+export default (count) => count * 2;
