@@ -1,7 +1,7 @@
 export { defineSignal } from "./defineSignal";
 export { defineReference } from "./defineReference";
 export { defineLogic, defineClientLogic, defineServerLogic, defineWorkerLogic } from "./defineLogic";
-export type { CreateLogicOptions } from "./defineLogic";
+export type { CreateLogicOptions, ContextLogicOptions } from "./defineLogic";
 export { defineComputed } from "./defineComputed";
 export { defineAction } from "./defineAction";
 export { defineHandler } from "./defineHandler";

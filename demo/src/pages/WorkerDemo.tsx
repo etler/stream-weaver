@@ -27,10 +27,8 @@ const decrementFib = defineHandler(decrementFibLogic, [fibInput]);
 // This computation runs on the client with timeout: 0 (non-blocking)
 // Shows loading state initially, updates when computation completes
 const primeLimit = defineSignal(100000);
-const primeLogic = defineWorkerLogic(import("../logic/primeCountWorker"));
-// Create deferred version by passing the logic signal with timeout and context options
-const deferredPrimeLogic = defineLogic(primeLogic, { timeout: 0, context: "worker" });
-const primeResult = defineComputed(deferredPrimeLogic, [primeLimit]);
+const primeLogic = defineWorkerLogic(import("../logic/primeCountWorker"), { timeout: 0 });
+const primeResult = defineComputed(primeLogic, [primeLimit]);
 
 // Handler to increment prime limit
 const incrementPrimeLimitLogic = defineLogic(import("../logic/incrementPrimeLimit"));

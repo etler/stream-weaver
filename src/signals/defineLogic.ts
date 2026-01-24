@@ -123,6 +123,19 @@ export function defineLogic(input: unknown, options?: CreateLogicOptions): Logic
 }
 
 /**
+ * Options for context-specific logic builders (defineClientLogic, defineServerLogic, defineWorkerLogic)
+ */
+export interface ContextLogicOptions {
+  /**
+   * Timeout in milliseconds for deferred execution
+   * - undefined = no timeout, always inline (blocking)
+   * - 0 = always defer immediately (never block)
+   * - > 0 = wait up to N ms, then defer if not complete
+   */
+  timeout?: number;
+}
+
+/**
  * Creates a client-only logic signal
  *
  * Client logic only executes in the browser. On the server, it returns PENDING
@@ -133,21 +146,31 @@ export function defineLogic(input: unknown, options?: CreateLogicOptions): Logic
  * @example
  * const viewportLogic = defineClientLogic(import("./getViewport"));
  * const viewport = defineComputed(viewportLogic, [], { width: 1024, height: 768 });
+ *
+ * @example
+ * // With deferred execution (non-blocking)
+ * const deferredLogic = defineClientLogic(import("./heavyComputation"), { timeout: 0 });
  */
 
 // Overload 1: Type-safe import() syntax
-export function defineClientLogic<M extends { default: LogicFunction }>(mod: Promise<M>): LogicSignal<M["default"]>;
+export function defineClientLogic<M extends { default: LogicFunction }>(
+  mod: Promise<M>,
+  options?: ContextLogicOptions,
+): LogicSignal<M["default"]>;
 
 // Overload 2: Pre-transformed LogicSignal object from plugin
-export function defineClientLogic<F extends LogicFunction>(input: LogicSignal<F>): LogicSignal<F>;
+export function defineClientLogic<F extends LogicFunction>(
+  input: LogicSignal<F>,
+  options?: ContextLogicOptions,
+): LogicSignal<F>;
 
 // Overload 3: Legacy string path
-export function defineClientLogic(src: string): LogicSignal;
+export function defineClientLogic(src: string, options?: ContextLogicOptions): LogicSignal;
 
 // Implementation
-export function defineClientLogic(input: unknown): LogicSignal {
+export function defineClientLogic(input: unknown, options?: ContextLogicOptions): LogicSignal {
   // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-  return defineLogic(input as string | { src: string }, { context: "client" });
+  return defineLogic(input as string | { src: string }, { ...options, context: "client" });
 }
 
 /**
@@ -161,21 +184,31 @@ export function defineClientLogic(input: unknown): LogicSignal {
  * @example
  * const fetchUserLogic = defineServerLogic(import("./fetchUser"));
  * const user = defineComputed(fetchUserLogic, [userId]);
+ *
+ * @example
+ * // With deferred execution (non-blocking)
+ * const deferredLogic = defineServerLogic(import("./slowQuery"), { timeout: 0 });
  */
 
 // Overload 1: Type-safe import() syntax
-export function defineServerLogic<M extends { default: LogicFunction }>(mod: Promise<M>): LogicSignal<M["default"]>;
+export function defineServerLogic<M extends { default: LogicFunction }>(
+  mod: Promise<M>,
+  options?: ContextLogicOptions,
+): LogicSignal<M["default"]>;
 
 // Overload 2: Pre-transformed LogicSignal object from plugin
-export function defineServerLogic<F extends LogicFunction>(input: LogicSignal<F>): LogicSignal<F>;
+export function defineServerLogic<F extends LogicFunction>(
+  input: LogicSignal<F>,
+  options?: ContextLogicOptions,
+): LogicSignal<F>;
 
 // Overload 3: Legacy string path
-export function defineServerLogic(src: string): LogicSignal;
+export function defineServerLogic(src: string, options?: ContextLogicOptions): LogicSignal;
 
 // Implementation
-export function defineServerLogic(input: unknown): LogicSignal {
+export function defineServerLogic(input: unknown, options?: ContextLogicOptions): LogicSignal {
   // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-  return defineLogic(input as string | { src: string }, { context: "server" });
+  return defineLogic(input as string | { src: string }, { ...options, context: "server" });
 }
 
 /**
@@ -190,19 +223,30 @@ export function defineServerLogic(input: unknown): LogicSignal {
  * @example
  * const fibLogic = defineWorkerLogic(import("./fibonacci"));
  * const result = defineComputed(fibLogic, [n]);
+ *
+ * @example
+ * // With deferred execution (non-blocking, shows loading state)
+ * const deferredFibLogic = defineWorkerLogic(import("./fibonacci"), { timeout: 0 });
+ * const result = defineComputed(deferredFibLogic, [n]);
  */
 
 // Overload 1: Type-safe import() syntax
-export function defineWorkerLogic<M extends { default: LogicFunction }>(mod: Promise<M>): LogicSignal<M["default"]>;
+export function defineWorkerLogic<M extends { default: LogicFunction }>(
+  mod: Promise<M>,
+  options?: ContextLogicOptions,
+): LogicSignal<M["default"]>;
 
 // Overload 2: Pre-transformed LogicSignal object from plugin
-export function defineWorkerLogic<F extends LogicFunction>(input: LogicSignal<F>): LogicSignal<F>;
+export function defineWorkerLogic<F extends LogicFunction>(
+  input: LogicSignal<F>,
+  options?: ContextLogicOptions,
+): LogicSignal<F>;
 
 // Overload 3: Legacy string path
-export function defineWorkerLogic(src: string): LogicSignal;
+export function defineWorkerLogic(src: string, options?: ContextLogicOptions): LogicSignal;
 
 // Implementation
-export function defineWorkerLogic(input: unknown): LogicSignal {
+export function defineWorkerLogic(input: unknown, options?: ContextLogicOptions): LogicSignal {
   // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-  return defineLogic(input as string | { src: string }, { context: "worker" });
+  return defineLogic(input as string | { src: string }, { ...options, context: "worker" });
 }
