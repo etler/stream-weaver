@@ -115,94 +115,60 @@ function executeComputedSignal(
   });
 }
 
+/** Collect all tokens from processing a node through ComponentDelegate */
+async function collectTokens(node: Node, registry: WeaverRegistry): Promise<Token[]> {
+  const delegate = new ComponentDelegate(registry);
+  const writer = delegate.writable.getWriter();
+  const tokens: Token[] = [];
+  const readerPromise = (async () => {
+    for await (const token of delegate.readable) {
+      tokens.push(token);
+    }
+  })();
+  await writer.write(node);
+  await writer.close();
+  await readerPromise;
+  return tokens;
+}
+
 type ChainFn = (input: Iterable<Token> | AsyncIterable<Token> | null) => void;
 
-/** Execute SuspenseSignal - process children, check PENDING, emit tokens via chain */
+/**
+ * Execute SuspenseSignal. Unlike other executables that write a single Node,
+ * Suspense needs to emit multiple token sequences whose content depends on
+ * async processing results, requiring an async generator.
+ */
 function executeSuspenseSignal(executable: SuspenseExecutable, chain: ChainFn, registry?: WeaverRegistry): void {
   if (!registry) {
     return;
   }
+  const reg = registry;
 
-  const reg = registry; // Capture for closure
+  chain(
+    (async function* (): AsyncGenerator<Token> {
+      const { suspense, children, fallback } = executable;
 
-  // Use async generator to yield tokens as they're ready
-  async function* generateTokens(): AsyncGenerator<Token> {
-    const { suspense, children, fallback } = executable;
+      // Process children to check for PENDING
+      const childrenTokens = await collectTokens(children, reg);
+      const result = executeSuspense(reg, suspense, childrenTokens);
 
-    // Create a sub-delegate to process children
-    const childDelegate = new ComponentDelegate(reg);
-    const childWriter = childDelegate.writable.getWriter();
-
-    // Collect tokens from the child delegate
-    const collectedItems: unknown[] = [];
-    const readerPromise = (async () => {
-      const reader = childDelegate.readable.getReader();
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) {
-          break;
-        }
-        collectedItems.push(value);
+      // Children signal defs must come first when showing fallback
+      if (result.showFallback) {
+        yield* childrenTokens.filter((token) => token.kind === "signal-definition");
       }
-    })();
 
-    await childWriter.write(children);
-    await childWriter.close();
-    await readerPromise;
-
-    // Flatten collected tokens
-    const childrenTokens: Token[] = [];
-    for (const item of collectedItems) {
-      if (Array.isArray(item)) {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-        childrenTokens.push(...(item as Token[]));
-      } else if (typeof item === "object" && item !== null && "kind" in item) {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-        childrenTokens.push(item as Token);
-      }
-    }
-
-    // Analyze children for PENDING signals
-    const result = executeSuspense(reg, suspense, childrenTokens);
-    const childSignalDefs = childrenTokens.filter((token) => token.kind === "signal-definition");
-
-    if (result.showFallback) {
-      // Emit children's signal defs (for client tracking), then fallback content
-      for (const def of childSignalDefs) {
-        yield def;
-      }
       yield { kind: "signal-definition", signal: suspense };
       yield { kind: "bind-marker-open", id: suspense.id };
 
-      // Process fallback through a sub-delegate
-      const fallbackDelegate = new ComponentDelegate(reg);
-      const fallbackWriter = fallbackDelegate.writable.getWriter();
-      const fallbackReader = fallbackDelegate.readable.getReader();
-      await fallbackWriter.write(fallback);
-      await fallbackWriter.close();
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-      while (true) {
-        const { done, value } = await fallbackReader.read();
-        if (done) {
-          break;
-        }
-        yield value;
+      if (result.showFallback) {
+        yield* await collectTokens(fallback, reg);
+      } else {
+        yield* childrenTokens;
       }
 
       yield { kind: "bind-marker-close", id: suspense.id };
-    } else {
-      // Emit children tokens directly
-      yield { kind: "signal-definition", signal: suspense };
-      yield { kind: "bind-marker-open", id: suspense.id };
-      for (const token of childrenTokens) {
-        yield token;
-      }
-      yield { kind: "bind-marker-close", id: suspense.id };
-    }
-  }
-
-  chain(generateTokens());
+    })(),
+  );
 }
 
 /**
