@@ -56,7 +56,6 @@ export type { ModuleLoader } from "./ssr";
 // Server logic execution
 export { serializeSignalChain, executeFromChain, executeRemote } from "./logic/remoteExecution";
 export type { SignalChain, SerializedSignal } from "./logic/remoteExecution";
-export { registerSignalsInTree } from "./registry/registerSignals";
 
 // Worker execution
 export { WorkerPool } from "./worker";

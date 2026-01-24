@@ -1918,7 +1918,6 @@ Before rendering components during SSR, the server must properly initialize the 
 import {
   StreamWeaver,
   WeaverRegistry,
-  registerSignalsInTree,
   setSSRModuleLoader,
   clearSSRModuleLoader
 } from 'stream-weaver';
@@ -1934,10 +1933,7 @@ async function renderToHTML(Component: () => JSX.Element): Promise<string> {
   const registry = new WeaverRegistry();
   const root = await Component();
 
-  // 3. Register all signals in the tree before streaming
-  registerSignalsInTree(root, registry);
-
-  // 4. Stream the HTML (server logic executes during streaming)
+  // 3. Stream the HTML (signals are discovered and executed during streaming)
   const weaver = new StreamWeaver({ root, registry });
   const chunks: string[] = [];
   for await (const chunk of weaver.readable) {
@@ -1948,13 +1944,6 @@ async function renderToHTML(Component: () => JSX.Element): Promise<string> {
   return chunks.join('');
 }
 ```
-
-**Key Functions**:
-
-**`registerSignalsInTree(root: Node, registry: WeaverRegistry): void`**
-- Recursively walks the JSX tree and registers all signals in the registry
-- Registers signals and their referenced signals (logicRef, depsRef, sourceRef, reducerRef)
-- Should be called before streaming to ensure all signals are available
 
 **Execution Contexts**:
 - **Isomorphic logic** (`defineLogic`): Executes during SSR and re-executes on client if needed
