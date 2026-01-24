@@ -15,7 +15,7 @@ import { allocateSourceId } from "./idAllocation";
  * </Suspense>
  * ```
  */
-export function createSuspense(fallback: unknown, children: unknown): SuspenseSignal {
+export function defineSuspense(fallback: unknown, children: unknown): SuspenseSignal {
   return {
     id: allocateSourceId(),
     kind: "suspense",

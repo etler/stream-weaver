@@ -25,7 +25,7 @@ export {
   defineHandler,
   defineComponent,
   defineNode,
-  createSuspense,
+  defineSuspense,
   defineReducer,
   PENDING,
 } from "./signals";

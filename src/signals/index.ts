@@ -8,7 +8,7 @@ export { defineAction } from "./defineAction";
 export { defineHandler } from "./defineHandler";
 export { defineComponent } from "./defineComponent";
 export { defineNode } from "./defineNode";
-export { createSuspense } from "./defineSuspense";
+export { defineSuspense } from "./defineSuspense";
 export { defineReducer } from "./defineReducer";
 export type {
   Signal,

@@ -1,4 +1,4 @@
-import { createSuspense } from "@/signals/defineSuspense";
+import { defineSuspense } from "@/signals/defineSuspense";
 import type { SuspenseSignal } from "@/signals/types";
 import type { Node } from "@/jsx/types/Node";
 
@@ -29,5 +29,5 @@ export interface SuspenseProps {
  * ```
  */
 export function Suspense(props: SuspenseProps): SuspenseSignal {
-  return createSuspense(props.fallback, props.children ?? null);
+  return defineSuspense(props.fallback, props.children ?? null);
 }

@@ -1,6 +1,6 @@
 import { describe, test, expect } from "vitest";
 import { defineSignal, defineComputed, defineLogic } from "@/signals";
-import { createSuspense } from "@/signals/defineSuspense";
+import { defineSuspense } from "@/signals/defineSuspense";
 import { Suspense } from "@/components/Suspense";
 import { isSuspenseSignal } from "@/ComponentDelegate/signalDetection";
 import { StreamWeaver, WeaverRegistry } from "@/index";
@@ -10,12 +10,12 @@ import path from "node:path";
 const fixturesPath = path.resolve(__dirname, "fixtures");
 
 describe("Suspense Component", () => {
-  describe("createSuspense", () => {
+  describe("defineSuspense", () => {
     test("creates a SuspenseSignal with correct properties", () => {
       const fallback = <div>Loading...</div>;
       const children = <div>Content</div>;
 
-      const signal = createSuspense(fallback, children);
+      const signal = defineSuspense(fallback, children);
 
       expect(signal.kind).toBe("suspense");
       expect(signal.id).toBeDefined();
@@ -25,8 +25,8 @@ describe("Suspense Component", () => {
     });
 
     test("creates unique IDs for each SuspenseSignal", () => {
-      const signal1 = createSuspense(null, null);
-      const signal2 = createSuspense(null, null);
+      const signal1 = defineSuspense(null, null);
+      const signal2 = defineSuspense(null, null);
 
       expect(signal1.id).not.toBe(signal2.id);
     });
@@ -34,7 +34,7 @@ describe("Suspense Component", () => {
 
   describe("isSuspenseSignal type guard", () => {
     test("returns true for SuspenseSignal", () => {
-      const signal = createSuspense(<div>Fallback</div>, <div>Children</div>);
+      const signal = defineSuspense(<div>Fallback</div>, <div>Children</div>);
       expect(isSuspenseSignal(signal)).toBe(true);
     });
 
