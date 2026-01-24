@@ -49,7 +49,7 @@ export function tokensToHtml(tokens: Token[], skipSignalDefs = false): string {
   return html;
 }
 
-export function serializeToken(token: Token): string {
+function serializeToken(token: Token): string {
   switch (token.kind) {
     case "open": {
       const attributeString = serializeAttributes(token);

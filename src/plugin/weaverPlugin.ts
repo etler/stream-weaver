@@ -2,7 +2,7 @@ import type { Plugin } from "vite";
 import type { SourceMapInput } from "rollup";
 import * as path from "path";
 import * as fs from "fs";
-import { transformCode, transformCodeWithFallback } from "./transform";
+import { transformCode } from "./transform";
 import { generateFileHash } from "./hash";
 import type { WeaverPluginOptions, LogicManifest, PluginState } from "./types";
 
@@ -160,120 +160,6 @@ export function weaverPlugin(options: WeaverPluginOptions = {}): Plugin {
       return null;
     },
   };
-}
-
-/**
- * Create a plugin that uses the fallback transformation strategy
- * This handles cases where import() is assigned to a variable
- *
- * @param options - Plugin configuration options
- * @returns Vite/Rollup plugin
- */
-export function weaverPluginWithFallback(options: WeaverPluginOptions = {}): Plugin {
-  const { logicBasePath = "/@weaver/logic" } = options;
-
-  const state: PluginState = {
-    pathToId: new Map(),
-    idToInfo: new Map(),
-  };
-
-  let manifest: LogicManifest = {};
-
-  return {
-    name: "weaver-logic-transform-fallback",
-
-    transform(code, id) {
-      if (id.includes("node_modules")) {
-        return null;
-      }
-
-      if (!/\.(js|ts|jsx|tsx|mjs|mts)$/.test(id)) {
-        return null;
-      }
-
-      if (
-        !code.includes("defineComputed") &&
-        !code.includes("defineAction") &&
-        !code.includes("defineHandler") &&
-        !code.includes("defineComponent") &&
-        !code.includes("defineLogic") &&
-        !code.includes("import(")
-      ) {
-        return null;
-      }
-
-      // Resolve import paths to absolute paths with extension
-      const resolvePath = (importPath: string, importer: string): string | null => {
-        if (importPath.startsWith(".")) {
-          const dir = path.dirname(importer);
-          const basePath = path.resolve(dir, importPath);
-
-          // If path already has an extension, use it directly
-          if (path.extname(basePath)) {
-            return basePath;
-          }
-
-          // Try common extensions
-          for (const ext of EXTENSIONS) {
-            const fullPath = basePath + ext;
-            if (fs.existsSync(fullPath)) {
-              return fullPath;
-            }
-          }
-
-          // Fallback to path without extension
-          return basePath;
-        }
-        return importPath;
-      };
-
-      const result = transformCodeWithFallback(code, id, resolvePath);
-
-      if (result.logicModules.length === 0) {
-        return null;
-      }
-
-      for (const mod of result.logicModules) {
-        state.pathToId.set(mod.resolvedPath, mod.id);
-        state.idToInfo.set(mod.id, mod);
-      }
-
-      return {
-        code: result.code,
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-        map: result.map as SourceMapInput,
-      };
-    },
-
-    generateBundle() {
-      manifest = {};
-
-      for (const [id, info] of state.idToInfo) {
-        const hash = generateFileHash(info.resolvedPath);
-        const basename = path.basename(info.importPath, path.extname(info.importPath));
-        const publicUrl = `${logicBasePath}/${basename}-${hash}.js`;
-
-        manifest[id] = {
-          id,
-          src: publicUrl,
-          originalPath: info.importPath,
-        };
-      }
-
-      this.emitFile({
-        type: "asset",
-        fileName: "weaver-manifest.json",
-        source: JSON.stringify(manifest, null, 2),
-      });
-    },
-  };
-}
-
-/**
- * Get the current manifest (for testing/debugging)
- */
-export function getManifest(): LogicManifest {
-  return {};
 }
 
 // Re-export types
