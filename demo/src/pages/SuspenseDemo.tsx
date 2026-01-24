@@ -21,11 +21,11 @@ const refreshCount = createSignal(0);
 // User data with deferred execution (timeout: 0 = always defer)
 // Depends on refreshCount to trigger re-fetch when button is clicked
 const userLogic = createLogic(import("../logic/fetchUserDeferred"), { timeout: 0 });
-const userData = createComputed(userLogic, [refreshCount], null);
+const userData = createComputed(userLogic, [refreshCount]);
 
 // Posts data with deferred execution
 const postsLogic = createLogic(import("../logic/fetchPostsDeferred"), { timeout: 0 });
-const postsData = createComputed(postsLogic, [refreshCount], null);
+const postsData = createComputed(postsLogic, [refreshCount]);
 
 // Refresh handler - increments counter to trigger refetch
 const refreshLogic = createLogic(import("../logic/incrementRefresh"));
@@ -84,15 +84,19 @@ export function SuspenseExample(): JSX.Element {
 
       <h1 style="text-align: center; color: #333;">Suspense Demo</h1>
       <p style="text-align: center; color: #666; max-width: 500px; margin: 0 auto 2rem auto;">
-        Suspense shows fallback content while children are loading. Once all PENDING signals resolve,
-        the actual content is displayed.
+        Suspense shows fallback content while children are loading. Once all PENDING signals resolve, the actual content
+        is displayed.
       </p>
 
       <div style="background: #fef3c7; padding: 1rem; border-radius: 8px; margin-bottom: 2rem; max-width: 500px; margin-left: auto; margin-right: auto;">
         <strong>How it works:</strong>
         <ul style="margin: 0.5rem 0 0 0; padding-left: 1.5rem; font-size: 0.9rem;">
-          <li>Data fetching uses <code>timeout: 0</code> (always defer)</li>
-          <li>Signals start with <code>PENDING</code> value</li>
+          <li>
+            Data fetching uses <code>timeout: 0</code> (always defer)
+          </li>
+          <li>
+            Signals start with <code>PENDING</code> value
+          </li>
           <li>Suspense detects PENDING and shows fallback</li>
           <li>When data arrives, content swaps in</li>
         </ul>
@@ -130,8 +134,8 @@ export function SuspenseExample(): JSX.Element {
       </div>
 
       <div style="max-width: 500px; margin: 2rem auto; padding: 1rem; background: #e0e7ff; border-radius: 8px; font-size: 0.9rem;">
-        <strong>Note:</strong> During SSR, data fetches are deferred so the page streams immediately with
-        loading skeletons. On the client, the actual content replaces the skeletons when data arrives.
+        <strong>Note:</strong> During SSR, data fetches are deferred so the page streams immediately with loading
+        skeletons. On the client, the actual content replaces the skeletons when data arrives.
       </div>
     </div>
   );

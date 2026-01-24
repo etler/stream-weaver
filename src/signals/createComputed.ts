@@ -35,7 +35,7 @@ import type { Serializable } from "./serializableTypes";
 export function createComputed<F extends LogicFunction, const Deps extends readonly AnySignal[]>(
   logic: LogicSignal<F>,
   deps: ValidateComputedDeps<F, Deps>,
-  init?: ReturnType<F> & Serializable,
+  init?: Awaited<ReturnType<F>> & Serializable,
 ): ComputedSignal<ReturnType<F>>;
 
 // Implementation

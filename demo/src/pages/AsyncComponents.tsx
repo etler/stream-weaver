@@ -133,9 +133,9 @@ async function UserDashboard({ userId }: { userId: number }): Promise<JSX.Elemen
       </div>
 
       {/* UserStats: sync component with async logic signal (M11) */}
-      {UserStats()}
+      <UserStats />
       {/* RecentActivity: async component with direct await */}
-      {await RecentActivity({ userId: user.id })}
+      <RecentActivity userId={user.id} />
     </div>
   );
 }
@@ -143,7 +143,7 @@ async function UserDashboard({ userId }: { userId: number }): Promise<JSX.Elemen
 /**
  * Root component for the demo
  */
-export async function AsyncComponentsExample(): Promise<JSX.Element> {
+export function AsyncComponentsExample(): JSX.Element {
   return (
     <div style="padding: 1rem;">
       <h1 style="text-align: center; color: #333;">Async Components Demo</h1>
@@ -166,7 +166,7 @@ export async function AsyncComponentsExample(): Promise<JSX.Element> {
         </ul>
       </div>
 
-      {await UserDashboard({ userId: 1 })}
+      <UserDashboard userId={1} />
     </div>
   );
 }

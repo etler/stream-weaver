@@ -6,14 +6,7 @@
  * - Server-side blocking worker: Fibonacci computation runs during SSR
  * - Client-side deferred worker: Prime counting runs without blocking UI
  */
-import {
-  createSignal,
-  createHandler,
-  createComputed,
-  createLogic,
-  createWorkerLogic,
-  Suspense,
-} from "stream-weaver";
+import { createSignal, createHandler, createComputed, createLogic, createWorkerLogic, Suspense } from "stream-weaver";
 
 // --- Fibonacci (Server-side blocking worker) ---
 // This computation runs during SSR in a Node.js worker thread
@@ -33,11 +26,11 @@ const decrementFib = createHandler(decrementFibLogic, [fibInput]);
 // --- Prime counting (Client-side deferred worker) ---
 // This computation runs on the client with timeout: 0 (non-blocking)
 // Shows loading state initially, updates when computation completes
-const primeLimit = createSignal(50000);
+const primeLimit = createSignal(100000);
 const primeLogic = createWorkerLogic(import("../logic/primeCountWorker"));
 // Create deferred version by passing the logic signal with timeout and context options
 const deferredPrimeLogic = createLogic(primeLogic, { timeout: 0, context: "worker" });
-const primeResult = createComputed(deferredPrimeLogic, [primeLimit], null);
+const primeResult = createComputed(deferredPrimeLogic, [primeLimit]);
 
 // Handler to increment prime limit
 const incrementPrimeLimitLogic = createLogic(import("../logic/incrementPrimeLimit"));
@@ -46,12 +39,9 @@ const incrementPrimeLimit = createHandler(incrementPrimeLimitLogic, [primeLimit]
 function FibonacciSection(): JSX.Element {
   return (
     <div style="background: #e3f2fd; padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem;">
-      <h2 style="margin: 0 0 1rem 0; color: #1565c0;">
-        Blocking Worker (Server-Side)
-      </h2>
+      <h2 style="margin: 0 0 1rem 0; color: #1565c0;">Blocking Worker (Server-Side)</h2>
       <p style="color: #666; margin: 0 0 1rem 0;">
-        Fibonacci computation runs in a Node.js worker thread during SSR.
-        The result is computed before the page loads.
+        Fibonacci computation runs in a Node.js worker thread during SSR. The result is computed before the page loads.
       </p>
 
       <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
@@ -79,8 +69,8 @@ function FibonacciSection(): JSX.Element {
       </pre>
 
       <div style="margin-top: 1rem; padding: 0.75rem; background: #bbdefb; border-radius: 6px; font-size: 0.9rem;">
-        <strong>Note:</strong> Changing the input triggers a blocking worker execution.
-        The UI will wait for the Fibonacci calculation to complete. Try increasing to 40+ to see the delay.
+        <strong>Note:</strong> Changing the input triggers a blocking worker execution. The UI will wait for the
+        Fibonacci calculation to complete. Try increasing to 40+ to see the delay.
       </div>
     </div>
   );
@@ -106,12 +96,10 @@ function PrimeLoadingFallback(): JSX.Element {
 function PrimeSection(): JSX.Element {
   return (
     <div style="background: #e8f5e9; padding: 1.5rem; border-radius: 12px;">
-      <h2 style="margin: 0 0 1rem 0; color: #2e7d32;">
-        Non-Blocking Worker (Client-Side Deferred)
-      </h2>
+      <h2 style="margin: 0 0 1rem 0; color: #2e7d32;">Non-Blocking Worker (Client-Side Deferred)</h2>
       <p style="color: #666; margin: 0 0 1rem 0;">
-        Prime counting runs in a Web Worker with timeout: 0 (deferred).
-        The UI stays responsive while computation happens in the background.
+        Prime counting runs in a Web Worker with timeout: 0 (deferred). The UI stays responsive while computation
+        happens in the background.
       </p>
 
       <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
@@ -121,7 +109,7 @@ function PrimeSection(): JSX.Element {
           onClick={incrementPrimeLimit}
           style="padding: 0.5rem 1rem; font-size: 1rem; cursor: pointer; background: #43a047; color: white; border: none; border-radius: 6px;"
         >
-          +10,000
+          +100,000
         </button>
       </div>
 
@@ -130,9 +118,8 @@ function PrimeSection(): JSX.Element {
       </Suspense>
 
       <div style="margin-top: 1rem; padding: 0.75rem; background: #c8e6c9; border-radius: 6px; font-size: 0.9rem;">
-        <strong>Note:</strong> Click "+10,000" to increase the limit. The computation
-        runs in a Web Worker, so the UI stays responsive. Watch the Suspense fallback
-        show while computing.
+        <strong>Note:</strong> Click "+100,000" to increase the limit. The computation runs in a Web Worker, so the UI
+        stays responsive. Watch the Suspense fallback show while computing.
       </div>
     </div>
   );
@@ -141,9 +128,7 @@ function PrimeSection(): JSX.Element {
 export function WorkerExample(): JSX.Element {
   return (
     <div style="padding: 2rem; max-width: 700px; margin: 0 auto;">
-      <h1 style="text-align: center; color: #333; margin-bottom: 0.5rem;">
-        Worker Thread Demo
-      </h1>
+      <h1 style="text-align: center; color: #333; margin-bottom: 0.5rem;">Worker Thread Demo</h1>
       <p style="text-align: center; color: #666; margin: 0 0 2rem 0;">
         CPU-intensive computations offloaded to worker threads
       </p>
@@ -155,13 +140,12 @@ export function WorkerExample(): JSX.Element {
         <h3 style="margin: 0 0 0.5rem 0;">How it works</h3>
         <ul style="margin: 0; padding-left: 1.5rem; color: #666;">
           <li>
-            <strong>Blocking (blue):</strong> Uses <code>createWorkerLogic()</code> without timeout.
-            Computation completes before the page renders (SSR) or before the handler returns (client).
+            <strong>Blocking (blue):</strong> Uses <code>createWorkerLogic()</code> without timeout. Computation
+            completes before the page renders (SSR) or before the handler returns (client).
           </li>
           <li style="margin-top: 0.5rem;">
-            <strong>Deferred (green):</strong> Uses <code>timeout: 0</code> option.
-            Returns immediately with a pending state, updates when worker finishes.
-            Wrapped in <code>&lt;Suspense&gt;</code> to show loading UI.
+            <strong>Deferred (green):</strong> Uses <code>timeout: 0</code> option. Returns immediately with a pending
+            state, updates when worker finishes. Wrapped in <code>&lt;Suspense&gt;</code> to show loading UI.
           </li>
         </ul>
       </div>

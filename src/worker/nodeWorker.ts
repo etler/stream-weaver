@@ -40,7 +40,7 @@ async function handleMessage(data: WorkerRequest): Promise<void> {
     const mod = (await import(src)) as { default: (...args: unknown[]) => unknown };
 
     // Execute the default export with provided args
-    const result = await mod.default(...args);
+    const result = await mod.default(...args.map((arg) => ({ value: arg })));
 
     // Post result back
     const response: WorkerResponse = { id, result };

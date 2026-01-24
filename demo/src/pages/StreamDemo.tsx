@@ -41,7 +41,7 @@ const appendLogic = createLogic(import("../logic/append"));
 
 // Client reducer signal - shows [] during SSR, then accumulates [0, 1, 2...] on client
 // Updates incrementally as each value arrives (non-blocking)
-const clientCounts = createReducer(clientCountingStream, appendLogic, [] as number[]);
+const clientCounts = createReducer(clientCountingStream, appendLogic, []);
 
 /**
  * Root component for the demo

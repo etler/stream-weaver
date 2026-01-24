@@ -1,9 +1,11 @@
+import { SignalInterface } from "stream-weaver";
+
 /**
  * Deferred user fetching logic
  * Simulates a network request with a delay
  * @param _refreshCount - Ignored, but triggers re-fetch when changed
  */
-export default async function fetchUserDeferred(_refreshCount?: number): Promise<string> {
+export default async function fetchUserDeferred(_refreshCount?: SignalInterface<number>): Promise<string> {
   // Simulate network delay
   await new Promise((resolve) => setTimeout(resolve, 1500));
 

@@ -37,7 +37,7 @@ const todoItems = [
  * In React, this would violate the Rules of Hooks and cause bugs.
  * In Stream Weaver, it just works because signals are ID-based.
  */
-function createTodoItem(item: { id: string; text: string; priority: string }): JSX.Element {
+function TodoItem(item: { id: string; text: string; priority: string }): JSX.Element {
   // State created in a loop! Each item has its own independent completed state.
   const completed = createSignal(false);
   const toggleCompleted = createHandler(toggleLogic, [completed]);
@@ -98,7 +98,11 @@ export function DynamicStateExample(): JSX.Element {
             'Rendered fewer hooks than expected'
           </p>
         </div>
-        <div>{todoItems.map((item) => createTodoItem(item))}</div>
+        <div>
+          {todoItems.map((item) => (
+            <TodoItem {...item} />
+          ))}
+        </div>
       </section>
 
       {/* Conditional State Section */}
