@@ -11,8 +11,6 @@ export { executeAction } from "./executeAction";
 export { executeHandler } from "./executeHandler";
 export type { ExecuteHandlerResult } from "./executeHandler";
 export { executeNode } from "./executeNode";
-export { executeSuspense } from "./executeSuspense";
-export type { ExecuteSuspenseResult } from "./executeSuspense";
 export { serializeSignalChain, executeFromChain, executeRemote } from "./remoteExecution";
 export type { SignalChain, SerializedSignal } from "./remoteExecution";
 export { executeInWorker } from "./workerExecution";
