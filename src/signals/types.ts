@@ -206,3 +206,17 @@ export type AnySignal =
   | ReducerSignal
   | ReferenceSignal
   | MutatorSignal;
+
+/**
+ * Signals that have a deps array for dependency tracking.
+ * Used for reactive propagation and dependency graph operations.
+ */
+export type SignalWithDeps = ComputedSignal | ActionSignal | HandlerSignal | NodeSignal;
+
+/**
+ * Type guard to check if a signal has dependencies.
+ * These signals have a `deps` array and participate in the reactive dependency graph.
+ */
+export function hasDependencies(signal: AnySignal): signal is SignalWithDeps {
+  return signal.kind === "computed" || signal.kind === "action" || signal.kind === "handler" || signal.kind === "node";
+}

@@ -1,14 +1,9 @@
+import { isClient } from "@/utils/environment";
+
 /**
  * Module-level counter for generating unique IDs for source signals
  */
 let sourceIdCounter = 0;
-
-/**
- * Detect if we're running on the client (browser) vs server
- */
-function isClient(): boolean {
-  return typeof window !== "undefined" && typeof document !== "undefined";
-}
 
 /**
  * Generates a unique ID for a source signal (StateSignal, LogicSignal)

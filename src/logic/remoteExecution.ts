@@ -1,6 +1,7 @@
 import { WeaverRegistry } from "@/registry/WeaverRegistry";
-import { AnySignal } from "@/signals/types";
+import { AnySignal, hasDependencies } from "@/signals/types";
 import { JsonValue } from "@/signals/serializableTypes";
+import { isClient } from "@/utils/environment";
 
 /**
  * Serialized signal with its value
@@ -108,8 +109,8 @@ export function serializeSignalChain(registry: WeaverRegistry, signalId: string)
 
     signals.push(serializedSignal);
 
-    // Walk dependencies
-    if (signal.kind === "computed" || signal.kind === "action" || signal.kind === "handler" || signal.kind === "node") {
+    // Walk dependencies for signals with deps
+    if (hasDependencies(signal)) {
       // Walk the logic signal
       walk(signal.logic);
 
@@ -165,13 +166,6 @@ function sanitizeSignal(signal: AnySignal): AnySignal {
  * Default endpoint for remote execution
  */
 const DEFAULT_ENDPOINT = "/weaver/execute";
-
-/**
- * Detects if running in browser environment
- */
-function isClient(): boolean {
-  return typeof window !== "undefined" && typeof document !== "undefined";
-}
 
 /**
  * Executes a signal chain on the server via RPC

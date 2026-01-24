@@ -14,35 +14,27 @@ export function registerSignalsInTree(node: Node, registry: WeaverRegistry): voi
 
   // Handle signals
   if (isSignal(node)) {
-    if (!registry.getSignal(node.id)) {
-      registry.registerSignal(node);
-    }
+    registry.registerIfAbsent(node);
 
-    // Register referenced signals (logicRef, depsRef, etc.)
+    // Register referenced signals (logicRef, depsRef, sourceRef, reducerRef)
     if ("logicRef" in node && isSignal(node.logicRef)) {
-      if (!registry.getSignal(node.logicRef.id)) {
-        registry.registerSignal(node.logicRef);
-      }
+      registry.registerIfAbsent(node.logicRef);
     }
 
     if ("depsRef" in node && Array.isArray(node.depsRef)) {
       for (const dep of node.depsRef) {
-        if (isSignal(dep) && !registry.getSignal(dep.id)) {
-          registry.registerSignal(dep);
+        if (isSignal(dep)) {
+          registry.registerIfAbsent(dep);
         }
       }
     }
 
     if ("sourceRef" in node && isSignal(node.sourceRef)) {
-      if (!registry.getSignal(node.sourceRef.id)) {
-        registry.registerSignal(node.sourceRef);
-      }
+      registry.registerIfAbsent(node.sourceRef);
     }
 
     if ("reducerRef" in node && isSignal(node.reducerRef)) {
-      if (!registry.getSignal(node.reducerRef.id)) {
-        registry.registerSignal(node.reducerRef);
-      }
+      registry.registerIfAbsent(node.reducerRef);
     }
 
     return;
@@ -67,12 +59,9 @@ export function registerSignalsInTree(node: Node, registry: WeaverRegistry): voi
 
     // Process props - they can contain signals or other nodes
     if (element.props !== null && element.props !== undefined && typeof element.props === "object") {
-      // Props come from JSX and are loosely typed as `any` in Element<Props>
-      // We need to iterate over all prop values to find nested signals
       // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       const props = element.props as Record<string, unknown>;
       for (const propValue of Object.values(props)) {
-        // Each prop value could be a Node (signal, element, primitive, etc.)
         // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
         registerSignalsInTree(propValue as Node, registry);
       }
@@ -80,7 +69,6 @@ export function registerSignalsInTree(node: Node, registry: WeaverRegistry): voi
 
     // Process children
     if (element.children !== null && element.children !== undefined) {
-      // Children come from JSX and match the Node type
       // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       registerSignalsInTree(element.children as Node, registry);
     }

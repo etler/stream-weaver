@@ -46,6 +46,18 @@ export class ClientWeaver {
   // Map: signal ID -> set of suspense IDs waiting on that signal
   private suspenseWaiters = new Map<string, Set<string>>();
 
+  /**
+   * Add a suspense boundary as a waiter for a signal
+   */
+  private addSuspenseWaiter(signalId: string, suspenseId: string): void {
+    let waiters = this.suspenseWaiters.get(signalId);
+    if (!waiters) {
+      waiters = new Set();
+      this.suspenseWaiters.set(signalId, waiters);
+    }
+    waiters.add(suspenseId);
+  }
+
   constructor() {
     // Initialize registry
     this.registry = new WeaverRegistry();
@@ -106,12 +118,7 @@ export class ClientWeaver {
     if (message.signal.kind === "suspense") {
       const suspense = message.signal;
       for (const pendingId of suspense.pendingDeps) {
-        let waiters = this.suspenseWaiters.get(pendingId);
-        if (!waiters) {
-          waiters = new Set();
-          this.suspenseWaiters.set(pendingId, waiters);
-        }
-        waiters.add(suspense.id);
+        this.addSuspenseWaiter(pendingId, suspense.id);
       }
     }
 
@@ -392,12 +399,7 @@ export class ClientWeaver {
         suspense.pendingDeps.push(pendingId);
 
         // Register waiter for when this signal resolves
-        let waiters = this.suspenseWaiters.get(pendingId);
-        if (!waiters) {
-          waiters = new Set();
-          this.suspenseWaiters.set(pendingId, waiters);
-        }
-        waiters.add(signalId);
+        this.addSuspenseWaiter(pendingId, signalId);
 
         // If this is the first pending signal, swap to fallback
         if (suspense.pendingDeps.length === 1) {

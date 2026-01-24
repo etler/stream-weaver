@@ -1,7 +1,7 @@
-import { WeaverRegistry } from "@/registry/WeaverRegistry";
+import { WeaverRegistry, getLogicSignal } from "@/registry";
 import { executeLogic } from "./executeLogic";
 import type { Node } from "@/jsx/types/Node";
-import type { NodeSignal, LogicSignal } from "@/signals/types";
+import type { NodeSignal } from "@/signals/types";
 import { isSignal } from "@/ComponentDelegate/signalDetection";
 
 /**
@@ -23,14 +23,9 @@ export async function executeNode(registry: WeaverRegistry, nodeId: string): Pro
     throw new Error(`Signal ${nodeId} is not a node signal`);
   }
 
-  // Get the logic signal
+  // Get the logic signal (prefer cached reference, fallback to registry lookup)
   // eslint-disable-next-line no-underscore-dangle
-  let logicSignal = node._logicRef;
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-  logicSignal ??= registry.getSignal(node.logic) as LogicSignal | undefined;
-  if (logicSignal?.kind !== "logic") {
-    throw new Error(`Logic signal ${node.logic} not found for node ${nodeId}`);
-  }
+  const logicSignal = node._logicRef ?? getLogicSignal(registry, node.logic);
 
   // Build props object with signal interfaces for signal props
   const propsWithInterfaces: Record<string, unknown> = {};

@@ -5,7 +5,7 @@ import { WeaverRegistry } from "@/registry/WeaverRegistry";
 
 export interface StreamWeaverOptions {
   root: Element | Promise<Element>;
-  registry?: WeaverRegistry; // Optional registry for signal binding
+  registry?: WeaverRegistry;
 }
 
 /**
@@ -19,51 +19,19 @@ export class StreamWeaver {
   public readable: ReadableStream<string>;
 
   constructor({ root, registry }: StreamWeaverOptions) {
-    // Handle Promise root by deferring resolution
-    if (root instanceof Promise) {
-      this.readable = this.createAsyncStream(root, registry);
-      return;
-    }
-
-    // All content goes through ComponentDelegate which handles fast path internally
-    this.readable = this.createDelegateStream(root, registry);
-  }
-
-  /**
-   * Create a delegate stream for processing content
-   * ComponentDelegate handles fast path optimization for sync subtrees internally
-   */
-  private createDelegateStream(root: Element, registry?: WeaverRegistry): ReadableStream<string> {
     const delegate = new ComponentDelegate(registry);
     const writer = delegate.writable.getWriter();
 
-    writer
-      .write(root)
-      // eslint-disable-next-line @typescript-eslint/promise-function-async
-      .then(() => writer.close())
+    // Normalize root to Promise for unified handling
+    const rootPromise = root instanceof Promise ? root : Promise.resolve(root);
+
+    rootPromise
+      .then(async (resolvedRoot) => writer.write(resolvedRoot))
+      .then(async () => writer.close())
       .catch((error: unknown) => {
-        console.error(new Error("Error Writing `rootNode` to output stream", { cause: error }));
+        console.error(new Error("Error writing root element to stream", { cause: error }));
       });
 
-    return delegate.readable.pipeThrough(new ComponentSerializer());
-  }
-
-  /**
-   * Handle Promise<Element> root - wait for resolution before processing
-   */
-  private createAsyncStream(root: Promise<Element>, registry?: WeaverRegistry): ReadableStream<string> {
-    const delegate = new ComponentDelegate(registry);
-    const writer = delegate.writable.getWriter();
-
-    root
-      // eslint-disable-next-line @typescript-eslint/promise-function-async
-      .then((resolvedRoot) => writer.write(resolvedRoot))
-      // eslint-disable-next-line @typescript-eslint/promise-function-async
-      .then(() => writer.close())
-      .catch((error: unknown) => {
-        console.error(new Error("Error Writing `rootNode` to output stream", { cause: error }));
-      });
-
-    return delegate.readable.pipeThrough(new ComponentSerializer());
+    this.readable = delegate.readable.pipeThrough(new ComponentSerializer());
   }
 }

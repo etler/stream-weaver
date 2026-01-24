@@ -94,9 +94,7 @@ export function tokenize(node: Node, registry?: WeaverRegistry): (TokenOrExecuta
     }
 
     // Register the signal if not already registered
-    if (!registry.getSignal(node.id)) {
-      registry.registerSignal(node);
-    }
+    registry.registerIfAbsent(node);
 
     // Check for computed signals that need async execution during SSR
     if (node.kind === "computed") {
@@ -113,9 +111,7 @@ export function tokenize(node: Node, registry?: WeaverRegistry): (TokenOrExecuta
 
       if (needsAsyncExec) {
         // Register the logic signal
-        if (!registry.getSignal(logicSignal.id)) {
-          registry.registerSignal(logicSignal);
-        }
+        registry.registerIfAbsent(logicSignal);
         // Return executable for async execution
         const executable: ComputedExecutable = {
           kind: "computed-executable",
@@ -156,9 +152,7 @@ export function tokenize(node: Node, registry?: WeaverRegistry): (TokenOrExecuta
     const logicDefs: TokenOrExecutable[] = [];
     if ("logicRef" in node && isSignal(node.logicRef)) {
       // Register and emit the logic signal for computed/handler/action signals
-      if (!registry.getSignal(node.logicRef.id)) {
-        registry.registerSignal(node.logicRef);
-      }
+      registry.registerIfAbsent(node.logicRef);
       logicDefs.push({ kind: "signal-definition", signal: node.logicRef });
     }
 
@@ -186,16 +180,11 @@ export function tokenize(node: Node, registry?: WeaverRegistry): (TokenOrExecuta
         // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
         for (const propValue of Object.values(props)) {
           if (isSignal(propValue)) {
-            if (registry && !registry.getSignal(propValue.id)) {
-              registry.registerSignal(propValue);
-            }
+            registry?.registerIfAbsent(propValue);
 
             // If this signal references a logic signal, emit that too
             if ("logicRef" in propValue && isSignal(propValue.logicRef)) {
-              // Register the logic signal
-              if (registry && !registry.getSignal(propValue.logicRef.id)) {
-                registry.registerSignal(propValue.logicRef);
-              }
+              registry?.registerIfAbsent(propValue.logicRef);
               // Emit logic signal definition before the handler
               signalDefinitions.push({ kind: "signal-definition", signal: propValue.logicRef });
             }
@@ -205,9 +194,7 @@ export function tokenize(node: Node, registry?: WeaverRegistry): (TokenOrExecuta
             if ("depsRef" in propValue && Array.isArray(propValue.depsRef)) {
               for (const dep of propValue.depsRef) {
                 if (isSignal(dep)) {
-                  if (registry && !registry.getSignal(dep.id)) {
-                    registry.registerSignal(dep);
-                  }
+                  registry?.registerIfAbsent(dep);
                   signalDefinitions.push({ kind: "signal-definition", signal: dep });
                 }
               }
@@ -254,9 +241,7 @@ function handleSuspenseSignal(
   }
 
   // Register the suspense signal
-  if (!registry.getSignal(suspense.id)) {
-    registry.registerSignal(suspense);
-  }
+  registry.registerIfAbsent(suspense);
 
   // Tokenize children FIRST - this renders any function components and registers signals
   // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
@@ -362,24 +347,16 @@ function handleNodeSignal(node: NodeSignal, registry?: WeaverRegistry): (TokenOr
   }
 
   // Register all signals if not already registered
-  if (!registry.getSignal(logicSignal.id)) {
-    registry.registerSignal(logicSignal);
-  }
-  if (!registry.getSignal(componentSignal.id)) {
-    registry.registerSignal(componentSignal);
-  }
-  if (!registry.getSignal(node.id)) {
-    registry.registerSignal(node);
-  }
+  registry.registerIfAbsent(logicSignal);
+  registry.registerIfAbsent(componentSignal);
+  registry.registerIfAbsent(node);
 
   // Also register any signals in the node's props and set their values
   // Collect prop signal definitions to emit
   const propSignalDefs: TokenOrExecutable[] = [];
   for (const propValue of Object.values(node.props)) {
     if (isSignal(propValue)) {
-      if (!registry.getSignal(propValue.id)) {
-        registry.registerSignal(propValue);
-      }
+      registry.registerIfAbsent(propValue);
       // Set the value from init if not already set (needed for executeNodeSignal proxy)
       if (registry.getValue(propValue.id) === undefined && "init" in propValue) {
         registry.setValue(propValue.id, propValue.init);
@@ -388,9 +365,7 @@ function handleNodeSignal(node: NodeSignal, registry?: WeaverRegistry): (TokenOr
       propSignalDefs.push({ kind: "signal-definition", signal: propValue });
       // If this signal references a logic signal, register and emit that too
       if ("logicRef" in propValue && isSignal(propValue.logicRef)) {
-        if (!registry.getSignal(propValue.logicRef.id)) {
-          registry.registerSignal(propValue.logicRef);
-        }
+        registry.registerIfAbsent(propValue.logicRef);
         propSignalDefs.push({ kind: "signal-definition", signal: propValue.logicRef });
       }
     }
@@ -441,9 +416,7 @@ function propsToAttributes(props: Element["props"], registry?: WeaverRegistry): 
       }
 
       // Register the signal if not already registered
-      if (!registry.getSignal(prop.id)) {
-        registry.registerSignal(prop);
-      }
+      registry.registerIfAbsent(prop);
 
       // Handle event handlers (onClick, onInput, etc.)
       if (isEventHandlerProp(key)) {

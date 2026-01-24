@@ -1,5 +1,11 @@
 import { OpenTagToken, Token } from "@/ComponentDelegate/types/Token";
-import { AnySignal } from "@/signals/types";
+import {
+  escapeText,
+  escapeAttribute,
+  isSelfClosingTag,
+  normalizeAttributeName,
+  serializeSignalDefinition,
+} from "@/html";
 
 // Buffer target size for chunks after the first one
 const BUFFER_TARGET_SIZE = 2048;
@@ -61,7 +67,7 @@ function serializeToken(token: Token): string {
       }
     }
     case "text":
-      return sanitizeText(token.content);
+      return escapeText(token.content);
     case "close":
       if (!isSelfClosingTag(token.tag)) {
         return `</${token.tag}>`;
@@ -80,66 +86,11 @@ function serializeToken(token: Token): string {
   }
 }
 
-function serializeSignalDefinition(signal: AnySignal): string {
-  // Create a serializable version of the signal, filtering out non-serializable references
-  const serializableSignal = { ...signal } as Record<string, unknown>;
-  delete serializableSignal["logicRef"];
-  delete serializableSignal["depsRef"];
-  delete serializableSignal["_logicRef"];
-  delete serializableSignal["_componentRef"];
-  // Note: _childrenHtml is kept for Suspense client-side resolution
-  const signalData = JSON.stringify({ kind: "signal-definition", signal: serializableSignal });
-  return `<script>weaver.push(${signalData})</script>`;
-}
-
 function serializeAttributes(token: OpenTagToken): string {
   const attributeStrings = Object.entries(token.attributes).map(([key, value]) => {
     const attributeName = normalizeAttributeName(key);
-    const valueString = value !== null ? `=${JSON.stringify(sanitizeAttribute(value))}` : "";
+    const valueString = value !== null ? `=${JSON.stringify(escapeAttribute(value))}` : "";
     return `${attributeName}${valueString}`;
   });
   return attributeStrings.join(" ");
-}
-
-// Convert JSX attribute names to HTML attribute names
-function normalizeAttributeName(jsxName: string): string {
-  switch (jsxName) {
-    case "className":
-      return "class";
-    case "htmlFor":
-      return "for";
-    default:
-      return jsxName;
-  }
-}
-
-// Sanitize reserved characters with HTML entities
-function sanitizeText(text: string): string {
-  return text.replaceAll("<", "&lt;").replaceAll(">", "&gt;");
-}
-
-// Sanitize attribute reserved characters with HTML entities
-function sanitizeAttribute(text: string): string {
-  return text.replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&apos;");
-}
-
-const selfClosingTags = [
-  "area",
-  "base",
-  "br",
-  "col",
-  "embed",
-  "hr",
-  "img",
-  "input",
-  "link",
-  "meta",
-  "param",
-  "source",
-  "track",
-  "wbr",
-];
-
-function isSelfClosingTag(tag: string): boolean {
-  return selfClosingTags.includes(tag);
 }

@@ -1,5 +1,4 @@
-import { WeaverRegistry } from "@/registry/WeaverRegistry";
-import type { ReducerSignal, LogicSignal } from "@/signals/types";
+import { WeaverRegistry, getLogicSignal, getReducerSignal } from "@/registry";
 import { loadLogic } from "./loadLogic";
 import { isServer } from "@/utils/environment";
 
@@ -30,22 +29,14 @@ function isIterable(value: unknown): value is Iterable<unknown> {
  * @param reducerId - ID of the ReducerSignal to execute
  */
 export async function executeReducer(registry: WeaverRegistry, reducerId: string): Promise<void> {
+  // Get the reducer signal definition
+  const reducerSignal = getReducerSignal(registry, reducerId);
+
   // Reducers are client-only - on server, just set init value
   if (isServer()) {
-    const reducer = registry.getSignal(reducerId);
-    if (reducer?.kind === "reducer") {
-      registry.setValue(reducerId, reducer.init);
-    }
+    registry.setValue(reducerId, reducerSignal.init);
     return;
   }
-
-  // Get the reducer signal definition
-  const reducer = registry.getSignal(reducerId);
-  if (reducer?.kind !== "reducer") {
-    throw new Error(`Signal ${reducerId} is not a reducer signal`);
-  }
-
-  const reducerSignal = reducer as ReducerSignal;
 
   // Get the source signal's value (should be an iterable)
   const sourceValue = registry.getValue(reducerSignal.source);
@@ -58,13 +49,10 @@ export async function executeReducer(registry: WeaverRegistry, reducerId: string
   }
 
   // Get the reducer logic signal
-  const reducerLogicSignal = registry.getSignal(reducerSignal.reducer);
-  if (reducerLogicSignal?.kind !== "logic") {
-    throw new Error(`Reducer signal ${reducerSignal.reducer} not found or is not a logic signal`);
-  }
+  const reducerLogicSignal = getLogicSignal(registry, reducerSignal.reducer);
 
   // Load the reducer function
-  const reducerFn = await loadLogic(reducerLogicSignal as LogicSignal);
+  const reducerFn = await loadLogic(reducerLogicSignal);
 
   // Initialize accumulator with init value
   let accumulator: unknown = reducerSignal.init;

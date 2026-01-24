@@ -1,4 +1,4 @@
-import { WeaverRegistry } from "@/registry/WeaverRegistry";
+import { WeaverRegistry, getLogicSignal, getActionSignal } from "@/registry";
 import { executeLogic } from "./executeLogic";
 import { createActionDependencyInterface } from "./signalInterfaces";
 
@@ -16,16 +16,10 @@ import { createActionDependencyInterface } from "./signalInterfaces";
  */
 export async function executeAction(registry: WeaverRegistry, actionId: string): Promise<void> {
   // Get the action signal definition
-  const action = registry.getSignal(actionId);
-  if (action?.kind !== "action") {
-    throw new Error(`Signal ${actionId} is not an action signal`);
-  }
+  const action = getActionSignal(registry, actionId);
 
   // Get the logic signal
-  const logicSignal = registry.getSignal(action.logic);
-  if (logicSignal?.kind !== "logic") {
-    throw new Error(`Logic signal ${action.logic} not found`);
-  }
+  const logicSignal = getLogicSignal(registry, action.logic);
 
   // Create dependency interfaces:
   // - MutatorSignal -> WritableSignalInterface

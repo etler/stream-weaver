@@ -1,4 +1,4 @@
-import { AnySignal } from "@/signals/types";
+import { AnySignal, hasDependencies } from "@/signals/types";
 
 /**
  * WeaverRegistry
@@ -35,6 +35,21 @@ export class WeaverRegistry {
   }
 
   /**
+   * Register a signal only if it's not already registered.
+   * This is an idempotent operation safe to call multiple times.
+   *
+   * @param signal - Signal definition to register
+   * @returns true if the signal was registered, false if it already existed
+   */
+  registerIfAbsent(signal: AnySignal): boolean {
+    if (this.signals.has(signal.id)) {
+      return false;
+    }
+    this.registerSignal(signal);
+    return true;
+  }
+
+  /**
    * Registers a signal definition and stores its initial value
    * Also tracks dependency relationships for reactive propagation
    *
@@ -48,8 +63,8 @@ export class WeaverRegistry {
       this.values.set(signal.id, signal.init);
     }
 
-    // Track dependency relationships for computed, action, handler, and node signals
-    if (signal.kind === "computed" || signal.kind === "action" || signal.kind === "handler" || signal.kind === "node") {
+    // Track dependency relationships for signals with deps
+    if (hasDependencies(signal)) {
       // Register this signal as a dependent of each of its dependencies
       for (const depId of signal.deps) {
         let dependentSet = this.dependents.get(depId);
@@ -113,10 +128,7 @@ export class WeaverRegistry {
    */
   getDependencies(id: string): string[] {
     const signal = this.signals.get(id);
-    if (
-      signal &&
-      (signal.kind === "computed" || signal.kind === "action" || signal.kind === "handler" || signal.kind === "node")
-    ) {
+    if (signal && hasDependencies(signal)) {
       return signal.deps;
     }
     return [];

@@ -1,4 +1,4 @@
-import { WeaverRegistry } from "@/registry/WeaverRegistry";
+import { WeaverRegistry, getLogicSignal, getComputedSignal } from "@/registry";
 import type { ComputedSignal, LogicSignal } from "@/signals/types";
 import { isClient } from "@/utils/environment";
 import { PENDING } from "@/signals/pending";
@@ -38,16 +38,10 @@ export interface ExecuteComputedResult {
  */
 export async function executeComputed(registry: WeaverRegistry, computedId: string): Promise<ExecuteComputedResult> {
   // Get the computed signal definition
-  const computed = registry.getSignal(computedId);
-  if (computed?.kind !== "computed") {
-    throw new Error(`Signal ${computedId} is not a computed signal`);
-  }
+  const computed = getComputedSignal(registry, computedId);
 
   // Get the logic signal
-  const logicSignal = registry.getSignal(computed.logic);
-  if (logicSignal?.kind !== "logic") {
-    throw new Error(`Logic signal ${computed.logic} not found`);
-  }
+  const logicSignal = getLogicSignal(registry, computed.logic);
 
   // Check for server-context logic on client - use remote execution (M13)
   if (logicSignal.context === "server" && isClient()) {
@@ -58,7 +52,7 @@ export async function executeComputed(registry: WeaverRegistry, computedId: stri
 
   // Check for worker-context logic (M16)
   if (logicSignal.context === "worker") {
-    return executeWorkerLogic(registry, computedId, computed as ComputedSignal, logicSignal);
+    return executeWorkerLogic(registry, computedId, computed, logicSignal);
   }
 
   // Wrap dependencies as read-only interfaces
@@ -66,7 +60,7 @@ export async function executeComputed(registry: WeaverRegistry, computedId: stri
 
   // Get init value from computed signal (used as fallback when deferring)
 
-  const initValue = (computed as ComputedSignal).init;
+  const initValue = computed.init;
 
   // Execute the logic function (handles async, timeout, and context)
   const result = await executeLogic(logicSignal, depInterfaces, initValue);
