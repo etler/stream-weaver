@@ -1,8 +1,11 @@
 export { loadLogic } from "./loadLogic";
 export { executeLogic } from "./executeLogic";
 export type { ExecuteLogicResult } from "./executeLogic";
-export { createWritableSignalInterface, createActionDependencyInterface } from "./signalInterfaces";
-export type { SignalInterface, WritableSignalInterface } from "./signalInterfaces";
+export {
+  createSignalMutator as createWritableSignalInterface,
+  createActionDependencyInterface,
+} from "./signalInterfaces";
+export type { SignalInterface, SignalMutator as WritableSignalInterface } from "./signalInterfaces";
 export { executeComputed } from "./executeComputed";
 export { executeAction } from "./executeAction";
 export { executeHandler } from "./executeHandler";

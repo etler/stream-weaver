@@ -8,8 +8,7 @@ export { ClientWeaver } from "./client/ClientWeaver";
 export { WeaverRegistry } from "./registry/WeaverRegistry";
 
 // Components
-export { Suspense } from "./components";
-export type { SuspenseProps } from "./components";
+export { Suspense, type SuspenseProps } from "./components";
 
 // Signals
 export {
@@ -33,6 +32,8 @@ export {
 export type {
   Signal,
   StateSignal,
+  ReferenceSignal,
+  MutatorSignal,
   LogicSignal,
   ComputedSignal,
   ActionSignal,
@@ -41,47 +42,25 @@ export type {
   NodeSignal,
   SuspenseSignal,
   ReducerSignal,
-  ReferenceSignal,
-  MutatorSignal,
   AnySignal,
-  LogicFunction,
-  ExtractLogicFunction,
-  SignalValueType,
-  SignalsToReadOnlyInterfaces,
-  SignalsToActionInterfaces,
-  // eslint-disable-next-line @typescript-eslint/no-deprecated
-  SignalsToWritableInterfaces,
-  DropFirst,
-  First,
-  Mutable,
-  IsTypedLogic,
-  ValidateHandlerDeps,
-  ValidateComputedDeps,
-  ValidateActionDeps,
-  MaybePending,
-  CreateLogicOptions,
   Serializable,
 } from "./signals";
 
 // Signal interfaces for logic modules
-export type { SignalInterface, WritableSignalInterface } from "./logic/signalInterfaces";
+export type { SignalMutator } from "./logic/signalInterfaces";
 
 // SSR utilities
 export { setSSRModuleLoader, clearSSRModuleLoader } from "./ssr";
 export type { ModuleLoader } from "./ssr";
 
-// Server logic execution (M13)
+// Server logic execution
 export { serializeSignalChain, executeFromChain, executeRemote } from "./logic/remoteExecution";
 export type { SignalChain, SerializedSignal } from "./logic/remoteExecution";
 export { preExecuteServerLogic } from "./logic/preExecuteServerLogic";
 export { registerSignalsInTree } from "./registry/registerSignals";
 
-// Reducer execution
-export { executeReducer } from "./logic/executeReducer";
-
-// Worker execution (M16)
+// Worker execution
 export { WorkerPool } from "./worker";
-export { executeInWorker } from "./logic/workerExecution";
 
 // Polyfills (side-effect import)
 import "./polyfills/readableStreamFrom";

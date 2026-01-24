@@ -11,7 +11,7 @@ export interface SignalInterface<T = unknown> {
 /**
  * Writable signal interface for actions and handlers
  */
-export interface WritableSignalInterface<T = unknown> {
+export interface SignalMutator<T = unknown> {
   value: T;
 }
 
@@ -25,10 +25,7 @@ export interface WritableSignalInterface<T = unknown> {
  * @param id - Signal ID
  * @returns Writable interface with .value getter and setter
  */
-export function createWritableSignalInterface<T = unknown>(
-  registry: WeaverRegistry,
-  id: string,
-): WritableSignalInterface<T> {
+export function createSignalMutator<T = unknown>(registry: WeaverRegistry, id: string): SignalMutator<T> {
   return {
     get value(): T {
       // Type assertion is safe here - caller provides correct type parameter
@@ -66,7 +63,7 @@ export function createActionDependencyInterface(registry: WeaverRegistry, depId:
 
   if (signal.kind === "mutator") {
     // MutatorSignal: return writable interface to the wrapped StateSignal
-    return createWritableSignalInterface(registry, signal.ref);
+    return createSignalMutator(registry, signal.ref);
   }
 
   // All other signals: return raw value (read-only)

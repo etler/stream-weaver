@@ -6,7 +6,7 @@
  * defineLogic(import("./path")) syntax.
  */
 
-import type { WritableSignalInterface } from "@/logic/signalInterfaces";
+import type { SignalMutator } from "@/logic/signalInterfaces";
 import type { StateSignal, ComputedSignal, MutatorSignal, AnySignal } from "./types";
 
 // ========== Module Type Extraction ==========
@@ -53,7 +53,7 @@ export type SignalsToReadOnlyInterfaces<T extends readonly AnySignal[]> = {
  * @deprecated Use SignalsToActionInterfaces for new code
  */
 export type SignalsToWritableInterfaces<T extends readonly AnySignal[]> = {
-  [K in keyof T]: T[K] extends AnySignal ? WritableSignalInterface<SignalValueType<T[K]>> : never;
+  [K in keyof T]: T[K] extends AnySignal ? SignalMutator<SignalValueType<T[K]>> : never;
 };
 
 /**
@@ -63,7 +63,7 @@ export type SignalsToWritableInterfaces<T extends readonly AnySignal[]> = {
  */
 export type ActionSignalInterface<S extends AnySignal> =
   S extends MutatorSignal<infer T>
-    ? WritableSignalInterface<T>
+    ? SignalMutator<T>
     : S extends StateSignal<infer T>
       ? T
       : S extends ComputedSignal<infer T>
