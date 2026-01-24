@@ -7,22 +7,23 @@
  * - Async: Blocking async, waits 500ms before updating
  * - Deferred: Non-blocking async, returns immediately with PENDING
  */
-import { defineSignal, defineHandler, defineLogic } from "stream-weaver";
+import { defineSignal, defineHandler, defineLogic, defineMutator } from "stream-weaver";
 
 // --- Shared counter ---
 const count = defineSignal(0);
+const setCount = defineMutator(count);
 
 // --- Instant (sync) ---
 const instantLogic = defineLogic(import("../logic/increment"));
-const instantIncrement = defineHandler(instantLogic, [count]);
+const instantIncrement = defineHandler(instantLogic, [setCount]);
 
 // --- Async (blocking) ---
 const asyncLogic = defineLogic(import("../logic/slowIncrement"));
-const asyncIncrement = defineHandler(asyncLogic, [count]);
+const asyncIncrement = defineHandler(asyncLogic, [setCount]);
 
 // --- Deferred (non-blocking) ---
 const deferredLogic = defineLogic(import("../logic/slowIncrement"), { timeout: 0 });
-const deferredIncrement = defineHandler(deferredLogic, [count]);
+const deferredIncrement = defineHandler(deferredLogic, [setCount]);
 
 export function DeferredDemoExample(): JSX.Element {
   return (

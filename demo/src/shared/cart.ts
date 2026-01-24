@@ -10,16 +10,17 @@
  * This module exports state that any component can import and use directly.
  * No Context providers, no store setup, no boilerplate.
  */
-import { defineSignal, defineHandler, defineLogic } from "stream-weaver";
+import { defineSignal, defineHandler, defineLogic, defineMutator } from "stream-weaver";
 
 // Create state at module level - this "just works" in Stream Weaver
 // In React, this would require Context, Redux, Zustand, etc.
 export const cartCount = defineSignal(0);
+const cartCountMutator = defineMutator(cartCount);
 
 // Create logic signals for handlers (type-safe with import())
 const addToCartLogic = defineLogic(import("../logic/addToCart"));
 const clearCartLogic = defineLogic(import("../logic/clearCart"));
 
-// Create handlers that operate on the shared state (TypeScript validates deps match function signature)
-export const addToCart = defineHandler(addToCartLogic, [cartCount]);
-export const clearCart = defineHandler(clearCartLogic, [cartCount]);
+// Create handlers that operate on the shared state (use mutator for write access)
+export const addToCart = defineHandler(addToCartLogic, [cartCountMutator]);
+export const clearCart = defineHandler(clearCartLogic, [cartCountMutator]);

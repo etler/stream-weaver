@@ -13,7 +13,8 @@ import {
 
 /**
  * Register a signal and any nested signals it references
- * For handlers and nodes, this includes the logic signal
+ * For handlers/actions, this includes the logic signal and depsRef signals (MutatorSignals, etc.)
+ * For nodes, this includes the logic signal
  */
 function registerSignalWithDependencies(signal: AnySignal, registry: WeaverRegistry): void {
   // Register the signal itself
@@ -21,11 +22,23 @@ function registerSignalWithDependencies(signal: AnySignal, registry: WeaverRegis
     registry.registerSignal(signal);
   }
 
-  // For handlers, also register the logic signal if it's a reference
-  if (signal.kind === "handler" && "logicRef" in signal) {
+  // For handlers/actions, also register the logic signal and depsRef signals
+  if ((signal.kind === "handler" || signal.kind === "action") && "logicRef" in signal) {
     const logicSignal = (signal as { logicRef?: AnySignal }).logicRef;
     if (logicSignal !== undefined && !registry.getSignal(logicSignal.id)) {
       registry.registerSignal(logicSignal);
+    }
+  }
+
+  // Register depsRef signals (MutatorSignals, etc.) for handlers/actions
+  if ((signal.kind === "handler" || signal.kind === "action") && "depsRef" in signal) {
+    const depsRef = (signal as { depsRef?: AnySignal[] }).depsRef;
+    if (Array.isArray(depsRef)) {
+      for (const depSignal of depsRef) {
+        if (depSignal && !registry.getSignal(depSignal.id)) {
+          registry.registerSignal(depSignal);
+        }
+      }
     }
   }
 

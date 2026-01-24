@@ -202,6 +202,19 @@ function serializeAttributes(props: Record<string, unknown>, registry?: WeaverRe
         signalDefs += serializeSignalDefinition(logicSignal);
       }
 
+      // Handle dependency signal references (for handler/action signals)
+      // This ensures MutatorSignals and other deps are available on the client
+      if ("depsRef" in signal && Array.isArray(signal.depsRef)) {
+        for (const depSignal of signal.depsRef) {
+          if (isSignal(depSignal)) {
+            if (!registry.getSignal(depSignal.id)) {
+              registry.registerSignal(depSignal);
+            }
+            signalDefs += serializeSignalDefinition(depSignal as AnySignal);
+          }
+        }
+      }
+
       signalDefs += serializeSignalDefinition(signal);
 
       // Handle event handlers (onClick, onInput, etc.)

@@ -6,33 +6,43 @@
  * - Server-side blocking worker: Fibonacci computation runs during SSR
  * - Client-side deferred worker: Prime counting runs without blocking UI
  */
-import { defineSignal, defineHandler, defineComputed, defineLogic, defineWorkerLogic, Suspense } from "stream-weaver";
+import {
+  defineSignal,
+  defineHandler,
+  defineComputed,
+  defineLogic,
+  defineWorkerLogic,
+  defineMutator,
+  Suspense,
+} from "stream-weaver";
 
 // --- Fibonacci (Server-side blocking worker) ---
 // This computation runs during SSR in a Node.js worker thread
 // The result is included in the initial HTML
 const fibInput = defineSignal(35);
+const setFibInput = defineMutator(fibInput);
 const fibLogic = defineWorkerLogic(import("../logic/fibonacciWorker"));
 const fibResult = defineComputed(fibLogic, [fibInput], "Computing...");
 
-// Handler to increment fib input
+// Handler to increment fib input (use mutator for write access)
 const incrementFibLogic = defineLogic(import("../logic/incrementFibInput"));
-const incrementFib = defineHandler(incrementFibLogic, [fibInput]);
+const incrementFib = defineHandler(incrementFibLogic, [setFibInput]);
 
-// Handler to decrement fib input
+// Handler to decrement fib input (use mutator for write access)
 const decrementFibLogic = defineLogic(import("../logic/decrement"));
-const decrementFib = defineHandler(decrementFibLogic, [fibInput]);
+const decrementFib = defineHandler(decrementFibLogic, [setFibInput]);
 
 // --- Prime counting (Client-side deferred worker) ---
 // This computation runs on the client with timeout: 0 (non-blocking)
 // Shows loading state initially, updates when computation completes
 const primeLimit = defineSignal(100000);
-const primeLogic = defineWorkerLogic(import("../logic/primeCountWorker"), { timeout: 0 });
-const primeResult = defineComputed(primeLogic, [primeLimit]);
+const setPrimeLimit = defineMutator(primeLimit);
+const deferredPrimeLogic = defineWorkerLogic(import("../logic/primeCountWorker"), { timeout: 0 });
+const primeResult = defineComputed(deferredPrimeLogic, [primeLimit]);
 
-// Handler to increment prime limit
+// Handler to increment prime limit (use mutator for write access)
 const incrementPrimeLimitLogic = defineLogic(import("../logic/incrementPrimeLimit"));
-const incrementPrimeLimit = defineHandler(incrementPrimeLimitLogic, [primeLimit]);
+const incrementPrimeLimit = defineHandler(incrementPrimeLimitLogic, [setPrimeLimit]);
 
 function FibonacciSection(): JSX.Element {
   return (

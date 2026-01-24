@@ -14,6 +14,8 @@ export type { SuspenseProps } from "./components";
 // Signals
 export {
   defineSignal,
+  defineReference,
+  defineMutator,
   defineLogic,
   defineClientLogic,
   defineServerLogic,
@@ -39,6 +41,8 @@ export type {
   NodeSignal,
   SuspenseSignal,
   ReducerSignal,
+  ReferenceSignal,
+  MutatorSignal,
   AnySignal,
   LogicFunction,
   ExtractLogicFunction,

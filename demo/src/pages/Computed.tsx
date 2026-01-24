@@ -2,10 +2,12 @@
  * Example 2: Computed Signals
  * Demonstrates reactive computed values that update automatically
  */
-import { defineSignal, defineHandler, defineComputed, defineLogic } from "stream-weaver";
+import { defineSignal, defineHandler, defineComputed, defineLogic, defineMutator } from "stream-weaver";
 
 // Create a state signal for the count
 const count = defineSignal(0);
+// Wrap in mutator for handler mutation access
+const setCount = defineMutator(count);
 
 // Create logic signals (type-safe with import())
 const doubleLogic = defineLogic(import("../logic/double"));
@@ -16,9 +18,9 @@ const decrementLogic = defineLogic(import("../logic/decrement"));
 // Initial value of 0 for SSR (since 0 * 2 = 0)
 const doubled = defineComputed(doubleLogic, [count], 0);
 
-// Create handlers for increment/decrement (TypeScript validates deps match function signature)
-const increment = defineHandler(incrementLogic, [count]);
-const decrement = defineHandler(decrementLogic, [count]);
+// Create handlers for increment/decrement (use mutator for write access)
+const increment = defineHandler(incrementLogic, [setCount]);
+const decrement = defineHandler(decrementLogic, [setCount]);
 
 export function ComputedExample(): JSX.Element {
   return (

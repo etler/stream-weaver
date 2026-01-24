@@ -165,6 +165,26 @@ export interface ReferenceSignal<T extends Signal = Signal> extends Signal {
 }
 
 /**
+ * MutatorSignal wraps a StateSignal to provide writable interface access in actions/handlers.
+ * This is the ONLY way to get mutation access to a signal from within logic.
+ *
+ * Constraints enforced by TypeScript:
+ * 1. Can only wrap StateSignal (not computed or other derived signals)
+ * 2. Can only be passed to defineAction() or defineHandler() (not defineComputed or components)
+ *
+ * This is a derived signal that uses content-addressable IDs based on the wrapped signal.
+ * Same wrapped signal = same mutator ID.
+ *
+ * @template T - The value type of the wrapped StateSignal
+ */
+export interface MutatorSignal<T = unknown> extends Signal {
+  kind: "mutator";
+  ref: string; // ID of the wrapped StateSignal
+  /** @internal Phantom property for compile-time type tracking - never set at runtime */
+  readonly _type?: T;
+}
+
+/**
  * Discriminated union of all signal types
  */
 export type AnySignal =
@@ -177,4 +197,5 @@ export type AnySignal =
   | NodeSignal
   | SuspenseSignal
   | ReducerSignal
-  | ReferenceSignal;
+  | ReferenceSignal
+  | MutatorSignal;

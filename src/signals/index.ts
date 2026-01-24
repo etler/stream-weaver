@@ -1,5 +1,6 @@
 export { defineSignal } from "./defineSignal";
 export { defineReference } from "./defineReference";
+export { defineMutator } from "./defineMutator";
 export { defineLogic, defineClientLogic, defineServerLogic, defineWorkerLogic } from "./defineLogic";
 export type { CreateLogicOptions, ContextLogicOptions } from "./defineLogic";
 export { defineComputed } from "./defineComputed";
@@ -21,6 +22,7 @@ export type {
   SuspenseSignal,
   ReducerSignal,
   ReferenceSignal,
+  MutatorSignal,
   AnySignal,
 } from "./types";
 export type {

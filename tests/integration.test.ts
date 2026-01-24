@@ -7,6 +7,7 @@ import { defineSignal } from "@/signals/defineSignal";
 import { defineComputed } from "@/signals/defineComputed";
 import { defineHandler } from "@/signals/defineHandler";
 import { defineLogic } from "@/signals/defineLogic";
+import { defineMutator } from "@/signals/defineMutator";
 import { WeaverRegistry } from "@/registry/WeaverRegistry";
 import { executeComputed } from "@/logic";
 
@@ -143,11 +144,13 @@ describe("Milestone 9: Full Stack Integration", () => {
   test("event handler triggers reactive cycle", async () => {
     // Setup signals
     const count = defineSignal(0);
+    const countMutator = defineMutator(count);
     const logic = defineLogic("./tests/fixtures/handleClick.js");
-    const increment = defineHandler(logic, [count]);
+    const increment = defineHandler(logic, [countMutator]);
 
     const registry = new WeaverRegistry();
     registry.registerSignal(count);
+    registry.registerSignal(countMutator);
     registry.registerSignal(logic);
     registry.registerSignal(increment);
     registry.setValue(count.id, 0);
@@ -165,6 +168,7 @@ describe("Milestone 9: Full Stack Integration", () => {
     // Create client weaver
     const clientWeaver = new ClientWeaver();
     clientWeaver.push({ kind: "signal-definition", signal: count });
+    clientWeaver.push({ kind: "signal-definition", signal: countMutator });
     clientWeaver.push({ kind: "signal-definition", signal: logic });
     clientWeaver.push({ kind: "signal-definition", signal: increment });
 
@@ -193,13 +197,15 @@ describe("Milestone 9: Full Stack Integration", () => {
   test("full reactive cycle with computed signal", async () => {
     // Setup signals
     const count = defineSignal(0);
+    const countMutator = defineMutator(count);
     const doubleLogic = defineLogic("./tests/fixtures/double.js");
     const doubled = defineComputed(doubleLogic, [count]);
     const incrementLogic = defineLogic("./tests/fixtures/handleClick.js");
-    const increment = defineHandler(incrementLogic, [count]);
+    const increment = defineHandler(incrementLogic, [countMutator]);
 
     const registry = new WeaverRegistry();
     registry.registerSignal(count);
+    registry.registerSignal(countMutator);
     registry.registerSignal(doubleLogic);
     registry.registerSignal(doubled);
     registry.registerSignal(incrementLogic);
@@ -222,6 +228,7 @@ describe("Milestone 9: Full Stack Integration", () => {
     // Create client weaver
     const clientWeaver = new ClientWeaver();
     clientWeaver.push({ kind: "signal-definition", signal: count });
+    clientWeaver.push({ kind: "signal-definition", signal: countMutator });
     clientWeaver.push({ kind: "signal-definition", signal: doubleLogic });
     clientWeaver.push({ kind: "signal-definition", signal: doubled });
     clientWeaver.push({ kind: "signal-definition", signal: incrementLogic });

@@ -23,7 +23,9 @@ export function isSignal(value: unknown): value is AnySignal {
       obj["kind"] === "component" ||
       obj["kind"] === "node" ||
       obj["kind"] === "suspense" ||
-      obj["kind"] === "reducer")
+      obj["kind"] === "reducer" ||
+      obj["kind"] === "mutator" ||
+      obj["kind"] === "reference")
   );
 }
 

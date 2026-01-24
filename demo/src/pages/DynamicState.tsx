@@ -10,7 +10,14 @@
  * Stream Weaver: Signals are identified by ID, not call order!
  * Create them in loops, conditionals, wherever you need them.
  */
-import { defineSignal, defineHandler, defineLogic, defineComputed, defineComponent } from "stream-weaver";
+import {
+  defineSignal,
+  defineHandler,
+  defineLogic,
+  defineComputed,
+  defineComponent,
+  defineMutator,
+} from "stream-weaver";
 
 // Logic for toggling state and visual display (type-safe with import())
 const toggleLogic = defineLogic(import("../logic/toggle"));
@@ -40,7 +47,8 @@ const todoItems = [
 function TodoItem(item: { id: string; text: string; priority: string }): JSX.Element {
   // State created in a loop! Each item has its own independent completed state.
   const completed = defineSignal(false);
-  const toggleCompleted = defineHandler(toggleLogic, [completed]);
+  const setCompleted = defineMutator(completed);
+  const toggleCompleted = defineHandler(toggleLogic, [setCompleted]);
 
   // Computed signal that returns a checkmark when completed
   const checkmark = defineComputed(checkmarkLogic, [completed], "");
@@ -79,7 +87,8 @@ function TodoItem(item: { id: string; text: string; priority: string }): JSX.Ele
 export function DynamicStateExample(): JSX.Element {
   // State to toggle the conditional feature
   const advancedEnabled = defineSignal(true);
-  const toggleAdvanced = defineHandler(toggleLogic, [advancedEnabled]);
+  const advancedEnabledMutator = defineMutator(advancedEnabled);
+  const toggleAdvanced = defineHandler(toggleLogic, [advancedEnabledMutator]);
 
   return (
     <div style="padding: 1rem; max-width: 600px; margin: 0 auto;">

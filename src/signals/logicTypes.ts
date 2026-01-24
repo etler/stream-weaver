@@ -7,7 +7,7 @@
  */
 
 import type { WritableSignalInterface } from "@/logic/signalInterfaces";
-import type { StateSignal, ComputedSignal, AnySignal } from "./types";
+import type { StateSignal, ComputedSignal, MutatorSignal, AnySignal } from "./types";
 
 // ========== Module Type Extraction ==========
 
@@ -50,14 +50,37 @@ export type SignalsToReadOnlyInterfaces<T extends readonly AnySignal[]> = {
 
 /**
  * Maps a tuple of signals to writable interfaces
- * Used for action/handler dependency validation
- *
- * @example
- * type Interfaces = SignalsToWritableInterfaces<[StateSignal<number>]>;
- * // = [WritableSignalInterface<number>]
+ * @deprecated Use SignalsToActionInterfaces for new code
  */
 export type SignalsToWritableInterfaces<T extends readonly AnySignal[]> = {
   [K in keyof T]: T[K] extends AnySignal ? WritableSignalInterface<SignalValueType<T[K]>> : never;
+};
+
+/**
+ * Gets the interface type for a signal in action/handler context
+ * - MutatorSignal<T> → WritableSignalInterface<T> (mutable access)
+ * - Other signals → raw value T (read-only, unwrapped)
+ */
+export type ActionSignalInterface<S extends AnySignal> =
+  S extends MutatorSignal<infer T>
+    ? WritableSignalInterface<T>
+    : S extends StateSignal<infer T>
+      ? T
+      : S extends ComputedSignal<infer T>
+        ? T
+        : unknown;
+
+/**
+ * Maps a tuple of signals to their action/handler interfaces
+ * - MutatorSignal → WritableSignalInterface (for mutation)
+ * - Other signals → raw value (read-only)
+ *
+ * @example
+ * type Interfaces = SignalsToActionInterfaces<[MutatorSignal<number>, StateSignal<string>]>;
+ * // = [WritableSignalInterface<number>, string]
+ */
+export type SignalsToActionInterfaces<T extends readonly AnySignal[]> = {
+  [K in keyof T]: T[K] extends AnySignal ? ActionSignalInterface<T[K]> : never;
 };
 
 // ========== Tuple Utilities ==========
@@ -109,10 +132,14 @@ export type IsTypedLogic<F extends LogicFunction> =
  *
  * For untyped logic (LogicFunction), always returns Deps (no validation)
  * For typed logic, validates that signal types match function parameters
+ *
+ * Handler receives: (event: Event, ...deps) where deps are:
+ * - MutatorSignal<T> → WritableSignalInterface<T>
+ * - Other signals → raw value T
  */
 export type ValidateHandlerDeps<F extends LogicFunction, Deps extends readonly AnySignal[]> =
   IsTypedLogic<F> extends true
-    ? Mutable<SignalsToWritableInterfaces<Deps>> extends DropFirst<Parameters<F>>
+    ? Mutable<SignalsToActionInterfaces<Deps>> extends DropFirst<Parameters<F>>
       ? Deps
       : "Error: Signal types don't match handler function parameters"
     : Deps;
@@ -129,10 +156,14 @@ export type ValidateComputedDeps<F extends LogicFunction, Deps extends readonly 
 
 /**
  * Validates action dependencies against function parameters
+ *
+ * Action receives deps where:
+ * - MutatorSignal<T> → WritableSignalInterface<T>
+ * - Other signals → raw value T
  */
 export type ValidateActionDeps<F extends LogicFunction, Deps extends readonly AnySignal[]> =
   IsTypedLogic<F> extends true
-    ? Mutable<SignalsToWritableInterfaces<Deps>> extends Parameters<F>
+    ? Mutable<SignalsToActionInterfaces<Deps>> extends Parameters<F>
       ? Deps
       : "Error: Signal types don't match action function parameters"
     : Deps;

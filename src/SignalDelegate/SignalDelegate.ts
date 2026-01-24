@@ -128,6 +128,17 @@ export class SignalDelegate extends DelegateStream<SignalEvent, SignalToken> {
           const logicSignal = reg.getSignal(handler.logic);
           const isDeferred = logicSignal?.kind === "logic" && logicSignal.timeout === 0;
 
+          // Helper to resolve mutator deps to their wrapped state signal IDs
+          const resolveMutatorDeps = (deps: string[]): string[] => {
+            return deps.map((depId) => {
+              const dep = reg.getSignal(depId);
+              if (dep?.kind === "mutator") {
+                return dep.ref; // Return the wrapped state signal ID
+              }
+              return depId;
+            });
+          };
+
           if (isDeferred) {
             // Deferred execution: don't chain to parent, write to root when complete
             // This allows subsequent events to process without waiting
@@ -139,7 +150,8 @@ export class SignalDelegate extends DelegateStream<SignalEvent, SignalToken> {
                 if (writer) {
                   await result.deferred;
                   // Write signal-update events to root stream for deferred completion
-                  for (const depId of handler.deps) {
+                  // Resolve mutators to their wrapped state signals
+                  for (const depId of resolveMutatorDeps(handler.deps)) {
                     const value = reg.getValue(depId);
                     await writer.write({
                       kind: "signal-update",
@@ -165,7 +177,8 @@ export class SignalDelegate extends DelegateStream<SignalEvent, SignalToken> {
               await executeHandler(reg, event.id, event.event);
 
               // Emit signal-update events for each dependency
-              for (const depId of handler.deps) {
+              // Resolve mutators to their wrapped state signals
+              for (const depId of resolveMutatorDeps(handler.deps)) {
                 const value = reg.getValue(depId);
                 await childWriter.write({
                   kind: "signal-update",

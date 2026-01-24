@@ -1,6 +1,6 @@
 import { WeaverRegistry } from "@/registry/WeaverRegistry";
 import { executeLogic } from "./executeLogic";
-import { createWritableSignalInterface } from "./signalInterfaces";
+import { createActionDependencyInterface } from "./signalInterfaces";
 
 /**
  * Result of executeHandler
@@ -12,7 +12,8 @@ export interface ExecuteHandlerResult {
 
 /**
  * Executes a handler signal's logic function with an event
- * Handlers receive the event object plus writable access to their dependencies
+ * Handlers receive the event object plus unwrapped values from dependencies,
+ * except MutatorSignal which provides a writable interface for mutation.
  *
  * Handles deferred execution (M12):
  * - If logic has timeout, may return immediately while execution continues
@@ -40,8 +41,10 @@ export async function executeHandler(
     throw new Error(`Logic signal ${handler.logic} not found`);
   }
 
-  // Wrap dependencies as writable interfaces
-  const depInterfaces = handler.deps.map((depId) => createWritableSignalInterface(registry, depId));
+  // Create dependency interfaces:
+  // - MutatorSignal -> WritableSignalInterface
+  // - Other signals -> raw value
+  const depInterfaces = handler.deps.map((depId) => createActionDependencyInterface(registry, depId));
 
   // Execute the logic function with event as first parameter (handles async, timeout, and context)
   const result = await executeLogic(logicSignal, [event, ...depInterfaces]);

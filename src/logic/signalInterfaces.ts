@@ -17,7 +17,7 @@ export interface WritableSignalInterface<T = unknown> {
 
 /**
  * Creates a writable signal interface
- * Used for actions and handlers - they can mutate dependencies
+ * Used internally for MutatorSignal resolution
  * In M3, this directly mutates the registry
  * In M4+, this will emit events to the SignalDelegate stream
  *
@@ -41,4 +41,34 @@ export function createWritableSignalInterface<T = unknown>(
       registry.setValue(id, newValue);
     },
   };
+}
+
+/**
+ * Creates the appropriate interface for an action/handler dependency
+ *
+ * - MutatorSignal: returns WritableSignalInterface to wrapped StateSignal
+ * - Other signals: returns raw value from registry (read-only)
+ *
+ * This implements the mutation model where actions/handlers receive unwrapped values
+ * by default, and only get writable access through explicit MutatorSignal wrapping.
+ *
+ * @param registry - WeaverRegistry instance
+ * @param depId - Dependency signal ID
+ * @returns WritableSignalInterface for mutators, raw value for others
+ */
+export function createActionDependencyInterface(registry: WeaverRegistry, depId: string): unknown {
+  const signal = registry.getSignal(depId);
+
+  if (!signal) {
+    // Signal not found, return undefined
+    return undefined;
+  }
+
+  if (signal.kind === "mutator") {
+    // MutatorSignal: return writable interface to the wrapped StateSignal
+    return createWritableSignalInterface(registry, signal.ref);
+  }
+
+  // All other signals: return raw value (read-only)
+  return registry.getValue(depId);
 }

@@ -11,12 +11,13 @@
  * - Skeleton screens while fetching
  * - Graceful handling of slow network requests
  */
-import { defineSignal, defineComputed, defineHandler, defineLogic, Suspense } from "stream-weaver";
+import { defineSignal, defineComputed, defineHandler, defineLogic, defineMutator, Suspense } from "stream-weaver";
 
 // --- Deferred Data Signals ---
 
 // Counter for manual refresh (defined first so computed signals can depend on it)
 const refreshCount = defineSignal(0);
+const setRefreshCount = defineMutator(refreshCount);
 
 // User data with deferred execution (timeout: 0 = always defer)
 // Depends on refreshCount to trigger re-fetch when button is clicked
@@ -27,9 +28,9 @@ const userData = defineComputed(userLogic, [refreshCount]);
 const postsLogic = defineLogic(import("../logic/fetchPostsDeferred"), { timeout: 0 });
 const postsData = defineComputed(postsLogic, [refreshCount]);
 
-// Refresh handler - increments counter to trigger refetch
+// Refresh handler - increments counter to trigger refetch (use mutator for write access)
 const refreshLogic = defineLogic(import("../logic/incrementRefresh"));
-const onRefresh = defineHandler(refreshLogic, [refreshCount]);
+const onRefresh = defineHandler(refreshLogic, [setRefreshCount]);
 
 /**
  * Loading skeleton component

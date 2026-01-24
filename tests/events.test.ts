@@ -5,6 +5,7 @@ import { describe, test, expect, beforeEach } from "vitest";
 import { defineSignal } from "@/signals/defineSignal";
 import { defineHandler } from "@/signals/defineHandler";
 import { defineLogic } from "@/signals/defineLogic";
+import { defineMutator } from "@/signals/defineMutator";
 import { WeaverRegistry } from "@/registry/WeaverRegistry";
 import { SignalDelegate } from "@/SignalDelegate/SignalDelegate";
 import { setupEventDelegation } from "@/events/setupEventDelegation";
@@ -31,11 +32,13 @@ describe("Milestone 7: Event Delegation Infrastructure", () => {
 
   test("event delegation finds handler ID and triggers execution", async () => {
     const count = defineSignal(0);
+    const countMutator = defineMutator(count);
     const logic = defineLogic("./tests/fixtures/handleClick.js");
-    const handler = defineHandler(logic, [count]);
+    const handler = defineHandler(logic, [countMutator]);
 
     const registry = new WeaverRegistry();
     registry.registerSignal(count);
+    registry.registerSignal(countMutator);
     registry.registerSignal(logic);
     registry.registerSignal(handler);
     registry.setValue(count.id, 0);
@@ -74,13 +77,17 @@ describe("Milestone 7: Event Delegation Infrastructure", () => {
   test("multiple event types work", async () => {
     const count1 = defineSignal(0);
     const count2 = defineSignal(0);
+    const count1Mutator = defineMutator(count1);
+    const count2Mutator = defineMutator(count2);
     const logic = defineLogic("./tests/fixtures/handleClick.js");
-    const clickHandler = defineHandler(logic, [count1]);
-    const inputHandler = defineHandler(logic, [count2]);
+    const clickHandler = defineHandler(logic, [count1Mutator]);
+    const inputHandler = defineHandler(logic, [count2Mutator]);
 
     const registry = new WeaverRegistry();
     registry.registerSignal(count1);
     registry.registerSignal(count2);
+    registry.registerSignal(count1Mutator);
+    registry.registerSignal(count2Mutator);
     registry.registerSignal(logic);
     registry.registerSignal(clickHandler);
     registry.registerSignal(inputHandler);
@@ -132,11 +139,13 @@ describe("Milestone 7: Event Delegation Infrastructure", () => {
 
   test("event delegation bubbles to parent", async () => {
     const count = defineSignal(0);
+    const countMutator = defineMutator(count);
     const logic = defineLogic("./tests/fixtures/handleClick.js");
-    const handler = defineHandler(logic, [count]);
+    const handler = defineHandler(logic, [countMutator]);
 
     const registry = new WeaverRegistry();
     registry.registerSignal(count);
+    registry.registerSignal(countMutator);
     registry.registerSignal(logic);
     registry.registerSignal(handler);
     registry.setValue(count.id, 0);

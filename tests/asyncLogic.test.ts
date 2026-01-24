@@ -1,5 +1,5 @@
 import { describe, test, expect } from "vitest";
-import { defineSignal, defineComputed, defineAction, defineHandler, LogicSignal } from "@/signals";
+import { defineSignal, defineComputed, defineAction, defineHandler, defineMutator, LogicSignal } from "@/signals";
 import { WeaverRegistry } from "@/registry/WeaverRegistry";
 import { executeComputed, executeAction, executeHandler } from "@/logic";
 import path from "node:path";
@@ -31,15 +31,17 @@ describe("Milestone 11: Async Logic", () => {
 
   test("async action completes before signal updates propagate", async () => {
     const count = defineSignal(0);
+    const countMutator = defineMutator(count);
     const asyncLogic: LogicSignal = {
       id: "logic_asyncInc",
       kind: "logic",
       src: `${fixturesPath}/asyncIncrement.js`,
     };
-    const increment = defineAction(asyncLogic, [count]);
+    const increment = defineAction(asyncLogic, [countMutator]);
 
     const registry = new WeaverRegistry();
     registry.registerSignal(count);
+    registry.registerSignal(countMutator);
     registry.registerSignal(asyncLogic);
     registry.registerSignal(increment);
     registry.setValue(count.id, 0);
@@ -77,15 +79,17 @@ describe("Milestone 11: Async Logic", () => {
 
   test("async handler awaits completion", async () => {
     const value = defineSignal("");
+    const valueMutator = defineMutator(value);
     const asyncLogic: LogicSignal = {
       id: "logic_asyncHandler",
       kind: "logic",
       src: `${fixturesPath}/asyncHandler.js`,
     };
-    const handler = defineHandler(asyncLogic, [value]);
+    const handler = defineHandler(asyncLogic, [valueMutator]);
 
     const registry = new WeaverRegistry();
     registry.registerSignal(value);
+    registry.registerSignal(valueMutator);
     registry.registerSignal(asyncLogic);
     registry.registerSignal(handler);
 

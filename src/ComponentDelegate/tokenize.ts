@@ -200,6 +200,19 @@ export function tokenize(node: Node, registry?: WeaverRegistry): (TokenOrExecuta
               signalDefinitions.push({ kind: "signal-definition", signal: propValue.logicRef });
             }
 
+            // If this signal has dependency references (handler/action), emit those too
+            // This ensures MutatorSignals and other deps are available on the client
+            if ("depsRef" in propValue && Array.isArray(propValue.depsRef)) {
+              for (const dep of propValue.depsRef) {
+                if (isSignal(dep)) {
+                  if (registry && !registry.getSignal(dep.id)) {
+                    registry.registerSignal(dep);
+                  }
+                  signalDefinitions.push({ kind: "signal-definition", signal: dep });
+                }
+              }
+            }
+
             signalDefinitions.push({ kind: "signal-definition", signal: propValue });
           }
         }

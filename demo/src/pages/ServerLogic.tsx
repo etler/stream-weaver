@@ -17,12 +17,20 @@
  * 2. On SSR: executes directly like any other logic
  * 3. On client: serializes dependency chain, POSTs to server, gets result
  */
-import { defineSignal, defineComputed, defineHandler, defineLogic, defineServerLogic } from "stream-weaver";
+import {
+  defineSignal,
+  defineComputed,
+  defineHandler,
+  defineLogic,
+  defineServerLogic,
+  defineMutator,
+} from "stream-weaver";
 
 // --- Server Logic Signals ---
 
 // User ID state that can be changed from the client
 const userId = defineSignal(1);
+const setUserId = defineMutator(userId);
 
 // Server logic - fetches user from "database"
 // This will execute on the server and return the result
@@ -33,15 +41,15 @@ const user = defineComputed(fetchUserLogic, [userId], "Loading user...");
 const getTimeLogic = defineServerLogic(import("../logic/getServerTime"));
 const serverTime = defineComputed(getTimeLogic, [], "Loading...");
 
-// --- Client-side handlers to change userId ---
+// --- Client-side handlers to change userId (use mutator for write access) ---
 const setUser1Logic = defineLogic(import("../logic/setUserId1"));
-const setUser1 = defineHandler(setUser1Logic, [userId]);
+const setUser1 = defineHandler(setUser1Logic, [setUserId]);
 
 const setUser2Logic = defineLogic(import("../logic/setUserId2"));
-const setUser2 = defineHandler(setUser2Logic, [userId]);
+const setUser2 = defineHandler(setUser2Logic, [setUserId]);
 
 const setUser3Logic = defineLogic(import("../logic/setUserId3"));
-const setUser3 = defineHandler(setUser3Logic, [userId]);
+const setUser3 = defineHandler(setUser3Logic, [setUserId]);
 
 /**
  * User Card component - displays user fetched from server
