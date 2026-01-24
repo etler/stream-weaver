@@ -13,6 +13,7 @@ import { isSuspenseResolutionNode } from "@/ComponentDelegate/tokenize";
 import { Node } from "@/jsx/types/Node";
 import { Fragment } from "@/jsx/jsx-runtime";
 import { WeaverRegistry } from "@/registry/WeaverRegistry";
+import { PENDING } from "@/signals/pending";
 import { AnySignal, ComputedSignal } from "@/signals/types";
 
 // Self-closing tag check using switch (faster than Set.has for small fixed sets)
@@ -212,7 +213,9 @@ function serializeAttributes(props: Record<string, unknown>, registry?: WeaverRe
         // Attribute bindings: add both current value AND data-w-* attribute
         const currentValue = registry.getValue(signal.id) ?? ("init" in signal ? signal.init : "");
         const attrName = normalizeAttributeName(key);
-        parts.push(`${attrName}="${escapeAttribute(String(currentValue))}"`);
+        // For PENDING values, use empty string
+        const attrValue = currentValue === PENDING ? "" : String(currentValue);
+        parts.push(`${attrName}="${escapeAttribute(attrValue)}"`);
         const dataAttr = propToDataAttribute(key);
         parts.push(`${dataAttr}="${escapeAttribute(signal.id)}"`);
       }
@@ -325,8 +328,10 @@ function serializeSignalNode(signal: AnySignal, registry?: WeaverRegistry): stri
 
   // Emit bind markers and content
   html += `<!--^${signal.id}-->`;
+  // For PENDING values, use empty string - the client will fill in the value when it resolves
   // eslint-disable-next-line @typescript-eslint/no-base-to-string
-  html += escapeText(String(value ?? ""));
+  const textContent = value === PENDING ? "" : String(value ?? "");
+  html += escapeText(textContent);
   html += `<!--/${signal.id}-->`;
 
   return html;

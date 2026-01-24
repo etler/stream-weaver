@@ -312,9 +312,10 @@ export class ClientWeaver {
           // sync already rescans for new bind points
           this.sink.sync(value.id, html);
         } else {
-          // Primitive values - convert to string
+          // Primitive values - convert to string (PENDING becomes empty)
           // eslint-disable-next-line @typescript-eslint/no-base-to-string
-          this.sink.sync(value.id, String(currentValue ?? ""));
+          const textContent = currentValue === PENDING ? "" : String(currentValue ?? "");
+          this.sink.sync(value.id, textContent);
         }
 
         // Check if this signal resolving affects any suspense boundaries

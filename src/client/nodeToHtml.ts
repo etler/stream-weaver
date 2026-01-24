@@ -3,6 +3,7 @@ import type { Element } from "@/jsx/types/Element";
 import type { AnySignal } from "@/signals/types";
 import type { WeaverRegistry } from "@/registry/WeaverRegistry";
 import { Fragment } from "@/jsx/Fragment";
+import { PENDING } from "@/signals/pending";
 import {
   isSignal,
   isEventHandlerProp,
@@ -75,8 +76,9 @@ export function nodeToHtml(node: Node, registry?: WeaverRegistry): string {
     }
 
     // Output bind markers with current value
+    // For PENDING values, use empty string - the client will fill in the value when it resolves
     // eslint-disable-next-line @typescript-eslint/no-base-to-string
-    const content = value !== undefined && value !== null ? sanitizeText(String(value)) : "";
+    const content = value !== undefined && value !== null && value !== PENDING ? sanitizeText(String(value)) : "";
     return `<!--^${node.id}-->${content}<!--/${node.id}-->`;
   }
 
@@ -158,8 +160,10 @@ function propsToAttributes(props: Element["props"], registry?: WeaverRegistry): 
         }
 
         const attributeName = normalizeAttributeName(key);
-        // eslint-disable-next-line @typescript-eslint/no-base-to-string
-        const attributeValue = attrValue !== undefined ? sanitizeAttribute(String(attrValue)) : "";
+        // For PENDING values, use empty string
+        const attributeValue =
+          // eslint-disable-next-line @typescript-eslint/no-base-to-string
+          attrValue !== undefined && attrValue !== PENDING ? sanitizeAttribute(String(attrValue)) : "";
         attributes.push(`${attributeName}="${attributeValue}"`);
         attributes.push(`${propToDataAttribute(key)}="${value.id}"`);
       }

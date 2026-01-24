@@ -439,8 +439,9 @@ function propsToAttributes(props: Element["props"], registry?: WeaverRegistry): 
       } else {
         // Attribute bindings: add both current value AND data-w-* attribute
         const value = registry.getValue(prop.id);
+        // For PENDING values, use empty string
         // eslint-disable-next-line @typescript-eslint/no-base-to-string
-        attributes[key] = String(value ?? "");
+        attributes[key] = value === PENDING ? "" : String(value ?? "");
         attributes[propToDataAttribute(key)] = prop.id;
       }
     } else {

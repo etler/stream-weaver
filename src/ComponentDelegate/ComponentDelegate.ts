@@ -105,9 +105,10 @@ function executeComputedSignal(
     // Get the result
     const value = registry.getValue(computed.id);
 
-    // Emit the value as text
+    // Emit the value as text (PENDING values become empty string)
     // eslint-disable-next-line @typescript-eslint/no-base-to-string
-    await writer.write(String(value ?? ""));
+    const textContent = value === PENDING ? "" : String(value ?? "");
+    await writer.write(textContent);
     await writer.close();
   })().catch((error: unknown) => {
     console.error(new Error("ComputedSignal Execution Error", { cause: error }));
