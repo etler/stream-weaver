@@ -1,12 +1,12 @@
 import { chunkify } from "@/ComponentDelegate/chunkify";
 import { tokenize } from "@/ComponentDelegate/tokenize";
-import { Token, NodeExecutable, ComputedExecutable, SuspenseExecutable } from "@/ComponentDelegate/types/Token";
+import { Token, SuspenseExecutable } from "@/ComponentDelegate/types/Token";
 import { DelegateStream } from "delegate-stream";
 import { Node } from "@/jsx/types/Node";
 import { WeaverRegistry } from "@/registry/WeaverRegistry";
 import { ComponentElement } from "@/jsx/types/Element";
-import { executeComputed } from "@/logic/executeComputed";
-import { executeNode } from "@/logic/executeNode";
+import { SignalDelegate } from "@/SignalDelegate/SignalDelegate";
+import { SignalToken } from "@/SignalDelegate/types";
 import { PENDING } from "@/signals/pending";
 import { serializeElement, serializeTokenArray } from "@/ComponentSerializer/serialize";
 
@@ -33,17 +33,15 @@ export class ComponentDelegate extends DelegateStream<Node, Token> {
             chain(chunk);
           } else if ("kind" in chunk) {
             if (chunk.kind === "node-executable") {
-              // NodeExecutable - load and execute component
-              const delegate = new ComponentDelegate(reg);
-              const writer = delegate.writable.getWriter();
-              chain(delegate.readable);
-              executeNodeSignal(chunk, writer, reg);
+              // NodeExecutable - execute via SignalDelegate, then continue tokenizing result
+              if (reg) {
+                executeViaSignalDelegate(chunk.node.id, chain, reg, nodeToTokens(reg));
+              }
             } else if (chunk.kind === "computed-executable") {
-              // ComputedExecutable - execute server-context computed signal
-              const delegate = new ComponentDelegate(reg);
-              const writer = delegate.writable.getWriter();
-              chain(delegate.readable);
-              executeComputedSignal(chunk, writer, reg);
+              // ComputedExecutable - execute via SignalDelegate, emit as text token
+              if (reg) {
+                executeViaSignalDelegate(chunk.computed.id, chain, reg, computedToToken);
+              }
             } else {
               // SuspenseExecutable - process children, check PENDING, emit tokens directly
               executeSuspenseSignal(chunk, chain, reg);
@@ -79,42 +77,56 @@ function executeComponentElement(component: ComponentElement, writer: WritableSt
   });
 }
 
+type ChainFn = (input: Iterable<Token> | AsyncIterable<Token> | null) => void;
+type TransformFn = (value: unknown, innerChain: ChainFn) => void;
+
 /**
- * Execute a server-context computed signal and emit the result as text
+ * Execute a signal via SignalDelegate and transform the result.
+ * SignalDelegate handles execution; transformFn converts result to tokens.
  */
-function executeComputedSignal(
-  executable: ComputedExecutable,
-  writer: WritableStreamDefaultWriter<Node>,
-  registry?: WeaverRegistry,
+function executeViaSignalDelegate(
+  signalId: string,
+  chain: ChainFn,
+  registry: WeaverRegistry,
+  transformFn: TransformFn,
 ): void {
-  (async () => {
-    if (!registry) {
-      await writer.close();
-      return;
-    }
+  const signalDelegate = new SignalDelegate(registry);
 
-    const { computed } = executable;
-
-    // Execute the computed signal (this handles server-context and worker-context logic)
-    await executeComputed(registry, computed.id);
-
-    // Get the result
-    const value = registry.getValue(computed.id);
-
-    // Emit the value as text (PENDING values become empty string)
-    // eslint-disable-next-line @typescript-eslint/no-base-to-string
-    const textContent = value === PENDING ? "" : String(value ?? "");
-    await writer.write(textContent);
-    await writer.close();
-  })().catch((error: unknown) => {
-    console.error(new Error("ComputedSignal Execution Error", { cause: error }));
-    writer.close().catch(() => {
-      // Ignore close errors
-    });
+  const transformer = new DelegateStream<SignalToken, Token>({
+    transform: (event, innerChain) => {
+      transformFn(event.value, innerChain);
+    },
+    finish: (innerChain) => {
+      innerChain(null);
+    },
   });
+
+  void signalDelegate.readable.pipeTo(transformer.writable);
+  chain(transformer.readable);
+
+  const writer = signalDelegate.writable.getWriter();
+  void writer.write({ kind: "execute-signal", id: signalId }).then(async () => writer.close());
 }
 
-type ChainFn = (input: Iterable<Token> | AsyncIterable<Token> | null) => void;
+/** Transform computed value to text token */
+function computedToToken(value: unknown, innerChain: ChainFn): void {
+  // eslint-disable-next-line @typescript-eslint/no-base-to-string
+  const textContent = value === PENDING ? "" : String(value ?? "");
+  innerChain([{ kind: "text", content: textContent }]);
+}
+
+/** Transform node value through ComponentDelegate for tokenization */
+function nodeToTokens(registry: WeaverRegistry): TransformFn {
+  return (value, innerChain) => {
+    if (value !== PENDING) {
+      const componentDelegate = new ComponentDelegate(registry);
+      innerChain(componentDelegate.readable);
+      const writer = componentDelegate.writable.getWriter();
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+      void writer.write(value as Node).then(async () => writer.close());
+    }
+  };
+}
 
 /**
  * Execute SuspenseSignal: accumulate children, check for PENDING, emit fallback or flush children.
@@ -200,35 +212,5 @@ function executeSuspenseSignal(executable: SuspenseExecutable, chain: ChainFn, r
   })().catch((error: unknown) => {
     console.error(new Error("SuspenseSignal Execution Error", { cause: error }));
     writer.close().catch(() => {});
-  });
-}
-
-/**
- * Execute a NodeSignal component by calling executeNode and writing result
- */
-function executeNodeSignal(
-  executable: NodeExecutable,
-  writer: WritableStreamDefaultWriter<Node>,
-  registry?: WeaverRegistry,
-): void {
-  (async () => {
-    if (!registry) {
-      await writer.close();
-      return;
-    }
-
-    const { node } = executable;
-
-    // Execute the node signal (handles module loading, props, etc.)
-    const result = await executeNode(registry, node.id);
-
-    // Write the result to continue processing
-    await writer.write(result);
-    await writer.close();
-  })().catch((error: unknown) => {
-    console.error(new Error("NodeSignal Render Error", { cause: error }));
-    writer.close().catch(() => {
-      // Ignore close errors
-    });
   });
 }

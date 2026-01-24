@@ -35,86 +35,67 @@ export class SignalDelegate extends DelegateStream<SignalEvent, SignalToken> {
     // Use a getter so child delegates can access the root writer set after construction
     const getRootWriter = () => rootWriter ?? this.rootWriterRef;
 
+    type ChainFn = (input: Iterable<SignalToken> | AsyncIterable<SignalToken> | null) => void;
+
+    // Helper: execute a signal and emit signal-update with result
+    const executeAndEmit = (signalId: string, chain: ChainFn): void => {
+      const signal = reg.getSignal(signalId);
+
+      if (signal?.kind === "computed") {
+        const childDelegate = new SignalDelegate(reg, getRootWriter());
+        const childWriter = childDelegate.writable.getWriter();
+        chain(childDelegate.readable);
+
+        (async () => {
+          const execResult = await executeComputed(reg, signalId);
+          await childWriter.write({ kind: "signal-update", id: signalId, value: execResult.value });
+          await childWriter.close();
+
+          if (execResult.deferred) {
+            const deferredValue = await execResult.deferred;
+            const writer = getRootWriter();
+            if (writer) {
+              await writer.write({ kind: "signal-update", id: signalId, value: deferredValue });
+            }
+          }
+        })().catch((error: unknown) => {
+          console.error(new Error("Signal execution error", { cause: error }));
+          childWriter.close().catch(() => {});
+        });
+      } else if (signal?.kind === "node") {
+        const childDelegate = new SignalDelegate(reg, getRootWriter());
+        const childWriter = childDelegate.writable.getWriter();
+        chain(childDelegate.readable);
+
+        (async () => {
+          const result = await executeNode(reg, signalId);
+          reg.setValue(signalId, result);
+          await childWriter.write({ kind: "signal-update", id: signalId, value: result });
+          await childWriter.close();
+        })().catch((error: unknown) => {
+          console.error(new Error("Signal execution error", { cause: error }));
+          childWriter.close().catch(() => {});
+        });
+      }
+    };
+
     super({
       transform: (event, chain) => {
-        if (event.kind === "signal-update") {
+        if (event.kind === "execute-signal") {
+          // Execute a signal and emit its value (used by ComponentDelegate during SSR)
+          executeAndEmit(event.id, chain);
+        } else if (event.kind === "signal-update") {
           // Update the registry with the new value
           reg.setValue(event.id, event.value);
 
           // Emit the update event as a token
           chain([event]);
 
-          // Query dependent signals
-          const dependents = reg.getDependents(event.id);
-
-          // Execute each dependent computed signal and emit update events
-          for (const dependentId of dependents) {
+          // Execute each dependent computed/node signal
+          for (const dependentId of reg.getDependents(event.id)) {
             const dependent = reg.getSignal(dependentId);
-
-            // Computed and node signals auto-execute on dependency updates
-            // Actions and handlers are manually invoked
-            if (dependent?.kind === "computed") {
-              // Create child delegate for recursive propagation
-              const childDelegate = new SignalDelegate(reg, getRootWriter());
-              const childWriter = childDelegate.writable.getWriter();
-
-              // Chain the child's readable stream
-              chain(childDelegate.readable);
-
-              // Execute computed and propagate asynchronously
-              (async () => {
-                // Execute the computed signal
-                const execResult = await executeComputed(reg, dependentId);
-
-                // Emit a signal-update event for the immediate result
-                // This will recursively trigger updates for its dependents
-                await childWriter.write({
-                  kind: "signal-update",
-                  id: dependentId,
-                  value: execResult.value,
-                });
-                await childWriter.close();
-
-                // If execution was deferred, wait for completion and emit to root
-                if (execResult.deferred) {
-                  const deferredValue = await execResult.deferred;
-                  const writer = getRootWriter();
-                  if (writer) {
-                    await writer.write({
-                      kind: "signal-update",
-                      id: dependentId,
-                      value: deferredValue,
-                    });
-                  }
-                }
-              })().catch((error: unknown) => {
-                console.error(new Error("Computed execution error", { cause: error }));
-              });
-            } else if (dependent?.kind === "node") {
-              // Node signal - re-execute component and emit update with Node tree
-              const childDelegate = new SignalDelegate(reg, getRootWriter());
-              const childWriter = childDelegate.writable.getWriter();
-
-              chain(childDelegate.readable);
-
-              (async () => {
-                // Execute the node signal to get updated Node tree
-                const result = await executeNode(reg, dependentId);
-
-                // Store the result in the registry
-                reg.setValue(dependentId, result);
-
-                // Emit a signal-update event with the Node tree
-                // ClientWeaver will serialize this to HTML for DOM update
-                await childWriter.write({
-                  kind: "signal-update",
-                  id: dependentId,
-                  value: result,
-                });
-                await childWriter.close();
-              })().catch((error: unknown) => {
-                console.error(new Error("Node execution error", { cause: error }));
-              });
+            if (dependent?.kind === "computed" || dependent?.kind === "node") {
+              executeAndEmit(dependentId, chain);
             }
           }
         } else {

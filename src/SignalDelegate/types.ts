@@ -18,9 +18,18 @@ export interface HandlerExecuteEvent {
 }
 
 /**
+ * ExecuteSignalEvent represents a request to execute a signal and emit its value
+ * Used by ComponentDelegate during SSR to trigger signal execution via SignalDelegate
+ */
+export interface ExecuteSignalEvent {
+  kind: "execute-signal";
+  id: string; // Signal ID to execute (computed or node)
+}
+
+/**
  * Union type for all signal events
  */
-export type SignalEvent = SignalUpdateEvent | HandlerExecuteEvent;
+export type SignalEvent = SignalUpdateEvent | HandlerExecuteEvent | ExecuteSignalEvent;
 
 /**
  * Token represents output from the SignalDelegate stream
