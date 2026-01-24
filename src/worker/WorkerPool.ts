@@ -1,5 +1,3 @@
-import { isNodeOnly } from "@/utils/environment";
-
 /**
  * Message sent to worker
  */
@@ -41,9 +39,8 @@ interface PooledWorker {
 /**
  * Singleton WorkerPool for executing logic in worker threads
  *
- * Uses:
- * - Browser/Bun: web-worker npm package (unified Web Workers API)
- * - Node.js: worker_threads directly (to support tsx loader for TypeScript)
+ * Uses the web-worker npm package for isomorphic Worker API across
+ * Browser, Node.js, and Bun environments.
  *
  * Workers are reused to avoid creation overhead.
  * Pool size is limited to available CPU cores.
@@ -108,67 +105,38 @@ class WorkerPoolImpl {
   }
 
   /**
-   * Create a new worker for the current runtime
+   * Create a new worker using the web-worker package (isomorphic)
    */
   private async createWorker(): Promise<PooledWorker> {
-    let worker: Worker;
+    // Detect TypeScript runtime (tsx/ts-node) to use correct file extension
+    const isTsRuntime =
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+      typeof process !== "undefined" && process.execArgv?.some((arg) => arg.includes("tsx") || arg.includes("ts-node"));
+    const ext = isTsRuntime ? ".ts" : ".js";
+    const workerUrl = this.workerUrl ?? new URL(`./worker${ext}`, import.meta.url).href;
 
-    if (isNodeOnly()) {
-      // Node.js: use worker_threads directly (supports execArgv for tsx)
-      const { Worker: NodeWorker } = await import("worker_threads");
-
-      // Determine worker path - use .ts in development (tsx), .js in production
-      const isTsRuntime = process.execArgv.some((arg) => arg.includes("tsx") || arg.includes("ts-node"));
-      const ext = isTsRuntime ? ".ts" : ".js";
-      const workerPath = this.workerUrl ?? new URL(`./nodeWorker${ext}`, import.meta.url).pathname;
-
-      // For tsx, we need to use the tsx loader in execArgv
-      const isTsFile = workerPath.endsWith(".ts");
-      const workerOptions = isTsFile ? { execArgv: ["--import", "tsx"] } : {};
-
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-      worker = new NodeWorker(workerPath, workerOptions) as unknown as Worker;
-
-      // Node.js worker_threads uses .on('message')
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-      const nodeWorker = worker as unknown as import("worker_threads").Worker;
-      const pooledWorker: PooledWorker = { worker, busy: false };
-
-      nodeWorker.on("message", (data: WorkerResponse) => {
-        this.handleWorkerMessage(pooledWorker, data);
-      });
-      nodeWorker.on("error", (error: Error) => {
-        this.handleWorkerError(pooledWorker, error);
-      });
-
-      return pooledWorker;
-    } else {
-      // Browser/Bun: use native Worker if available, fall back to web-worker package
-      const workerUrl = this.workerUrl ?? new URL("./worker.js", import.meta.url).href;
-
-      // In browsers, use native Worker for better module worker support
-      if (typeof Worker !== "undefined") {
-        worker = new Worker(workerUrl, { type: "module" });
-      } else {
-        // Fallback to web-worker package (for environments without native Worker)
-        const WebWorker = (await import("web-worker")).default;
-        worker = new WebWorker(workerUrl, { type: "module" });
-      }
-
-      const pooledWorker: PooledWorker = { worker, busy: false };
-
-      worker.onmessage = (event: MessageEvent<WorkerResponse>) => {
-        this.handleWorkerMessage(pooledWorker, event.data);
-      };
-      worker.onerror = (error: ErrorEvent) => {
-        // Extract as much info as possible from the error event
-        const message = error.message || error.filename || "Worker error";
-        const details = error.filename ? ` (${error.filename}:${String(error.lineno)}:${String(error.colno)})` : "";
-        this.handleWorkerError(pooledWorker, new Error(message + details));
-      };
-
-      return pooledWorker;
+    // Use web-worker package for isomorphic Worker API (works in Browser, Node.js, and Bun)
+    const WebWorker = (await import("web-worker")).default;
+    // For TypeScript files in Node.js, pass tsx loader via execArgv
+    const workerOptions: { type: "module"; execArgv?: string[] } = { type: "module" };
+    if (isTsRuntime) {
+      workerOptions.execArgv = ["--import", "tsx"];
     }
+    const worker: Worker = new WebWorker(workerUrl, workerOptions);
+
+    const pooledWorker: PooledWorker = { worker, busy: false };
+
+    worker.onmessage = (event: MessageEvent<WorkerResponse>) => {
+      this.handleWorkerMessage(pooledWorker, event.data);
+    };
+    worker.onerror = (error: ErrorEvent) => {
+      // Extract as much info as possible from the error event
+      const message = error.message || error.filename || "Worker error";
+      const details = error.filename ? ` (${error.filename}:${String(error.lineno)}:${String(error.colno)})` : "";
+      this.handleWorkerError(pooledWorker, new Error(message + details));
+    };
+
+    return pooledWorker;
   }
 
   /**
@@ -244,13 +212,7 @@ class WorkerPoolImpl {
    */
   terminate(): void {
     for (const { worker } of this.workers) {
-      if (isNodeOnly()) {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-        const nodeWorker = worker as unknown as import("worker_threads").Worker;
-        void nodeWorker.terminate();
-      } else {
-        worker.terminate();
-      }
+      worker.terminate();
     }
     this.workers = [];
     this.pending = [];

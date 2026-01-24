@@ -3398,21 +3398,10 @@ When `executeLogic` encounters a worker logic signal:
 **Worker Pool**:
 ```typescript
 class WorkerPool {
-  // Detect runtime environment
-  private isNodeOnly(): boolean {
-    return typeof process !== 'undefined'
-      && process.versions?.node
-      && typeof Bun === 'undefined';
-  }
-
-  // Create worker for current runtime
-  private createWorker(): Worker {
-    if (this.isNodeOnly()) {
-      const { Worker } = require('worker_threads');
-      return new Worker('./nodeWorker.js');
-    }
-    // Works for both browser and Bun
-    return new Worker('/src/worker/worker.js', { type: 'module' });
+  // Create worker using web-worker package (isomorphic)
+  private async createWorker(): Promise<Worker> {
+    const WebWorker = (await import("web-worker")).default;
+    return new WebWorker('./worker.js', { type: 'module' });
   }
 
   // Execute logic in a worker
@@ -3420,11 +3409,11 @@ class WorkerPool {
 }
 ```
 
-**Worker Scripts**:
-Two worker scripts handle the API differences between runtimes:
+**Worker Script**:
+A single worker script using the standard Web Worker API works across all runtimes via the `web-worker` npm package:
 
 ```typescript
-// src/worker/worker.ts - Browser & Bun (Web Worker API)
+// src/worker/worker.ts - Isomorphic (Browser, Node.js, Bun)
 self.onmessage = async ({ data: { src, args } }) => {
   try {
     const mod = await import(src);
@@ -3434,27 +3423,14 @@ self.onmessage = async ({ data: { src, args } }) => {
     self.postMessage({ error: error.message });
   }
 };
-
-// src/worker/nodeWorker.ts - Node.js (worker_threads API)
-import { parentPort } from 'worker_threads';
-
-parentPort.on('message', async ({ src, args }) => {
-  try {
-    const mod = await import(src);
-    const result = await mod.default(...args);
-    parentPort.postMessage({ result });
-  } catch (error) {
-    parentPort.postMessage({ error: error.message });
-  }
-});
 ```
 
 **Runtime Compatibility**:
-| Runtime | Worker API | Module Path | Script |
-|---------|-----------|-------------|--------|
-| Browser | `new Worker(url)` | `src` | worker.ts |
-| Bun | `new Worker(url)` | `src` | worker.ts |
-| Node.js | `worker_threads` | `ssrSrc` | nodeWorker.ts |
+| Runtime | Worker Implementation | Module Path |
+|---------|----------------------|-------------|
+| Browser | Native Web Worker | `src` |
+| Bun | Native Web Worker | `src` |
+| Node.js | web-worker (worker_threads) | `src` |
 
 **Serialization Requirement**:
 Worker logic arguments and return values must be structured-cloneable (transferable via `postMessage`). This excludes functions, DOM nodes, and certain other types.

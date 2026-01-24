@@ -1647,23 +1647,10 @@ test('reducer signal handles iteration errors', async () => {
 **Implementation Tasks**:
 - Add `'worker'` to the `context` type in `LogicSignal` interface
 - Implement `defineWorkerLogic(mod)` factory function (wrapper around `defineLogic` with `context: 'worker'`)
-- Create two worker scripts:
-  - `worker.ts` for browser/Bun (Web Worker API)
-  - `nodeWorker.ts` for Node.js (worker_threads API)
-- Implement `WorkerPool` class with runtime detection
+- Create single isomorphic worker script using Web Worker API
+- Implement `WorkerPool` class using `web-worker` npm package
 - Implement `executeInWorker(src, args)` function for message passing
 - Modify `executeComputed` to detect worker context and route to worker pool
-- Use `src` for browser/Bun, `ssrSrc` for Node.js
-
-**Runtime Detection**:
-```typescript
-// Returns true only for Node.js (not Bun, not browser)
-function isNodeOnly(): boolean {
-  return typeof process !== 'undefined'
-    && process.versions?.node
-    && typeof Bun === 'undefined';
-}
-```
 
 **Worker Pool Design**:
 ```typescript
@@ -1675,27 +1662,20 @@ class WorkerPool {
 
   constructor(maxWorkers = navigator?.hardwareConcurrency || 4) {}
 
-  private createWorker(): Worker {
-    if (isNodeOnly()) {
-      const { Worker } = require('worker_threads');
-      return new Worker('./nodeWorker.js');
-    }
-    // Works for both browser and Bun
-    return new Worker('/src/worker/worker.js', { type: 'module' });
+  // Use web-worker package for isomorphic Worker API
+  private async createWorker(): Promise<Worker> {
+    const WebWorker = (await import("web-worker")).default;
+    return new WebWorker('./worker.js', { type: 'module' });
   }
 
   async execute(src: string, args: unknown[]): Promise<unknown> {
     const worker = this.acquire();
     return new Promise((resolve, reject) => {
-      const handler = ({ data }) => {
+      worker.onmessage = ({ data }) => {
         this.release(worker);
         if (data.error) reject(new Error(data.error));
         else resolve(data.result);
       };
-      // Handle both Web Worker and worker_threads APIs
-      if (worker.on) worker.on('message', handler);
-      else worker.onmessage = (e) => handler(e);
-
       worker.postMessage({ src, args });
     });
   }
@@ -1705,9 +1685,9 @@ class WorkerPool {
 }
 ```
 
-**Worker Scripts**:
+**Worker Script**:
 ```typescript
-// src/worker/worker.ts - Browser & Bun (Web Worker API)
+// src/worker/worker.ts - Isomorphic (Browser, Node.js, Bun via web-worker package)
 self.onmessage = async ({ data: { src, args } }) => {
   try {
     const mod = await import(src);
@@ -1717,19 +1697,6 @@ self.onmessage = async ({ data: { src, args } }) => {
     self.postMessage({ error: error.message });
   }
 };
-
-// src/worker/nodeWorker.ts - Node.js (worker_threads API)
-import { parentPort } from 'worker_threads';
-
-parentPort.on('message', async ({ src, args }) => {
-  try {
-    const mod = await import(src);
-    const result = await mod.default(...args);
-    parentPort.postMessage({ result });
-  } catch (error) {
-    parentPort.postMessage({ error: error.message });
-  }
-});
 ```
 
 **Test Criteria**:
@@ -1757,18 +1724,6 @@ test('worker logic executes in worker thread', async () => {
   expect(result.isWorker).toBe(true);
 });
 
-test('worker pool detects runtime correctly', () => {
-  const pool = new WorkerPool();
-
-  // In test environment (Node), should detect as Node
-  // Mock Bun global to test Bun detection
-  expect(pool.isNodeOnly()).toBe(true);
-
-  globalThis.Bun = {};
-  expect(pool.isNodeOnly()).toBe(false);
-  delete globalThis.Bun;
-});
-
 test('worker pool reuses workers', async () => {
   const pool = new WorkerPool(2);
 
@@ -1794,17 +1749,6 @@ test('worker logic handles errors', async () => {
 
   await expect(executeComputed(registry, computed.id))
     .rejects.toThrow('Intentional error');
-});
-
-test('worker logic uses correct path per runtime', async () => {
-  const logic = defineWorkerLogic(import('./fixtures/compute'));
-
-  // Browser/Bun should use src
-  // Node should use ssrSrc
-  const pool = new WorkerPool();
-  const pathUsed = pool.isNodeOnly() ? logic.ssrSrc : logic.src;
-
-  expect(pathUsed).toBeDefined();
 });
 
 test('worker logic with deferred timeout', async () => {

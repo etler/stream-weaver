@@ -1,5 +1,5 @@
 import { WorkerPool } from "@/worker";
-import { isNodeOnly } from "@/utils/environment";
+import { isClient } from "@/utils/environment";
 import type { LogicSignal } from "@/signals/types";
 
 /**
@@ -23,7 +23,7 @@ export async function executeInWorker(logicSignal: LogicSignal, args: unknown[])
 
   // For browser, add /@fs/ prefix for absolute paths (Vite dev server)
   // Exclude /assets/ paths (production build) and /@ paths (already prefixed)
-  if (!isNodeOnly() && finalPath.startsWith("/") && !finalPath.startsWith("/@") && !finalPath.startsWith("/assets/")) {
+  if (isClient() && finalPath.startsWith("/") && !finalPath.startsWith("/@") && !finalPath.startsWith("/assets/")) {
     finalPath = `/@fs${finalPath}`;
   }
 

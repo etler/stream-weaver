@@ -1,6 +1,5 @@
 import { describe, test, expect } from "vitest";
 import { defineSignal, defineComputed, defineWorkerLogic, defineLogic } from "@/signals";
-import { isNodeOnly } from "@/utils/environment";
 import path from "node:path";
 
 // Get absolute path to fixtures
@@ -37,19 +36,6 @@ describe("Milestone 16: Worker Logic", () => {
 
       expect(deferredWorkerLogic.context).toBe("worker");
       expect(deferredWorkerLogic.timeout).toBe(0);
-    });
-  });
-
-  describe("isNodeOnly", () => {
-    test("detects Node.js runtime", () => {
-      // In test environment (Node.js), should return true
-      // unless Bun is present
-      const result = isNodeOnly();
-
-      // We're running in Node.js for tests
-      expect(typeof result).toBe("boolean");
-      // In Node.js test environment, should be true
-      expect(result).toBe(true);
     });
   });
 
