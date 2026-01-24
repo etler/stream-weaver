@@ -1,7 +1,7 @@
 import { WeaverRegistry } from "@/registry/WeaverRegistry";
 import { Sink } from "@/sink/Sink";
 import { SignalDelegate } from "@/SignalDelegate/SignalDelegate";
-import { setupEventDelegation } from "@/events/setupEventDelegation";
+import { setupEventDelegation } from "./setupEventDelegation";
 import { AnySignal, SuspenseSignal, ComputedSignal } from "@/signals/types";
 import { nodeToHtml } from "./nodeToHtml";
 import { executeNode } from "@/logic/executeNode";
