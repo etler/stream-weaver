@@ -1,5 +1,5 @@
 import { chunkify } from "@/ComponentDelegate/chunkify";
-import { tokenize, SuspenseResult } from "@/ComponentDelegate/tokenize";
+import { tokenize } from "@/ComponentDelegate/tokenize";
 import { Token, NodeExecutable, ComputedExecutable, SuspenseExecutable } from "@/ComponentDelegate/types/Token";
 import { DelegateStream } from "delegate-stream";
 import { Node } from "@/jsx/types/Node";
@@ -46,11 +46,8 @@ export class ComponentDelegate extends DelegateStream<Node, Token> {
               chain(delegate.readable);
               executeComputedSignal(chunk, writer, reg);
             } else {
-              // SuspenseExecutable - execute children, check PENDING, emit fallback or children
-              const delegate = new ComponentDelegate(reg);
-              const writer = delegate.writable.getWriter();
-              chain(delegate.readable);
-              executeSuspenseSignal(chunk, writer, reg);
+              // SuspenseExecutable - process children, check PENDING, emit tokens directly
+              executeSuspenseSignal(chunk, chain, reg);
             }
           } else {
             // ComponentElement (function component) - execute directly
@@ -118,28 +115,26 @@ function executeComputedSignal(
   });
 }
 
-/** Execute SuspenseSignal - process children, check PENDING, emit result */
-function executeSuspenseSignal(
-  executable: SuspenseExecutable,
-  writer: WritableStreamDefaultWriter<Node>,
-  registry?: WeaverRegistry,
-): void {
-  (async () => {
-    if (!registry) {
-      await writer.close();
-      return;
-    }
+type ChainFn = (input: Iterable<Token> | AsyncIterable<Token> | null) => void;
 
+/** Execute SuspenseSignal - process children, check PENDING, emit tokens via chain */
+function executeSuspenseSignal(executable: SuspenseExecutable, chain: ChainFn, registry?: WeaverRegistry): void {
+  if (!registry) {
+    return;
+  }
+
+  const reg = registry; // Capture for closure
+
+  // Use async generator to yield tokens as they're ready
+  async function* generateTokens(): AsyncGenerator<Token> {
     const { suspense, children, fallback } = executable;
 
     // Create a sub-delegate to process children
-    const childDelegate = new ComponentDelegate(registry);
+    const childDelegate = new ComponentDelegate(reg);
     const childWriter = childDelegate.writable.getWriter();
 
-    // Collect tokens from the child delegate's readable
+    // Collect tokens from the child delegate
     const collectedItems: unknown[] = [];
-
-    // Start reading before writing
     const readerPromise = (async () => {
       const reader = childDelegate.readable.getReader();
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
@@ -152,46 +147,62 @@ function executeSuspenseSignal(
       }
     })();
 
-    // Write children to the child delegate
     await childWriter.write(children);
     await childWriter.close();
-
-    // Wait for all output to be collected
     await readerPromise;
 
-    // Flatten collected items into tokens
-    const flattenedTokens: Token[] = [];
+    // Flatten collected tokens
+    const childrenTokens: Token[] = [];
     for (const item of collectedItems) {
       if (Array.isArray(item)) {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-        flattenedTokens.push(...(item as Token[]));
+        childrenTokens.push(...(item as Token[]));
       } else if (typeof item === "object" && item !== null && "kind" in item) {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-        flattenedTokens.push(item as Token);
+        childrenTokens.push(item as Token);
       }
     }
 
-    // Use executeSuspense to analyze children and determine what to show
-    const result = executeSuspense(registry, suspense, flattenedTokens);
+    // Analyze children for PENDING signals
+    const result = executeSuspense(reg, suspense, childrenTokens);
+    const childSignalDefs = childrenTokens.filter((token) => token.kind === "signal-definition");
 
-    // Write a SuspenseResult that tokenize will handle
-    const suspenseResult: SuspenseResult = {
-      __suspenseResult: true,
-      suspense,
-      showFallback: result.showFallback,
-      fallback,
-      childrenTokens: flattenedTokens,
-    };
+    if (result.showFallback) {
+      // Emit children's signal defs (for client tracking), then fallback content
+      for (const def of childSignalDefs) {
+        yield def;
+      }
+      yield { kind: "signal-definition", signal: suspense };
+      yield { kind: "bind-marker-open", id: suspense.id };
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-    await writer.write(suspenseResult as unknown as Node);
-    await writer.close();
-  })().catch((error: unknown) => {
-    console.error(new Error("SuspenseSignal Execution Error", { cause: error }));
-    writer.close().catch(() => {
-      // Ignore close errors
-    });
-  });
+      // Process fallback through a sub-delegate
+      const fallbackDelegate = new ComponentDelegate(reg);
+      const fallbackWriter = fallbackDelegate.writable.getWriter();
+      const fallbackReader = fallbackDelegate.readable.getReader();
+      await fallbackWriter.write(fallback);
+      await fallbackWriter.close();
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+      while (true) {
+        const { done, value } = await fallbackReader.read();
+        if (done) {
+          break;
+        }
+        yield value;
+      }
+
+      yield { kind: "bind-marker-close", id: suspense.id };
+    } else {
+      // Emit children tokens directly
+      yield { kind: "signal-definition", signal: suspense };
+      yield { kind: "bind-marker-open", id: suspense.id };
+      for (const token of childrenTokens) {
+        yield token;
+      }
+      yield { kind: "bind-marker-close", id: suspense.id };
+    }
+  }
+
+  chain(generateTokens());
 }
 
 /**

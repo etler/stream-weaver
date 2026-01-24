@@ -1,32 +1,12 @@
 import { Fragment } from "@/jsx/Fragment";
 import { ComponentElement, Element } from "@/jsx/types/Element";
 import { Node } from "@/jsx/types/Node";
-import {
-  OpenTagToken,
-  Token,
-  TokenOrExecutable,
-  NodeExecutable,
-  ComputedExecutable,
-  SuspenseExecutable,
-} from "./types/Token";
+import { OpenTagToken, TokenOrExecutable, NodeExecutable, ComputedExecutable, SuspenseExecutable } from "./types/Token";
 import { WeaverRegistry } from "@/registry/WeaverRegistry";
 import { isSignal, isNodeSignal, isSuspenseSignal } from "@/signals/signalDetection";
 import { isEventHandlerProp, eventPropToDataAttribute, propToDataAttribute } from "@/html/attributes";
 import { LogicSignal, ComponentSignal, NodeSignal, ComputedSignal, SuspenseSignal } from "@/signals/types";
 import { PENDING } from "@/signals/pending";
-
-/** Result from executeSuspense, processed by tokenize */
-export interface SuspenseResult {
-  __suspenseResult: true;
-  suspense: SuspenseSignal;
-  showFallback: boolean;
-  fallback: Node;
-  childrenTokens: Token[];
-}
-
-export function isSuspenseResult(node: unknown): node is SuspenseResult {
-  return typeof node === "object" && node !== null && "__suspenseResult" in node;
-}
 
 export function tokenize(node: Node, registry?: WeaverRegistry): (TokenOrExecutable | ComponentElement)[] {
   // Handle arrays of nodes (e.g., multiple children in Suspense)
@@ -37,11 +17,6 @@ export function tokenize(node: Node, registry?: WeaverRegistry): (TokenOrExecuta
   // Don't display pending nodes
   if (node === PENDING) {
     return [];
-  }
-
-  // Handle SuspenseResult (from executeSuspense via ComponentDelegate)
-  if (isSuspenseResult(node)) {
-    return handleSuspenseResult(node, registry);
   }
 
   // Check if node is a SuspenseSignal - emit executable for ComponentDelegate processing
@@ -219,33 +194,6 @@ function handleSuspenseSignal(
     fallback: suspense.fallback as Node,
   };
   return [executable];
-}
-
-/** Process SuspenseResult - emit fallback or children tokens */
-function handleSuspenseResult(
-  result: SuspenseResult,
-  registry?: WeaverRegistry,
-): (TokenOrExecutable | ComponentElement)[] {
-  const { suspense, showFallback, fallback, childrenTokens } = result;
-  const childSignalDefs = childrenTokens.filter((token) => token.kind === "signal-definition");
-
-  if (showFallback) {
-    // Emit children's signal defs first so client can track pending signals
-    return [
-      ...childSignalDefs,
-      { kind: "signal-definition", signal: suspense },
-      { kind: "bind-marker-open", id: suspense.id },
-      ...tokenize(fallback, registry),
-      { kind: "bind-marker-close", id: suspense.id },
-    ];
-  } else {
-    return [
-      { kind: "signal-definition", signal: suspense },
-      { kind: "bind-marker-open", id: suspense.id },
-      ...childrenTokens,
-      { kind: "bind-marker-close", id: suspense.id },
-    ];
-  }
 }
 
 /**

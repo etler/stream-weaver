@@ -4,7 +4,6 @@
  */
 
 import { isSignal, isSuspenseSignal } from "@/signals/signalDetection";
-import { isSuspenseResult } from "@/ComponentDelegate/tokenize";
 import { Node } from "@/jsx/types/Node";
 import { WeaverRegistry } from "@/registry/WeaverRegistry";
 import {
@@ -24,8 +23,8 @@ import { OpenTagToken, Token } from "@/ComponentDelegate/types/Token";
  * Returns null if the tree contains async content (function components)
  */
 export function serializeElement(node: Node, registry?: WeaverRegistry): string | null {
-  // SuspenseSignal and SuspenseResult require processing via ComponentDelegate/tokenize
-  if (isSuspenseSignal(node) || isSuspenseResult(node)) {
+  // SuspenseSignal requires processing via ComponentDelegate
+  if (isSuspenseSignal(node)) {
     return null;
   }
 
