@@ -12,15 +12,6 @@ import type { StateSignal, ComputedSignal, MutatorSignal, AnySignal } from "./ty
 // ========== Module Type Extraction ==========
 
 /**
- * Extracts the function type from an import() expression's type
- *
- * @example
- * type Fn = ExtractLogicFunction<typeof import("./double")>;
- * // Fn = (count: SignalInterface<number>) => number
- */
-export type ExtractLogicFunction<T> = T extends Promise<{ default: infer F }> ? F : never;
-
-/**
  * Base type constraint for all logic functions
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -46,14 +37,6 @@ export type SignalValueType<S extends AnySignal> =
  */
 export type SignalsToReadOnlyInterfaces<T extends readonly AnySignal[]> = {
   [K in keyof T]: T[K] extends AnySignal ? SignalValueType<T[K]> : never;
-};
-
-/**
- * Maps a tuple of signals to writable interfaces
- * @deprecated Use SignalsToActionInterfaces for new code
- */
-export type SignalsToWritableInterfaces<T extends readonly AnySignal[]> = {
-  [K in keyof T]: T[K] extends AnySignal ? SignalMutator<SignalValueType<T[K]>> : never;
 };
 
 /**
