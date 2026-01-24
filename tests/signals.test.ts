@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { defineSignal, defineLogic, defineComputed, defineAction, defineHandler } from "@/signals";
+import { defineSignal, defineLogic, defineComputed, defineAction, defineHandler, defineReference } from "@/signals";
 import { WeaverRegistry } from "@/registry/WeaverRegistry";
 import { loadLogic, createWritableSignalInterface, executeComputed, executeAction, executeHandler } from "@/logic";
 
@@ -226,6 +226,63 @@ describe("Milestone 3: Logic System & Signal Interfaces", () => {
       await executeHandler(registry, handler.id, mockEvent);
 
       expect(registry.getValue(count.id)).toBe(1);
+    });
+  });
+});
+
+describe("Reference Signals", () => {
+  describe("defineReference", () => {
+    it("creates a reference signal wrapping another signal", () => {
+      const count = defineSignal(0);
+      const countRef = defineReference(count);
+
+      expect(countRef.kind).toBe("reference");
+      expect(countRef.ref).toBe(count.id);
+      expect(countRef.id).toBeDefined();
+    });
+
+    it("same wrapped signal produces same reference ID (content-addressable)", () => {
+      const count = defineSignal(5);
+      const ref1 = defineReference(count);
+      const ref2 = defineReference(count);
+
+      expect(ref1.id).toBe(ref2.id);
+    });
+
+    it("different wrapped signals produce different reference IDs", () => {
+      const count1 = defineSignal(5);
+      const count2 = defineSignal(10);
+      const ref1 = defineReference(count1);
+      const ref2 = defineReference(count2);
+
+      expect(ref1.id).not.toBe(ref2.id);
+    });
+
+    it("can wrap any signal type", () => {
+      const stateSignal = defineSignal(0);
+      const logicSignal = defineLogic("./test.js");
+      const computedSignal = defineComputed(logicSignal, [stateSignal]);
+
+      const stateRef = defineReference(stateSignal);
+      const logicRef = defineReference(logicSignal);
+      const computedRef = defineReference(computedSignal);
+
+      expect(stateRef.ref).toBe(stateSignal.id);
+      expect(logicRef.ref).toBe(logicSignal.id);
+      expect(computedRef.ref).toBe(computedSignal.id);
+    });
+
+    it("reference can be registered in registry", () => {
+      const count = defineSignal(0);
+      const countRef = defineReference(count);
+
+      const registry = new WeaverRegistry();
+      registry.registerSignal(count);
+      registry.registerSignal(countRef);
+
+      const retrieved = registry.getSignal(countRef.id);
+      expect(retrieved).toBe(countRef);
+      expect(retrieved?.kind).toBe("reference");
     });
   });
 });

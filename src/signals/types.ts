@@ -148,6 +148,23 @@ export interface ReducerSignal<T = unknown> extends Signal {
 }
 
 /**
+ * ReferenceSignal wraps another signal definition, preventing resolution to its value.
+ * Used to pass signal definitions themselves to computed logic or component props,
+ * instead of their resolved values.
+ *
+ * This is a derived signal that uses content-addressable IDs based on the wrapped signal.
+ * Same wrapped signal = same reference ID.
+ *
+ * @template T - The type of the wrapped signal (for TypeScript inference)
+ */
+export interface ReferenceSignal<T extends Signal = Signal> extends Signal {
+  kind: "reference";
+  ref: string; // ID of the wrapped signal
+  /** @internal Phantom property for compile-time type tracking - never set at runtime */
+  readonly _type?: T;
+}
+
+/**
  * Discriminated union of all signal types
  */
 export type AnySignal =
@@ -159,4 +176,5 @@ export type AnySignal =
   | ComponentSignal
   | NodeSignal
   | SuspenseSignal
-  | ReducerSignal;
+  | ReducerSignal
+  | ReferenceSignal;
