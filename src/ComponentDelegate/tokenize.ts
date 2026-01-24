@@ -184,7 +184,7 @@ function handleSuspenseSignal(
   // Register the suspense signal
   registry.registerIfAbsent(suspense);
 
-  // Always emit a SuspenseExecutable - ComponentDelegate handles PENDING detection
+  // Emit signal definition, bind markers, and executable (same pattern as handleNodeSignal)
   const executable: SuspenseExecutable = {
     kind: "suspense-executable",
     suspense,
@@ -193,7 +193,12 @@ function handleSuspenseSignal(
     // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
     fallback: suspense.fallback as Node,
   };
-  return [executable];
+  return [
+    { kind: "signal-definition", signal: suspense },
+    { kind: "bind-marker-open", id: suspense.id },
+    executable,
+    { kind: "bind-marker-close", id: suspense.id },
+  ];
 }
 
 /**

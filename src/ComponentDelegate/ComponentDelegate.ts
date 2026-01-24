@@ -7,9 +7,8 @@ import { WeaverRegistry } from "@/registry/WeaverRegistry";
 import { ComponentElement } from "@/jsx/types/Element";
 import { loadSSRModule } from "@/ssr";
 import { executeComputed } from "@/logic/executeComputed";
-import { executeSuspense } from "@/logic/executeSuspense";
 import { PENDING } from "@/signals/pending";
-import { serializeElement } from "@/ComponentSerializer/serialize";
+import { serializeElement, serializeTokenArray } from "@/ComponentSerializer/serialize";
 
 export class ComponentDelegate extends DelegateStream<Node, Token> {
   constructor(registry?: WeaverRegistry) {
@@ -115,27 +114,11 @@ function executeComputedSignal(
   });
 }
 
-/** Collect all tokens from processing a node through ComponentDelegate */
-async function collectTokens(node: Node, registry: WeaverRegistry): Promise<Token[]> {
-  const delegate = new ComponentDelegate(registry);
-  const writer = delegate.writable.getWriter();
-  const tokens: Token[] = [];
-  const readerPromise = (async () => {
-    for await (const token of delegate.readable) {
-      tokens.push(token);
-    }
-  })();
-  await writer.write(node);
-  await writer.close();
-  await readerPromise;
-  return tokens;
-}
-
 type ChainFn = (input: Iterable<Token> | AsyncIterable<Token> | null) => void;
 
 /**
- * Execute SuspenseSignal using the same pattern as other executables:
- * chain() a readable, then async write to its writable side.
+ * Execute SuspenseSignal: accumulate children, check for PENDING, emit fallback or flush children.
+ * Bind markers are handled by tokenize - this only emits children signal-defs + content.
  */
 function executeSuspenseSignal(executable: SuspenseExecutable, chain: ChainFn, registry?: WeaverRegistry): void {
   if (!registry) {
@@ -143,33 +126,76 @@ function executeSuspenseSignal(executable: SuspenseExecutable, chain: ChainFn, r
   }
 
   const { suspense, children, fallback } = executable;
+  const reg = registry;
 
-  // Use TransformStream as a token pipe (same pattern as other executables)
-  const { readable, writable } = new TransformStream<Token, Token>();
-  chain(readable);
+  // Output delegate that handles both token arrays and nodes
+  const isTokenArray = (val: unknown): val is Token[] =>
+    Array.isArray(val) && (val.length === 0 || (typeof val[0] === "object" && val[0] !== null && "kind" in val[0]));
 
-  const writer = writable.getWriter();
+  const output = new DelegateStream<Token[] | Node, Token>({
+    transform: (input, innerChain) => {
+      if (isTokenArray(input)) {
+        innerChain(input);
+      } else {
+        const delegate = new ComponentDelegate(reg);
+        innerChain(delegate.readable);
+        const writer = delegate.writable.getWriter();
+        void writer.write(input).then(async () => writer.close());
+      }
+    },
+    finish: (innerChain) => {
+      innerChain(null);
+    },
+  });
+
+  chain(output.readable);
+  const writer = output.writable.getWriter();
 
   (async () => {
-    const childrenTokens = await collectTokens(children, registry);
-    const result = executeSuspense(registry, suspense, childrenTokens);
+    // 1. Process children and accumulate
+    const childDelegate = new ComponentDelegate(reg);
+    const childWriter = childDelegate.writable.getWriter();
+    await childWriter.write(children);
+    await childWriter.close();
 
-    // Emit signal definitions (children's first when showing fallback)
-    if (result.showFallback) {
-      for (const token of childrenTokens.filter((tok) => tok.kind === "signal-definition")) {
-        await writer.write(token);
+    const buffer: Token[] = [];
+    let hasPending = false;
+
+    for await (const token of childDelegate.readable) {
+      buffer.push(token);
+      if (token.kind === "signal-definition" && reg.getValue(token.signal.id) === PENDING) {
+        hasPending = true;
+      } else if (token.kind === "bind-marker-open" && reg.getValue(token.id) === PENDING) {
+        hasPending = true;
       }
     }
-    await writer.write({ kind: "signal-definition", signal: suspense });
-    await writer.write({ kind: "bind-marker-open", id: suspense.id });
 
-    // Emit content
-    const contentTokens = result.showFallback ? await collectTokens(fallback, registry) : childrenTokens;
-    for (const token of contentTokens) {
-      await writer.write(token);
+    // 2. Update suspense metadata (signal object is mutated before serialization)
+    const pendingDeps = hasPending
+      ? buffer
+          .filter((tok): tok is Token & { kind: "signal-definition" } => tok.kind === "signal-definition")
+          .filter((tok) => reg.getValue(tok.signal.id) === PENDING)
+          .map((tok) => tok.signal.id)
+      : [];
+    suspense.pendingDeps = pendingDeps;
+    // eslint-disable-next-line no-underscore-dangle
+    suspense._childrenHtml = serializeTokenArray(
+      buffer.filter((tok) => tok.kind !== "signal-definition"),
+      false,
+    );
+
+    // 3. Emit children signal definitions (needed for client hydration)
+    const signalDefs = buffer.filter((tok) => tok.kind === "signal-definition");
+    await writer.write(signalDefs);
+
+    // 4. Emit content: fallback Node or buffered children tokens
+    if (hasPending) {
+      await writer.write(fallback);
+    } else {
+      const contentTokens = buffer.filter((tok) => tok.kind !== "signal-definition");
+      await writer.write(contentTokens);
     }
 
-    await writer.write({ kind: "bind-marker-close", id: suspense.id });
     await writer.close();
   })().catch((error: unknown) => {
     console.error(new Error("SuspenseSignal Execution Error", { cause: error }));
