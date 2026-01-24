@@ -3,14 +3,8 @@ import { ComponentElement, Element } from "@/jsx/types/Element";
 import { Node } from "@/jsx/types/Node";
 import { OpenTagToken, TokenOrExecutable, NodeExecutable, ComputedExecutable, SuspenseExecutable } from "./types/Token";
 import { WeaverRegistry } from "@/registry/WeaverRegistry";
-import {
-  isSignal,
-  isEventHandlerProp,
-  eventPropToDataAttribute,
-  propToDataAttribute,
-  isNodeSignal,
-  isSuspenseSignal,
-} from "./signalDetection";
+import { isSignal, isNodeSignal, isSuspenseSignal } from "@/signals/signalDetection";
+import { isEventHandlerProp, eventPropToDataAttribute, propToDataAttribute } from "@/html/attributes";
 import { LogicSignal, ComponentSignal, NodeSignal, ComputedSignal, SuspenseSignal } from "@/signals/types";
 import { PENDING } from "@/signals/pending";
 

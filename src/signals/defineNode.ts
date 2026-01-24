@@ -1,6 +1,6 @@
 import { ComponentSignal, NodeSignal } from "./types";
 import { allocateDerivedId } from "./idAllocation";
-import { isSignal } from "@/ComponentDelegate/signalDetection";
+import { isSignal } from "@/signals/signalDetection";
 
 /**
  * Creates a node signal - a component instance with bound props

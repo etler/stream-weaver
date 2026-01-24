@@ -3,7 +3,7 @@
  * Used by the fast path for static content
  */
 
-import { isSignal } from "@/ComponentDelegate/signalDetection";
+import { isSignal } from "@/signals/signalDetection";
 import { isSuspenseResolutionNode } from "@/ComponentDelegate/tokenize";
 import { Node } from "@/jsx/types/Node";
 import { WeaverRegistry } from "@/registry/WeaverRegistry";

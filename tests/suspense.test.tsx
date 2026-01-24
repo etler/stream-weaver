@@ -2,7 +2,7 @@ import { describe, test, expect } from "vitest";
 import { defineSignal, defineComputed, defineLogic } from "@/signals";
 import { defineSuspense } from "@/signals/defineSuspense";
 import { Suspense } from "@/components/Suspense";
-import { isSuspenseSignal } from "@/ComponentDelegate/signalDetection";
+import { isSuspenseSignal } from "@/signals/signalDetection";
 import { StreamWeaver, WeaverRegistry } from "@/index";
 import { Component } from "@/jsx/types/Component";
 import path from "node:path";

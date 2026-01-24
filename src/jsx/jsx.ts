@@ -1,7 +1,7 @@
 import { Node } from "./types/Node";
 import type { Element } from "./types/Element";
 import { Fragment } from "./Fragment";
-import { isSignal, isComponentSignal } from "@/ComponentDelegate/signalDetection";
+import { isSignal, isComponentSignal } from "@/signals/signalDetection";
 import { defineNode } from "@/signals/defineNode";
 import type { ComponentSignal, NodeSignal } from "@/signals/types";
 

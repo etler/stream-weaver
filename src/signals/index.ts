@@ -27,3 +27,4 @@ export type {
 export type { JsonPrimitive, JsonObject, JsonArray, JsonValue, Serializable } from "./serializableTypes";
 export { PENDING } from "./pending";
 export type { MaybePending } from "./pending";
+export { isSignal, isComponentSignal, isNodeSignal, isSuspenseSignal } from "./signalDetection";

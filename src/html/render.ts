@@ -11,15 +11,15 @@ import type { AnySignal } from "@/signals/types";
 import type { WeaverRegistry } from "@/registry/WeaverRegistry";
 import { Fragment } from "@/jsx/Fragment";
 import { PENDING } from "@/signals/pending";
+import { isSignal } from "@/signals/signalDetection";
+import { escapeText, escapeAttribute } from "./escaping";
+import { isSelfClosingTag } from "./tags";
 import {
-  isSignal,
+  normalizeAttributeName,
   isEventHandlerProp,
   eventPropToDataAttribute,
   propToDataAttribute,
-} from "@/ComponentDelegate/signalDetection";
-import { escapeText, escapeAttribute } from "./escaping";
-import { isSelfClosingTag } from "./tags";
-import { normalizeAttributeName } from "./attributes";
+} from "./attributes";
 import { serializeSignalDefinition } from "./signals";
 
 /**

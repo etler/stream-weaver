@@ -2,7 +2,7 @@ import { WeaverRegistry, getLogicSignal } from "@/registry";
 import { executeLogic } from "./executeLogic";
 import type { Node } from "@/jsx/types/Node";
 import type { NodeSignal } from "@/signals/types";
-import { isSignal } from "@/ComponentDelegate/signalDetection";
+import { isSignal } from "@/signals/signalDetection";
 
 /**
  * Executes a NodeSignal's component logic and returns the rendered Node

@@ -7,7 +7,12 @@
 
 export { escapeText, escapeAttribute } from "./escaping";
 export { isSelfClosingTag } from "./tags";
-export { normalizeAttributeName } from "./attributes";
+export {
+  normalizeAttributeName,
+  isEventHandlerProp,
+  eventPropToDataAttribute,
+  propToDataAttribute,
+} from "./attributes";
 export { serializeSignalDefinition } from "./signals";
 export {
   renderNode,

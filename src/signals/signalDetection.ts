@@ -30,29 +30,6 @@ export function isSignal(value: unknown): value is AnySignal {
 }
 
 /**
- * Checks if a prop name represents an event handler
- */
-export function isEventHandlerProp(propName: string): boolean {
-  return propName.startsWith("on") && propName.length > 2;
-}
-
-/**
- * Converts a React-style event prop name to a data attribute name
- * Example: onClick -> data-w-onclick
- */
-export function eventPropToDataAttribute(propName: string): string {
-  return `data-w-${propName.toLowerCase()}`;
-}
-
-/**
- * Converts a regular prop name to a data attribute name for signal binding
- * Example: className -> data-w-classname
- */
-export function propToDataAttribute(propName: string): string {
-  return `data-w-${propName.toLowerCase()}`;
-}
-
-/**
  * Type guard to check if a value is a ComponentSignal (template)
  */
 export function isComponentSignal(value: unknown): value is ComponentSignal {
