@@ -3,8 +3,8 @@
  * Used by the fast path for static content
  */
 
-import { isSignal } from "@/signals/signalDetection";
-import { isSuspenseResolutionNode } from "@/ComponentDelegate/tokenize";
+import { isSignal, isSuspenseSignal } from "@/signals/signalDetection";
+import { isSuspenseResult } from "@/ComponentDelegate/tokenize";
 import { Node } from "@/jsx/types/Node";
 import { WeaverRegistry } from "@/registry/WeaverRegistry";
 import {
@@ -24,8 +24,8 @@ import { OpenTagToken, Token } from "@/ComponentDelegate/types/Token";
  * Returns null if the tree contains async content (function components)
  */
 export function serializeElement(node: Node, registry?: WeaverRegistry): string | null {
-  // SuspenseResolutionNode requires tokenize handling
-  if (isSuspenseResolutionNode(node)) {
+  // SuspenseSignal and SuspenseResult require processing via ComponentDelegate/tokenize
+  if (isSuspenseSignal(node) || isSuspenseResult(node)) {
     return null;
   }
 

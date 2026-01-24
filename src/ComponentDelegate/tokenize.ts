@@ -1,30 +1,31 @@
 import { Fragment } from "@/jsx/Fragment";
 import { ComponentElement, Element } from "@/jsx/types/Element";
 import { Node } from "@/jsx/types/Node";
-import { OpenTagToken, TokenOrExecutable, NodeExecutable, ComputedExecutable, SuspenseExecutable } from "./types/Token";
+import {
+  OpenTagToken,
+  Token,
+  TokenOrExecutable,
+  NodeExecutable,
+  ComputedExecutable,
+  SuspenseExecutable,
+} from "./types/Token";
 import { WeaverRegistry } from "@/registry/WeaverRegistry";
 import { isSignal, isNodeSignal, isSuspenseSignal } from "@/signals/signalDetection";
 import { isEventHandlerProp, eventPropToDataAttribute, propToDataAttribute } from "@/html/attributes";
 import { LogicSignal, ComponentSignal, NodeSignal, ComputedSignal, SuspenseSignal } from "@/signals/types";
 import { PENDING } from "@/signals/pending";
 
-/**
- * Internal node type for resolved Suspense boundaries
- * Created by executeSuspenseSignal after determining fallback vs children
- */
-export interface SuspenseResolutionNode {
-  __suspenseResolution: true;
-  suspenseId: string;
+/** Result from executeSuspense, processed by tokenize */
+export interface SuspenseResult {
+  __suspenseResult: true;
+  suspense: SuspenseSignal;
   showFallback: boolean;
   fallback: Node;
-  // Pre-collected tokens from children processing
-  childrenTokens: TokenOrExecutable[];
-  // The suspense signal (for emitting signal-definition after _childrenHtml is set)
-  suspenseSignal: SuspenseSignal;
+  childrenTokens: Token[];
 }
 
-export function isSuspenseResolutionNode(node: unknown): node is SuspenseResolutionNode {
-  return typeof node === "object" && node !== null && "__suspenseResolution" in node;
+export function isSuspenseResult(node: unknown): node is SuspenseResult {
+  return typeof node === "object" && node !== null && "__suspenseResult" in node;
 }
 
 export function tokenize(node: Node, registry?: WeaverRegistry): (TokenOrExecutable | ComponentElement)[] {
@@ -38,39 +39,12 @@ export function tokenize(node: Node, registry?: WeaverRegistry): (TokenOrExecuta
     return [];
   }
 
-  // Check for SuspenseResolutionNode (result of suspense execution)
-  if (isSuspenseResolutionNode(node)) {
-    // Extract signal-definition tokens from children (needed for client-side tracking)
-    const childSignalDefs = node.childrenTokens.filter((token): token is TokenOrExecutable => {
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-      return typeof token === "object" && token !== null && "kind" in token && token.kind === "signal-definition";
-    });
-
-    // Emit the suspense signal-definition HERE, after _childrenHtml has been set by executeSuspenseSignal
-    const suspenseSignalDef: TokenOrExecutable = { kind: "signal-definition", signal: node.suspenseSignal };
-
-    if (node.showFallback) {
-      // Show fallback, but emit children's signal definitions first
-      // This allows the client to track the pending signals and swap later
-      return [
-        ...childSignalDefs,
-        suspenseSignalDef,
-        { kind: "bind-marker-open", id: node.suspenseId },
-        ...tokenize(node.fallback, registry),
-        { kind: "bind-marker-close", id: node.suspenseId },
-      ];
-    } else {
-      // Show children - use pre-collected tokens
-      return [
-        suspenseSignalDef,
-        { kind: "bind-marker-open", id: node.suspenseId },
-        ...node.childrenTokens,
-        { kind: "bind-marker-close", id: node.suspenseId },
-      ];
-    }
+  // Handle SuspenseResult (from executeSuspense via ComponentDelegate)
+  if (isSuspenseResult(node)) {
+    return handleSuspenseResult(node, registry);
   }
 
-  // Check if node is a SuspenseSignal - needs special handling for fallback/children
+  // Check if node is a SuspenseSignal - emit executable for ComponentDelegate processing
   if (isSuspenseSignal(node)) {
     return handleSuspenseSignal(node, registry);
   }
@@ -223,9 +197,7 @@ export function tokenize(node: Node, registry?: WeaverRegistry): (TokenOrExecuta
   }
 }
 
-/**
- * Handle SuspenseSignal - show fallback while children contain PENDING signals
- */
+/** Emit SuspenseExecutable for ComponentDelegate to process */
 function handleSuspenseSignal(
   suspense: SuspenseSignal,
   registry?: WeaverRegistry,
@@ -237,67 +209,36 @@ function handleSuspenseSignal(
   // Register the suspense signal
   registry.registerIfAbsent(suspense);
 
-  // Tokenize children FIRST - this renders any function components and registers signals
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-  const childrenTokens = tokenize(suspense.children as Node, registry);
+  // Always emit a SuspenseExecutable - ComponentDelegate handles PENDING detection
+  const executable: SuspenseExecutable = {
+    kind: "suspense-executable",
+    suspense,
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+    children: suspense.children as Node,
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+    fallback: suspense.fallback as Node,
+  };
+  return [executable];
+}
 
-  // Check if children contain function components (ComponentElements)
-  // These need to be executed by ComponentDelegate before we can check for PENDING
-  const hasComponentElements = childrenTokens.some(
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-    (token) => typeof token === "object" && token !== null && "type" in token && typeof token.type === "function",
-  );
+/** Process SuspenseResult - emit fallback or children tokens */
+function handleSuspenseResult(
+  result: SuspenseResult,
+  registry?: WeaverRegistry,
+): (TokenOrExecutable | ComponentElement)[] {
+  const { suspense, showFallback, fallback, childrenTokens } = result;
+  const childSignalDefs = childrenTokens.filter((token) => token.kind === "signal-definition");
 
-  if (hasComponentElements) {
-    // Children have function components - defer to ComponentDelegate for execution
-    // Note: signal-definition is NOT emitted here - it will be emitted when processing
-    // SuspenseResolutionNode after _childrenHtml has been set by executeSuspenseSignal
-    const executable: SuspenseExecutable = {
-      kind: "suspense-executable",
-      suspense,
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-      children: suspense.children as Node,
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-      fallback: suspense.fallback as Node,
-    };
-    return [executable];
-  }
-
-  // No function components - we can check for PENDING signals directly
-  const childSignalIds = new Set<string>();
-  for (const token of childrenTokens) {
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-    if (typeof token === "object" && token !== null && "kind" in token) {
-      if (token.kind === "signal-definition") {
-        childSignalIds.add(token.signal.id);
-      } else if (token.kind === "bind-marker-open") {
-        childSignalIds.add(token.id);
-      }
-    }
-  }
-
-  // Check which of these signals have PENDING values
-  const pendingSignals: string[] = [];
-  for (const id of childSignalIds) {
-    if (registry.getValue(id) === PENDING) {
-      pendingSignals.push(id);
-    }
-  }
-
-  // Update the suspense signal's pending deps
-  suspense.pendingDeps = pendingSignals;
-
-  if (pendingSignals.length > 0) {
-    // Show fallback
+  if (showFallback) {
+    // Emit children's signal defs first so client can track pending signals
     return [
+      ...childSignalDefs,
       { kind: "signal-definition", signal: suspense },
       { kind: "bind-marker-open", id: suspense.id },
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-      ...tokenize(suspense.fallback as Node, registry),
+      ...tokenize(fallback, registry),
       { kind: "bind-marker-close", id: suspense.id },
     ];
   } else {
-    // Show children (already tokenized)
     return [
       { kind: "signal-definition", signal: suspense },
       { kind: "bind-marker-open", id: suspense.id },

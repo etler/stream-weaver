@@ -1,5 +1,5 @@
 import { chunkify } from "@/ComponentDelegate/chunkify";
-import { tokenize, SuspenseResolutionNode } from "@/ComponentDelegate/tokenize";
+import { tokenize, SuspenseResult } from "@/ComponentDelegate/tokenize";
 import { Token, NodeExecutable, ComputedExecutable, SuspenseExecutable } from "@/ComponentDelegate/types/Token";
 import { DelegateStream } from "delegate-stream";
 import { Node } from "@/jsx/types/Node";
@@ -7,8 +7,9 @@ import { WeaverRegistry } from "@/registry/WeaverRegistry";
 import { ComponentElement } from "@/jsx/types/Element";
 import { loadSSRModule } from "@/ssr";
 import { executeComputed } from "@/logic/executeComputed";
+import { executeSuspense } from "@/logic/executeSuspense";
 import { PENDING } from "@/signals/pending";
-import { serializeElement, serializeTokenArray } from "@/ComponentSerializer/serialize";
+import { serializeElement } from "@/ComponentSerializer/serialize";
 
 export class ComponentDelegate extends DelegateStream<Node, Token> {
   constructor(registry?: WeaverRegistry) {
@@ -117,9 +118,7 @@ function executeComputedSignal(
   });
 }
 
-/**
- * Execute a SuspenseSignal by processing children, checking for PENDING, then emitting appropriate content
- */
+/** Execute SuspenseSignal - process children, check PENDING, emit result */
 function executeSuspenseSignal(
   executable: SuspenseExecutable,
   writer: WritableStreamDefaultWriter<Node>,
@@ -138,7 +137,6 @@ function executeSuspenseSignal(
     const childWriter = childDelegate.writable.getWriter();
 
     // Collect tokens from the child delegate's readable
-    // The readable may emit Token[] arrays or individual items depending on the content
     const collectedItems: unknown[] = [];
 
     // Start reading before writing
@@ -173,40 +171,20 @@ function executeSuspenseSignal(
       }
     }
 
-    // Check for PENDING signals in the collected tokens
-    const pendingSignals: string[] = [];
-    for (const token of flattenedTokens) {
-      if (token.kind === "signal-definition") {
-        const { id } = token.signal;
-        if (registry.getValue(id) === PENDING) {
-          pendingSignals.push(id);
-        }
-      }
-    }
+    // Use executeSuspense to analyze children and determine what to show
+    const result = executeSuspense(registry, suspense, flattenedTokens);
 
-    // Update the suspense signal's pending deps
-    suspense.pendingDeps = pendingSignals;
-
-    // Pre-render children to HTML for client-side resolution
-    // Skip signal-definition tokens as they're emitted separately
-    const childrenHtml = serializeTokenArray(flattenedTokens, true);
-    // Store the pre-rendered HTML in the suspense signal for client use
-    // eslint-disable-next-line no-underscore-dangle
-    suspense._childrenHtml = childrenHtml;
-
-    // Write a SuspenseResolutionNode that tokenize will handle
-    // Include the suspense signal so its definition can be emitted AFTER _childrenHtml is set
-    const resolutionNode: SuspenseResolutionNode = {
-      __suspenseResolution: true,
-      suspenseId: suspense.id,
-      showFallback: pendingSignals.length > 0,
+    // Write a SuspenseResult that tokenize will handle
+    const suspenseResult: SuspenseResult = {
+      __suspenseResult: true,
+      suspense,
+      showFallback: result.showFallback,
       fallback,
       childrenTokens: flattenedTokens,
-      suspenseSignal: suspense,
     };
 
     // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-    await writer.write(resolutionNode as unknown as Node);
+    await writer.write(suspenseResult as unknown as Node);
     await writer.close();
   })().catch((error: unknown) => {
     console.error(new Error("SuspenseSignal Execution Error", { cause: error }));
