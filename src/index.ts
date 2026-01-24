@@ -59,6 +59,3 @@ export type { SignalChain, SerializedSignal } from "./logic/remoteExecution";
 
 // Worker execution
 export { WorkerPool } from "./worker";
-
-// Polyfills (side-effect import)
-import "./polyfills/readableStreamFrom";
