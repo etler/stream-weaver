@@ -1,9 +1,9 @@
 import { WeaverRegistry } from "@/registry/WeaverRegistry";
-import { Sink } from "@/sink/Sink";
+import { Sink } from "./Sink";
 import { SignalDelegate } from "@/SignalDelegate/SignalDelegate";
 import { setupEventDelegation } from "./setupEventDelegation";
 import { AnySignal, SuspenseSignal, ComputedSignal } from "@/signals/types";
-import { nodeToHtml } from "./nodeToHtml";
+import { renderNode } from "@/html";
 import { executeNode } from "@/logic/executeNode";
 import { executeComputed } from "@/logic/executeComputed";
 import { executeReducer } from "@/logic/executeReducer";
@@ -476,4 +476,13 @@ export class ClientWeaver {
     const html = nodeToHtml(children, this.registry);
     this.sink.sync(suspenseId, html);
   }
+}
+
+/**
+ * Serialize a Node tree to HTML string with signal handling
+ * Registers signals with the registry and adds proper data-w-* attributes
+ */
+function nodeToHtml(node: Node, registry?: WeaverRegistry): string {
+  // Client-side: no signal definitions needed, async content just returns empty
+  return renderNode(node, { registry }) ?? "";
 }

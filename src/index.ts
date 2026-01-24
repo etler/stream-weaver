@@ -2,10 +2,10 @@
 export { StreamWeaver } from "./StreamWeaver";
 
 // Client
-export { ClientWeaver } from "./client/ClientWeaver";
+export { ClientWeaver } from "./ClientWeaver";
 
 // Registry
-export { WeaverRegistry } from "./registry/WeaverRegistry";
+export { WeaverRegistry } from "./registry";
 
 // Components
 export { Suspense, type SuspenseProps } from "./components";

@@ -1,50 +1,54 @@
-import { OpenTagToken, Token } from "@/ComponentDelegate/types/Token";
+/**
+ * Direct HTML serialization - bypasses Token objects entirely
+ * Used by the fast path for static content
+ */
+
+import { isSignal } from "@/signals/signalDetection";
+import { isSuspenseResolutionNode } from "@/ComponentDelegate/tokenize";
+import { Node } from "@/jsx/types/Node";
+import { WeaverRegistry } from "@/registry/WeaverRegistry";
 import {
-  escapeText,
   escapeAttribute,
+  escapeText,
   isSelfClosingTag,
   normalizeAttributeName,
+  renderNode,
   serializeSignalDefinition,
+  type RenderOptions,
 } from "@/html";
+import { requiresAsyncProcessing } from "@/registry/helpers";
+import { OpenTagToken, Token } from "@/ComponentDelegate/types/Token";
 
-// Buffer target size for chunks after the first one
-const BUFFER_TARGET_SIZE = 2048;
-
-export class ComponentSerializer extends TransformStream<Token, string> {
-  constructor() {
-    let buffer = "";
-    let firstChunkSent = false;
-
-    super({
-      transform: (token, controller) => {
-        const serialized = serializeToken(token);
-        buffer += serialized;
-
-        if (!firstChunkSent) {
-          // Flush immediately on first content to optimize TTFB
-          controller.enqueue(buffer);
-          buffer = "";
-          firstChunkSent = true;
-        } else if (buffer.length >= BUFFER_TARGET_SIZE) {
-          // Buffer subsequent content into larger chunks for HTTP efficiency
-          controller.enqueue(buffer);
-          buffer = "";
-        }
-      },
-      flush: (controller) => {
-        if (buffer.length > 0) {
-          controller.enqueue(buffer);
-        }
-      },
-    });
+/**
+ * Directly serialize a JSX element tree to HTML string
+ * Returns null if the tree contains async content (function components)
+ */
+export function serializeElement(node: Node, registry?: WeaverRegistry): string | null {
+  // SuspenseResolutionNode requires tokenize handling
+  if (isSuspenseResolutionNode(node)) {
+    return null;
   }
+
+  // Check for signals that need async handling
+  if (isSignal(node) && registry && requiresAsyncProcessing(node, registry)) {
+    return null;
+  }
+
+  const options: RenderOptions = {
+    registry,
+    emitSignalDefinitions: true,
+    rejectAsync: true,
+    asyncCheck: registry ? (signal) => requiresAsyncProcessing(signal, registry) : undefined,
+  };
+
+  return renderNode(node, options);
 }
 
 /**
  * Convert an array of tokens to HTML string
  * Optionally skip signal-definition tokens (for content-only HTML)
  */
-export function tokensToHtml(tokens: Token[], skipSignalDefs = false): string {
+export function serializeTokenArray(tokens: Token[], skipSignalDefs = false): string {
   let html = "";
   for (const token of tokens) {
     if (skipSignalDefs && token.kind === "signal-definition") {
@@ -55,7 +59,7 @@ export function tokensToHtml(tokens: Token[], skipSignalDefs = false): string {
   return html;
 }
 
-function serializeToken(token: Token): string {
+export function serializeToken(token: Token): string {
   switch (token.kind) {
     case "open": {
       const attributeString = serializeAttributes(token);
@@ -86,7 +90,7 @@ function serializeToken(token: Token): string {
   }
 }
 
-function serializeAttributes(token: OpenTagToken): string {
+export function serializeAttributes(token: OpenTagToken): string {
   const attributeStrings = Object.entries(token.attributes).map(([key, value]) => {
     const attributeName = normalizeAttributeName(key);
     const valueString = value !== null ? `=${JSON.stringify(escapeAttribute(value))}` : "";

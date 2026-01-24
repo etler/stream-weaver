@@ -2,7 +2,7 @@
  * @vitest-environment happy-dom
  */
 import { describe, test, expect, beforeEach } from "vitest";
-import { ClientWeaver } from "@/client/ClientWeaver";
+import { ClientWeaver } from "@/ClientWeaver";
 import { defineSignal } from "@/signals/defineSignal";
 import { defineComputed } from "@/signals/defineComputed";
 import { defineHandler } from "@/signals/defineHandler";

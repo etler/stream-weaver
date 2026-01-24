@@ -8,8 +8,7 @@ import { ComponentElement } from "@/jsx/types/Element";
 import { loadSSRModule } from "@/ssr";
 import { executeComputed } from "@/logic/executeComputed";
 import { PENDING } from "@/signals/pending";
-import { tokensToHtml } from "@/ComponentHtmlSerializer";
-import { serializeElement } from "@/ComponentHtmlSerializer/serializeElement";
+import { serializeElement, serializeTokenArray } from "@/ComponentSerializer/serialize";
 
 export class ComponentDelegate extends DelegateStream<Node, Token> {
   constructor(registry?: WeaverRegistry) {
@@ -190,7 +189,7 @@ function executeSuspenseSignal(
 
     // Pre-render children to HTML for client-side resolution
     // Skip signal-definition tokens as they're emitted separately
-    const childrenHtml = tokensToHtml(flattenedTokens, true);
+    const childrenHtml = serializeTokenArray(flattenedTokens, true);
     // Store the pre-rendered HTML in the suspense signal for client use
     // eslint-disable-next-line no-underscore-dangle
     suspense._childrenHtml = childrenHtml;

@@ -6,7 +6,7 @@
 // Polyfill must be imported first, before any code that uses ReadableStream.from
 import "stream-weaver/polyfills";
 
-import { ClientWeaver } from "stream-weaver/client";
+import { ClientWeaver } from "stream-weaver";
 import { WorkerPool } from "stream-weaver";
 
 // Configure worker URL based on environment

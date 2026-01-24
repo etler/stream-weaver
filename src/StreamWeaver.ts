@@ -1,5 +1,5 @@
-import { ComponentDelegate } from "@/ComponentDelegate/ComponentDelegate";
-import { ComponentSerializer } from "@/ComponentHtmlSerializer/ComponentSerializer";
+import { ComponentDelegate } from "@/ComponentDelegate";
+import { ComponentSerializer } from "@/ComponentSerializer";
 import { Element } from "@/jsx/types/Element";
 import { WeaverRegistry } from "@/registry/WeaverRegistry";
 

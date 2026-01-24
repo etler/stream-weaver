@@ -8,7 +8,7 @@ import { defineLogic } from "@/signals/defineLogic";
 import { defineMutator } from "@/signals/defineMutator";
 import { WeaverRegistry } from "@/registry/WeaverRegistry";
 import { SignalDelegate } from "@/SignalDelegate/SignalDelegate";
-import { setupEventDelegation } from "@/client/setupEventDelegation";
+import { setupEventDelegation } from "@/ClientWeaver/setupEventDelegation";
 
 /**
  * Helper to wait for a condition to be true

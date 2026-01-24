@@ -2,7 +2,7 @@
  * @vitest-environment happy-dom
  */
 import { describe, test, expect, beforeEach } from "vitest";
-import { Sink } from "@/sink/Sink";
+import { Sink } from "@/ClientWeaver/Sink";
 
 describe("Milestone 6: Client Sink", () => {
   beforeEach(() => {

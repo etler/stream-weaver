@@ -1,0 +1,1 @@
+export { ComponentSerializer } from "./ComponentSerializer";

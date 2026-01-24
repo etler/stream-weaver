@@ -1,4 +1,11 @@
-import type { LogicSignal, ComputedSignal, ActionSignal, HandlerSignal, ReducerSignal } from "@/signals/types";
+import type {
+  LogicSignal,
+  ComputedSignal,
+  ActionSignal,
+  HandlerSignal,
+  ReducerSignal,
+  AnySignal,
+} from "@/signals/types";
 import type { WeaverRegistry } from "./WeaverRegistry";
 
 /**
@@ -70,4 +77,33 @@ export function getReducerSignal(registry: WeaverRegistry, reducerId: string): R
     throw new Error(`Signal ${reducerId} is not a reducer signal`);
   }
   return signal;
+}
+
+/**
+ * Check if a signal requires async processing (server fast-path rejection)
+ */
+export function requiresAsyncProcessing(signal: AnySignal, registry: WeaverRegistry): boolean {
+  // Suspense and Node signals always need streaming path
+  if (signal.kind === "suspense" || signal.kind === "node") {
+    return true;
+  }
+
+  // Computed signals with non-client context need async execution during SSR
+  if (signal.kind === "computed") {
+    const computed = signal as ComputedSignal;
+    const logicSignal = computed.logicRef;
+
+    // Any non-client context (undefined=isomorphic, "server", "worker") needs async execution
+    // if the value hasn't been computed yet. This matches the check in tokenize.ts.
+    if (logicSignal !== undefined && logicSignal.context !== "client" && registry.getValue(signal.id) === undefined) {
+      return true;
+    }
+
+    // Deferred computed signals (timeout: 0) need streaming for Suspense detection
+    if (logicSignal?.timeout === 0) {
+      return true;
+    }
+  }
+
+  return false;
 }
