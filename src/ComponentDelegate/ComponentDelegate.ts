@@ -35,7 +35,7 @@ export class ComponentDelegate extends DelegateStream<Node, Token> {
               // NodeExecutable - execute via SignalDelegate, tokenize result through ComponentDelegate
               if (reg) {
                 const signalDelegate = new SignalDelegate(reg);
-                const tokenizer = new NodeTokenizer(reg);
+                const tokenizer = new NodeDelegate(reg);
                 void signalDelegate.readable.pipeTo(tokenizer.writable);
                 chain(tokenizer.readable);
                 const writer = signalDelegate.writable.getWriter();
@@ -61,7 +61,7 @@ export class ComponentDelegate extends DelegateStream<Node, Token> {
               }
             } else if (reg) {
               // SuspenseExecutable - resolve to fallback or children
-              const resolver = new SuspenseResolver(reg);
+              const resolver = new SuspenseDelegate(reg);
               chain(resolver.readable);
               const writer = resolver.writable.getWriter();
               void writer.write(chunk).then(async () => writer.close());
@@ -92,7 +92,7 @@ export class ComponentDelegate extends DelegateStream<Node, Token> {
  * Transforms signal-update events into tokens by passing Node values through ComponentDelegate.
  * Used to tokenize the result of NodeSignal execution.
  */
-class NodeTokenizer extends DelegateStream<SignalToken, Token> {
+class NodeDelegate extends DelegateStream<SignalToken, Token> {
   constructor(registry: WeaverRegistry) {
     super({
       transform: (event, chain) => {
@@ -115,7 +115,7 @@ class NodeTokenizer extends DelegateStream<SignalToken, Token> {
  * Resolves SuspenseExecutable: accumulates children, checks for PENDING, emits fallback or children.
  * Bind markers are handled by tokenize - this only emits children signal-defs + content.
  */
-class SuspenseResolver extends DelegateStream<SuspenseExecutable, Token> {
+class SuspenseDelegate extends DelegateStream<SuspenseExecutable, Token> {
   constructor(registry: WeaverRegistry) {
     const reg = registry;
 
