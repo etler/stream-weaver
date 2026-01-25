@@ -3,6 +3,7 @@ import { WeaverRegistry } from "@/registry/WeaverRegistry";
 import { SignalEvent, SignalToken } from "./types";
 import { executeComputed, executeNode } from "@/logic";
 import { executeHandler } from "@/logic/executeHandler";
+import { executeReducer } from "@/logic/executeReducer";
 
 /**
  * SignalDelegate
@@ -98,6 +99,45 @@ export class SignalDelegate extends DelegateStream<SignalEvent, SignalToken> {
               executeAndEmit(dependentId, chain);
             }
           }
+        } else if (event.kind === "execute-reducer") {
+          // Execute a reducer signal: execute source, then iterate and emit updates
+          const reducerSignal = reg.getSignal(event.id);
+          if (reducerSignal?.kind !== "reducer") {
+            return;
+          }
+
+          const childDelegate = new SignalDelegate(reg, getRootWriter());
+          const childWriter = childDelegate.writable.getWriter();
+          chain(childDelegate.readable);
+
+          (async () => {
+            // Execute the source computed if it hasn't been executed yet
+            const sourceSignal = reg.getSignal(reducerSignal.source);
+            if (sourceSignal?.kind === "computed") {
+              const result = await executeComputed(reg, reducerSignal.source);
+              await childWriter.write({ kind: "signal-update", id: reducerSignal.source, value: result.value });
+            }
+
+            // Now execute the reducer - it will call setValue for each iteration
+            // We intercept those calls and emit signal-update events
+            const originalSetValue = reg.setValue.bind(reg);
+            reg.setValue = (id: string, value: unknown) => {
+              originalSetValue(id, value);
+              if (id === event.id) {
+                childWriter.write({ kind: "signal-update", id, value }).catch(() => {});
+              }
+            };
+
+            try {
+              await executeReducer(reg, event.id);
+            } finally {
+              reg.setValue = originalSetValue;
+              await childWriter.close();
+            }
+          })().catch((error: unknown) => {
+            console.error(new Error("Reducer execution error", { cause: error }));
+            childWriter.close().catch(() => {});
+          });
         } else {
           // handler-execute event: Execute the handler
           const handler = reg.getSignal(event.id);

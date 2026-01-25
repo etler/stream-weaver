@@ -5,8 +5,6 @@ import { setupEventDelegation } from "./setupEventDelegation";
 import { AnySignal, SuspenseSignal, ComputedSignal } from "@/signals/types";
 import { renderNode } from "@/html";
 import { executeNode } from "@/logic/executeNode";
-import { executeComputed } from "@/logic/executeComputed";
-import { executeReducer } from "@/logic/executeReducer";
 import type { Node } from "@/jsx/types/Node";
 import { PENDING } from "@/signals/pending";
 
@@ -156,8 +154,8 @@ export class ClientWeaver {
         if (this.sink.hasContent(nodeId)) {
           continue;
         }
-        // Execute the NodeSignal and render it
-        this.executeAndRenderNode(nodeId);
+        // Execute the NodeSignal via SignalDelegate
+        this.executeSignal(nodeId);
       }
     }
     this.pendingNodeSignals.clear();
@@ -168,129 +166,29 @@ export class ClientWeaver {
    */
   private executePendingDeferredComputed(): void {
     for (const computedId of this.pendingDeferredComputed) {
-      this.executeAndUpdateComputed(computedId);
+      this.executeSignal(computedId);
     }
     this.pendingDeferredComputed.clear();
   }
 
   /**
-   * Execute pending reducer signals
+   * Execute pending reducer signals via SignalDelegate
    */
   private executePendingReducerSignals(): void {
     for (const reducerId of this.pendingReducerSignals) {
-      this.executeAndUpdateReducer(reducerId);
+      this.delegateWriter.write({ kind: "execute-reducer", id: reducerId }).catch((error: unknown) => {
+        console.error(new Error(`Failed to execute reducer ${reducerId}`, { cause: error }));
+      });
     }
     this.pendingReducerSignals.clear();
   }
 
   /**
-   * Execute a reducer signal and emit updates as items arrive
+   * Execute a signal via SignalDelegate (handles computed, node, deferred)
    */
-  private executeAndUpdateReducer(reducerId: string): void {
-    const signal = this.registry.getSignal(reducerId);
-    if (signal?.kind !== "reducer") {
-      return;
-    }
-    const reducer = signal;
-
-    // First, execute the source signal's computed to create the iterable
-    const sourceId = reducer.source;
-    const sourceSignal = this.registry.getSignal(sourceId);
-
-    // If source is a computed signal, ensure it's executed first
-    if (sourceSignal?.kind === "computed") {
-      (async () => {
-        // Execute source computed to get the iterable
-        await executeComputed(this.registry, sourceId);
-
-        // Now execute the reducer (which will iterate over the iterable)
-        this.runReducerExecution(reducerId);
-      })().catch((error: unknown) => {
-        console.error(new Error(`Failed to execute reducer source ${sourceId}`, { cause: error }));
-      });
-    } else {
-      // Source already has a value, just execute the reducer
-      this.runReducerExecution(reducerId);
-    }
-  }
-
-  /**
-   * Run reducer execution and emit updates
-   */
-  private runReducerExecution(reducerId: string): void {
-    // Create a wrapper that emits signal-update for each iterable item
-    const originalSetValue = this.registry.setValue.bind(this.registry);
-    const writer = this.delegateWriter;
-
-    // Guard to prevent infinite loop: SignalDelegate calls setValue when processing
-    // signal-update events, which would trigger another write without this guard
-    let isEmitting = false;
-
-    // Temporarily override setValue to emit updates
-    this.registry.setValue = (id: string, value: unknown) => {
-      originalSetValue(id, value);
-      if (id === reducerId && !isEmitting) {
-        isEmitting = true;
-        writer
-          .write({ kind: "signal-update", id, value })
-          .catch((error: unknown) => {
-            console.error(new Error(`Failed to emit reducer update for ${id}`, { cause: error }));
-          })
-          .finally(() => {
-            isEmitting = false;
-          });
-      }
-    };
-
-    executeReducer(this.registry, reducerId)
-      .catch((error: unknown) => {
-        console.error(new Error(`Failed to execute reducer ${reducerId}`, { cause: error }));
-      })
-      .finally(() => {
-        // Restore original setValue
-        this.registry.setValue = originalSetValue;
-      });
-  }
-
-  /**
-   * Execute a computed signal with deferred logic and trigger updates
-   */
-  private executeAndUpdateComputed(computedId: string): void {
-    (async () => {
-      // Execute the computed signal
-      const result = await executeComputed(this.registry, computedId);
-
-      // Emit signal-update for the immediate value (may be PENDING)
-      await this.delegateWriter.write({ kind: "signal-update", id: computedId, value: result.value });
-
-      // If execution was deferred, wait for completion and emit another update
-      if (result.deferred) {
-        const deferredValue = await result.deferred;
-        await this.delegateWriter.write({ kind: "signal-update", id: computedId, value: deferredValue });
-      }
-    })().catch((error: unknown) => {
-      console.error(new Error(`Failed to execute deferred computed ${computedId}`, { cause: error }));
-    });
-  }
-
-  /**
-   * Execute a NodeSignal and render its output to the DOM
-   */
-  private executeAndRenderNode(nodeId: string): void {
-    (async () => {
-      // Execute the node to get its output
-      const result = await executeNode(this.registry, nodeId);
-
-      // Store the result
-      this.registry.setValue(nodeId, result);
-
-      // Render to HTML with signal registration
-      const html = nodeToHtml(result, this.registry);
-
-      // Update the DOM (sync already rescans for new bind points)
-      this.sink.sync(nodeId, html);
-    })().catch((error: unknown) => {
-      console.error(new Error(`Failed to execute NodeSignal ${nodeId}`, { cause: error }));
+  private executeSignal(signalId: string): void {
+    this.delegateWriter.write({ kind: "execute-signal", id: signalId }).catch((error: unknown) => {
+      console.error(new Error(`Failed to execute signal ${signalId}`, { cause: error }));
     });
   }
 
@@ -411,6 +309,8 @@ export class ClientWeaver {
 
   /**
    * Show the fallback content for a suspense boundary
+   * Note: This can't use executeSignal because we need to render INTO the suspense
+   * boundary's bind point, not the fallback node's own bind point.
    */
   private showSuspenseFallback(suspenseId: string, suspense: SuspenseSignal): void {
     const { fallback } = suspense;
@@ -423,7 +323,7 @@ export class ClientWeaver {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       (fallback as { kind: string }).kind === "node"
     ) {
-      // Execute the NodeSignal to get the rendered content
+      // Execute the NodeSignal and render INTO the suspense boundary
       // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       const nodeSignal = fallback as { id: string; kind: "node" };
       (async () => {

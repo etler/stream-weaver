@@ -27,9 +27,18 @@ export interface ExecuteSignalEvent {
 }
 
 /**
+ * ExecuteReducerEvent represents a request to execute a reducer signal
+ * Handles the full lifecycle: execute source, then iterate and emit updates
+ */
+export interface ExecuteReducerEvent {
+  kind: "execute-reducer";
+  id: string; // Reducer signal ID
+}
+
+/**
  * Union type for all signal events
  */
-export type SignalEvent = SignalUpdateEvent | HandlerExecuteEvent | ExecuteSignalEvent;
+export type SignalEvent = SignalUpdateEvent | HandlerExecuteEvent | ExecuteSignalEvent | ExecuteReducerEvent;
 
 /**
  * Token represents output from the SignalDelegate stream
