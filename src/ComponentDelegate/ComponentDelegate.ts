@@ -4,7 +4,6 @@ import { Token, SuspenseExecutable } from "@/ComponentDelegate/types/Token";
 import { DelegateStream } from "delegate-stream";
 import { Node } from "@/jsx/types/Node";
 import { WeaverRegistry } from "@/registry/WeaverRegistry";
-import { ComponentElement } from "@/jsx/types/Element";
 import { SignalDelegate } from "@/SignalDelegate/SignalDelegate";
 import { SignalToken } from "@/SignalDelegate/types";
 import { PENDING } from "@/signals/pending";
@@ -36,23 +35,9 @@ export class ComponentDelegate extends DelegateStream<Node, Token> {
               // NodeExecutable - execute via SignalDelegate, tokenize result through ComponentDelegate
               if (reg) {
                 const signalDelegate = new SignalDelegate(reg);
-                // Transform: signal-update → Node → ComponentDelegate → tokens
-                const transformer = new DelegateStream<SignalToken, Token>({
-                  transform: (event, innerChain) => {
-                    if (event.value !== PENDING) {
-                      const componentDelegate = new ComponentDelegate(reg);
-                      innerChain(componentDelegate.readable);
-                      const writer = componentDelegate.writable.getWriter();
-                      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-                      void writer.write(event.value as Node).then(async () => writer.close());
-                    }
-                  },
-                  finish: (innerChain) => {
-                    innerChain(null);
-                  },
-                });
-                void signalDelegate.readable.pipeTo(transformer.writable);
-                chain(transformer.readable);
+                const tokenizer = new NodeTokenizer(reg);
+                void signalDelegate.readable.pipeTo(tokenizer.writable);
+                chain(tokenizer.readable);
                 const writer = signalDelegate.writable.getWriter();
                 void writer.write({ kind: "execute-signal", id: chunk.node.id }).then(async () => writer.close());
               }
@@ -76,14 +61,20 @@ export class ComponentDelegate extends DelegateStream<Node, Token> {
               }
             } else {
               // SuspenseExecutable - process children, check PENDING, emit tokens directly
-              executeSuspenseSignal(chunk, chain, reg);
+              resolveSuspenseSignal(chunk, chain, reg);
             }
           } else {
-            // ComponentElement (function component) - execute directly
+            // ComponentElement (function component) - call and tokenize result
             const delegate = new ComponentDelegate(reg);
-            const writer = delegate.writable.getWriter();
             chain(delegate.readable);
-            executeComponentElement(chunk, writer);
+            const writer = delegate.writable.getWriter();
+            (async () => {
+              const node = await chunk.type(chunk.props);
+              await writer.write(node);
+              await writer.close();
+            })().catch((error: unknown) => {
+              console.error(new Error("Component Render Error", { cause: error }));
+            });
           }
         }
       },
@@ -95,27 +86,35 @@ export class ComponentDelegate extends DelegateStream<Node, Token> {
 }
 
 /**
- * Execute a function component and write its output
+ * Transforms signal-update events into tokens by passing Node values through ComponentDelegate.
+ * Used to tokenize the result of NodeSignal execution.
  */
-function executeComponentElement(component: ComponentElement, writer: WritableStreamDefaultWriter<Node>): void {
-  (async () => {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    const { type, props } = component;
-    const node = await type(props);
-    await writer.write(node);
-    await writer.close();
-  })().catch((error: unknown) => {
-    console.error(new Error("Component Render Error", { cause: error }));
-  });
+class NodeTokenizer extends DelegateStream<SignalToken, Token> {
+  constructor(registry: WeaverRegistry) {
+    super({
+      transform: (event, chain) => {
+        if (event.value !== PENDING) {
+          const componentDelegate = new ComponentDelegate(registry);
+          chain(componentDelegate.readable);
+          const writer = componentDelegate.writable.getWriter();
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+          void writer.write(event.value as Node).then(async () => writer.close());
+        }
+      },
+      finish: (chain) => {
+        chain(null);
+      },
+    });
+  }
 }
 
 type ChainFn = (input: Iterable<Token> | AsyncIterable<Token> | null) => void;
 
 /**
- * Execute SuspenseSignal: accumulate children, check for PENDING, emit fallback or flush children.
+ * Resolve SuspenseSignal: accumulate children, check for PENDING, emit fallback or flush children.
  * Bind markers are handled by tokenize - this only emits children signal-defs + content.
  */
-function executeSuspenseSignal(executable: SuspenseExecutable, chain: ChainFn, registry?: WeaverRegistry): void {
+function resolveSuspenseSignal(executable: SuspenseExecutable, chain: ChainFn, registry?: WeaverRegistry): void {
   if (!registry) {
     return;
   }
