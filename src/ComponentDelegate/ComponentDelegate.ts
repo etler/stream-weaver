@@ -33,14 +33,46 @@ export class ComponentDelegate extends DelegateStream<Node, Token> {
             chain(chunk);
           } else if ("kind" in chunk) {
             if (chunk.kind === "node-executable") {
-              // NodeExecutable - execute via SignalDelegate, then continue tokenizing result
+              // NodeExecutable - execute via SignalDelegate, tokenize result through ComponentDelegate
               if (reg) {
-                executeViaSignalDelegate(chunk.node.id, chain, reg, nodeToTokens(reg));
+                const signalDelegate = new SignalDelegate(reg);
+                // Transform: signal-update → Node → ComponentDelegate → tokens
+                const transformer = new DelegateStream<SignalToken, Token>({
+                  transform: (event, innerChain) => {
+                    if (event.value !== PENDING) {
+                      const componentDelegate = new ComponentDelegate(reg);
+                      innerChain(componentDelegate.readable);
+                      const writer = componentDelegate.writable.getWriter();
+                      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+                      void writer.write(event.value as Node).then(async () => writer.close());
+                    }
+                  },
+                  finish: (innerChain) => {
+                    innerChain(null);
+                  },
+                });
+                void signalDelegate.readable.pipeTo(transformer.writable);
+                chain(transformer.readable);
+                const writer = signalDelegate.writable.getWriter();
+                void writer.write({ kind: "execute-signal", id: chunk.node.id }).then(async () => writer.close());
               }
             } else if (chunk.kind === "computed-executable") {
               // ComputedExecutable - execute via SignalDelegate, emit as text token
               if (reg) {
-                executeViaSignalDelegate(chunk.computed.id, chain, reg, computedToToken);
+                const signalDelegate = new SignalDelegate(reg);
+                // Transform: signal-update → text token
+                const tokenStream = signalDelegate.readable.pipeThrough(
+                  new TransformStream<SignalToken, Token>({
+                    transform(event, controller) {
+                      // eslint-disable-next-line @typescript-eslint/no-base-to-string
+                      const text = event.value === PENDING ? "" : String(event.value ?? "");
+                      controller.enqueue({ kind: "text", content: text });
+                    },
+                  }),
+                );
+                chain(tokenStream);
+                const writer = signalDelegate.writable.getWriter();
+                void writer.write({ kind: "execute-signal", id: chunk.computed.id }).then(async () => writer.close());
               }
             } else {
               // SuspenseExecutable - process children, check PENDING, emit tokens directly
@@ -78,55 +110,6 @@ function executeComponentElement(component: ComponentElement, writer: WritableSt
 }
 
 type ChainFn = (input: Iterable<Token> | AsyncIterable<Token> | null) => void;
-type TransformFn = (value: unknown, innerChain: ChainFn) => void;
-
-/**
- * Execute a signal via SignalDelegate and transform the result.
- * SignalDelegate handles execution; transformFn converts result to tokens.
- */
-function executeViaSignalDelegate(
-  signalId: string,
-  chain: ChainFn,
-  registry: WeaverRegistry,
-  transformFn: TransformFn,
-): void {
-  const signalDelegate = new SignalDelegate(registry);
-
-  const transformer = new DelegateStream<SignalToken, Token>({
-    transform: (event, innerChain) => {
-      transformFn(event.value, innerChain);
-    },
-    finish: (innerChain) => {
-      innerChain(null);
-    },
-  });
-
-  void signalDelegate.readable.pipeTo(transformer.writable);
-  chain(transformer.readable);
-
-  const writer = signalDelegate.writable.getWriter();
-  void writer.write({ kind: "execute-signal", id: signalId }).then(async () => writer.close());
-}
-
-/** Transform computed value to text token */
-function computedToToken(value: unknown, innerChain: ChainFn): void {
-  // eslint-disable-next-line @typescript-eslint/no-base-to-string
-  const textContent = value === PENDING ? "" : String(value ?? "");
-  innerChain([{ kind: "text", content: textContent }]);
-}
-
-/** Transform node value through ComponentDelegate for tokenization */
-function nodeToTokens(registry: WeaverRegistry): TransformFn {
-  return (value, innerChain) => {
-    if (value !== PENDING) {
-      const componentDelegate = new ComponentDelegate(registry);
-      innerChain(componentDelegate.readable);
-      const writer = componentDelegate.writable.getWriter();
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-      void writer.write(value as Node).then(async () => writer.close());
-    }
-  };
-}
 
 /**
  * Execute SuspenseSignal: accumulate children, check for PENDING, emit fallback or flush children.
