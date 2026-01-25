@@ -59,9 +59,12 @@ export class ComponentDelegate extends DelegateStream<Node, Token> {
                 const writer = signalDelegate.writable.getWriter();
                 void writer.write({ kind: "execute-signal", id: chunk.computed.id }).then(async () => writer.close());
               }
-            } else {
-              // SuspenseExecutable - process children, check PENDING, emit tokens directly
-              resolveSuspenseSignal(chunk, chain, reg);
+            } else if (reg) {
+              // SuspenseExecutable - resolve to fallback or children
+              const resolver = new SuspenseResolver(reg);
+              chain(resolver.readable);
+              const writer = resolver.writable.getWriter();
+              void writer.write(chunk).then(async () => writer.close());
             }
           } else {
             // ComponentElement (function component) - call and tokenize result
@@ -108,91 +111,96 @@ class NodeTokenizer extends DelegateStream<SignalToken, Token> {
   }
 }
 
-type ChainFn = (input: Iterable<Token> | AsyncIterable<Token> | null) => void;
-
 /**
- * Resolve SuspenseSignal: accumulate children, check for PENDING, emit fallback or flush children.
+ * Resolves SuspenseExecutable: accumulates children, checks for PENDING, emits fallback or children.
  * Bind markers are handled by tokenize - this only emits children signal-defs + content.
  */
-function resolveSuspenseSignal(executable: SuspenseExecutable, chain: ChainFn, registry?: WeaverRegistry): void {
-  if (!registry) {
-    return;
+class SuspenseResolver extends DelegateStream<SuspenseExecutable, Token> {
+  constructor(registry: WeaverRegistry) {
+    const reg = registry;
+
+    // Helper to check if value is a token array
+    const isTokenArray = (val: unknown): val is Token[] =>
+      Array.isArray(val) && (val.length === 0 || (typeof val[0] === "object" && val[0] !== null && "kind" in val[0]));
+
+    super({
+      transform: (executable, chain) => {
+        const { suspense, children, fallback } = executable;
+
+        // Output delegate that handles both token arrays and nodes
+        const output = new DelegateStream<Token[] | Node, Token>({
+          transform: (input, innerChain) => {
+            if (isTokenArray(input)) {
+              innerChain(input);
+            } else {
+              const delegate = new ComponentDelegate(reg);
+              innerChain(delegate.readable);
+              const writer = delegate.writable.getWriter();
+              void writer.write(input).then(async () => writer.close());
+            }
+          },
+          finish: (innerChain) => {
+            innerChain(null);
+          },
+        });
+
+        chain(output.readable);
+        const writer = output.writable.getWriter();
+
+        (async () => {
+          // 1. Process children and accumulate
+          const childDelegate = new ComponentDelegate(reg);
+          const childWriter = childDelegate.writable.getWriter();
+          await childWriter.write(children);
+          await childWriter.close();
+
+          const buffer: Token[] = [];
+          let hasPending = false;
+
+          for await (const token of childDelegate.readable) {
+            buffer.push(token);
+            if (token.kind === "signal-definition" && reg.getValue(token.signal.id) === PENDING) {
+              hasPending = true;
+            } else if (token.kind === "bind-marker-open" && reg.getValue(token.id) === PENDING) {
+              hasPending = true;
+            }
+          }
+
+          // 2. Update suspense metadata
+          const pendingDeps = hasPending
+            ? buffer
+                .filter((tok): tok is Token & { kind: "signal-definition" } => tok.kind === "signal-definition")
+                .filter((tok) => reg.getValue(tok.signal.id) === PENDING)
+                .map((tok) => tok.signal.id)
+            : [];
+          suspense.pendingDeps = pendingDeps;
+          // eslint-disable-next-line no-underscore-dangle
+          suspense._childrenHtml = serializeTokenArray(
+            buffer.filter((tok) => tok.kind !== "signal-definition"),
+            false,
+          );
+
+          // 3. Emit children signal definitions (needed for client hydration)
+          const signalDefs = buffer.filter((tok) => tok.kind === "signal-definition");
+          await writer.write(signalDefs);
+
+          // 4. Emit content: fallback Node or buffered children tokens
+          if (hasPending) {
+            await writer.write(fallback);
+          } else {
+            const contentTokens = buffer.filter((tok) => tok.kind !== "signal-definition");
+            await writer.write(contentTokens);
+          }
+
+          await writer.close();
+        })().catch((error: unknown) => {
+          console.error(new Error("SuspenseResolver Error", { cause: error }));
+          writer.close().catch(() => {});
+        });
+      },
+      finish: (chain) => {
+        chain(null);
+      },
+    });
   }
-
-  const { suspense, children, fallback } = executable;
-  const reg = registry;
-
-  // Output delegate that handles both token arrays and nodes
-  const isTokenArray = (val: unknown): val is Token[] =>
-    Array.isArray(val) && (val.length === 0 || (typeof val[0] === "object" && val[0] !== null && "kind" in val[0]));
-
-  const output = new DelegateStream<Token[] | Node, Token>({
-    transform: (input, innerChain) => {
-      if (isTokenArray(input)) {
-        innerChain(input);
-      } else {
-        const delegate = new ComponentDelegate(reg);
-        innerChain(delegate.readable);
-        const writer = delegate.writable.getWriter();
-        void writer.write(input).then(async () => writer.close());
-      }
-    },
-    finish: (innerChain) => {
-      innerChain(null);
-    },
-  });
-
-  chain(output.readable);
-  const writer = output.writable.getWriter();
-
-  (async () => {
-    // 1. Process children and accumulate
-    const childDelegate = new ComponentDelegate(reg);
-    const childWriter = childDelegate.writable.getWriter();
-    await childWriter.write(children);
-    await childWriter.close();
-
-    const buffer: Token[] = [];
-    let hasPending = false;
-
-    for await (const token of childDelegate.readable) {
-      buffer.push(token);
-      if (token.kind === "signal-definition" && reg.getValue(token.signal.id) === PENDING) {
-        hasPending = true;
-      } else if (token.kind === "bind-marker-open" && reg.getValue(token.id) === PENDING) {
-        hasPending = true;
-      }
-    }
-
-    // 2. Update suspense metadata (signal object is mutated before serialization)
-    const pendingDeps = hasPending
-      ? buffer
-          .filter((tok): tok is Token & { kind: "signal-definition" } => tok.kind === "signal-definition")
-          .filter((tok) => reg.getValue(tok.signal.id) === PENDING)
-          .map((tok) => tok.signal.id)
-      : [];
-    suspense.pendingDeps = pendingDeps;
-    // eslint-disable-next-line no-underscore-dangle
-    suspense._childrenHtml = serializeTokenArray(
-      buffer.filter((tok) => tok.kind !== "signal-definition"),
-      false,
-    );
-
-    // 3. Emit children signal definitions (needed for client hydration)
-    const signalDefs = buffer.filter((tok) => tok.kind === "signal-definition");
-    await writer.write(signalDefs);
-
-    // 4. Emit content: fallback Node or buffered children tokens
-    if (hasPending) {
-      await writer.write(fallback);
-    } else {
-      const contentTokens = buffer.filter((tok) => tok.kind !== "signal-definition");
-      await writer.write(contentTokens);
-    }
-
-    await writer.close();
-  })().catch((error: unknown) => {
-    console.error(new Error("SuspenseSignal Execution Error", { cause: error }));
-    writer.close().catch(() => {});
-  });
 }
